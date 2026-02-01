@@ -1,0 +1,63 @@
+/* Print Styles - optimized for Thermal Printers (Sunmi) */
+@media print {
+    @page {
+        margin: 0;
+        size: auto;
+    }
+
+    body * {
+        visibility: hidden;
+        height: 0;
+        overflow: hidden;
+    }
+
+    #receipt-print-area,
+    #receipt-print-area * {
+        visibility: visible;
+        height: auto;
+    }
+
+    #receipt-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        /* Adapts to paper width (58mm or 80mm) */
+        padding: 5px;
+        background: white;
+        color: black;
+        font-family: 'Courier New', Courier, monospace;
+        /* Monospace aligns better */
+        font-size: 12px;
+    }
+
+    .receipt-header,
+    .receipt-footer {
+        text-align: center;
+        margin-bottom: 10px;
+    }
+
+    .receipt-header h2 {
+        font-size: 16px;
+        margin-bottom: 5px;
+    }
+
+    .receipt-divider {
+        border-top: 1px dashed black;
+        margin: 5px 0;
+    }
+
+    .receipt-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2px;
+    }
+
+    .receipt-total {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+}
