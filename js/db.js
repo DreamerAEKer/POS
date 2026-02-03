@@ -137,6 +137,44 @@ const DB = {
         sales.push(saleData);
         localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
     }
+    // --- Data Backup & Restore ---
+    exportData: () => {
+        const data = {
+            products: DB.getProducts(),
+            suppliers: DB.getSuppliers(),
+            supplierPrices: DB.getSupplierPrices(),
+            parkedCarts: DB.getParkedCarts(),
+            sales: JSON.parse(localStorage.getItem(DB.KEYS.SALES) || '[]'),
+            meta: {
+                exportDate: new Date().toISOString(),
+                version: '1.0'
+            }
+        };
+        return JSON.stringify(data, null, 2);
+    },
+
+    importData: (jsonString) => {
+        try {
+            const data = JSON.parse(jsonString);
+
+            // Validate basic structure
+            if (!data.products || !data.meta) {
+                throw new Error('ไฟล์ข้อมูลไม่ถูกต้อง (Invalid Data Structure)');
+            }
+
+            // Save to LocalStorage
+            localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(data.products || []));
+            localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(data.suppliers || []));
+            localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(data.supplierPrices || []));
+            localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(data.parkedCarts || []));
+            localStorage.setItem(DB.KEYS.SALES, JSON.stringify(data.sales || []));
+
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    }
 };
 
 // Initialize DB on load

@@ -69,6 +69,285 @@ const App = {
             App.renderPOSView(container);
         } else if (viewName === 'stock') {
             App.renderStockView(container);
+        } else if (viewName === 'suppliers') {
+            App.renderSupplierView(container);
+        } else if (viewName === 'settings') {
+            App.renderSettingsView(container);
+        }
+    },
+
+    // --- Settings View (Backup/Restore) ---
+    renderSettingsView: (container) => {
+        container.innerHTML = `
+            <h2>ตั้งค่าระบบ</h2>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
+                <!-- Backup -->
+                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
+                    <span class="material-symbols-rounded" style="font-size:64px; color:var(--primary-color);">cloud_download</span>
+                    <h3>สำรองข้อมูล (Backup)</h3>
+                    <p style="color:#666; margin:10px 0;">ดาวน์โหลดข้อมูลทั้งหมดเก็บไว้ในเครื่อง</p>
+                    <button class="primary-btn" onclick="App.backupData()">ดาวน์โหลดไฟล์ Backup</button>
+                </div>
+
+                <!-- Restore -->
+                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
+                    <span class="material-symbols-rounded" style="font-size:64px; color:var(--warning-color);">cloud_upload</span>
+                    <h3>เรียกคืนข้อมูล (Restore)</h3>
+                    <p style="color:#666; margin:10px 0;">นำข้อมูลกลับมา (ข้อมูลปัจจุบันจะถูกทับ)</p>
+                    <input type="file" id="restore-input" accept=".json" style="display:none;" onchange="App.restoreData(this)">
+                    <button class="secondary-btn" onclick="document.getElementById('restore-input').click()">เลือกไฟล์ Backup</button>
+                </div>
+            </div>
+
+            <div style="margin-top:40px; text-align:center;">
+                 <p style="color:#999;">Grocery POS v1.0.0 (Offline Mode)</p>
+            </div>
+        `;
+    },
+
+    backupData: () => {
+        const json = DB.exportData();
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        const date = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `pos_backup_${date}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },
+
+    restoreData: (input) => {
+        const file = input.files[0];
+        if (!file) return;
+
+        if (!confirm('คำเตือน: ข้อมูลปัจจุบันทั้งหมดจะถูกลบและแทนที่ด้วยไฟล์นี้\nคุณแน่ใจหรือไม่?')) {
+            input.value = ''; // Reset
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const success = DB.importData(e.target.result);
+            if (success) {
+                alert('นำเข้าข้อมูลสำเร็จ! ระบบจะรีโหลด');
+                location.reload();
+            } else {
+                alert('ผิดพลาด: ไฟล์ไม่ถูกต้อง');
+            }
+        };
+        reader.readAsText(file);
+    },
+
+    // --- Suppliers View (Wholesale) ---
+    renderSupplierView: (container) => {
+        const suppliers = DB.getSuppliers();
+        container.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h2>รายชื่อร้านค้าส่ง</h2>
+                <button class="primary-btn" onclick="App.openSupplierModal()">+ เพิ่มร้านค้าส่ง</button>
+            </div>
+            
+            <div class="product-grid">
+                ${suppliers.map(sup => `
+                    <div class="product-card" onclick="App.renderSupplierDetail('${sup.id}')" style="min-height:150px; justify-content:center;">
+                        <div class="product-info" style="text-align:center;">
+                            <span class="material-symbols-rounded" style="font-size:48px; color:var(--secondary-color);">store</span>
+                            <div class="product-name" style="font-size:20px; margin-top:10px;">${sup.name}</div>
+                            <div style="color:#666;">ติดต่อ: ${sup.contact}</div>
+                            <div style="color:#666;">โทร: ${sup.phone}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    renderSupplierDetail: (supplierId) => {
+        const suppliers = DB.getSuppliers();
+        const supplier = suppliers.find(s => s.id === supplierId);
+        if (!supplier) return;
+
+        App.state.currentView = 'supplier-detail'; // Sub-view
+        const container = App.elements.viewContainer;
+
+        // Get linked products
+        const myPrices = DB.getPricesBySupplier(supplierId);
+        const allProducts = DB.getProducts();
+
+        container.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem;">
+                <button class="icon-btn" onclick="App.renderView('suppliers')">
+                    <span class="material-symbols-rounded">arrow_back</span>
+                </button>
+                <h2>${supplier.name}</h2>
+                <div style="flex:1;"></div>
+                <button class="icon-btn" onclick="App.openSupplierModal('${supplier.id}')"><span class="material-symbols-rounded">edit</span></button>
+                <button class="icon-btn dangerous" onclick="App.deleteSupplier('${supplier.id}')"><span class="material-symbols-rounded">delete</span></button>
+            </div>
+
+            <div style="background:white; padding:15px; border-radius:8px; display:flex; gap:20px; margin-bottom:20px; flex-wrap:wrap;">
+                <div><strong>ผู้ติดต่อ:</strong> ${supplier.contact}</div>
+                <div><strong>โทร:</strong> ${supplier.phone}</div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3>สินค้าที่สั่งจากร้านนี้ (${myPrices.length})</h3>
+                <button class="secondary-btn" onclick="App.openLinkProductModal('${supplier.id}')">+ เพิ่มรายการสินค้า</button>
+            </div>
+
+            <table style="width:100%; border-collapse: collapse; background:white; border-radius:8px; overflow:hidden;">
+                <thead style="background:var(--neutral-200); text-align:left;">
+                    <tr>
+                        <th style="padding:10px;">สินค้า</th>
+                        <th style="padding:10px;">ราคาขายหน้าร้าน</th>
+                        <th style="padding:10px;">ต้นทุน (ร้านนี้)</th>
+                        <th style="padding:10px;">กำไร</th>
+                        <th style="padding:10px;">เปรียบเทียบ</th>
+                        <th style="padding:10px;">ลบ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${myPrices.map(price => {
+            const product = allProducts.find(p => p.id === price.productId);
+            if (!product) return ''; // Zombie record
+
+            const profit = product.price - price.cost;
+
+            // Compare Logic
+            const allSupplierCosts = DB.getPricesByProduct(product.id);
+            const otherBetter = allSupplierCosts.filter(p => p.cost < price.cost && p.supplierId !== supplierId);
+
+            let badge = '<span style="color:var(--primary-color); font-weight:bold;">★ ดีที่สุด</span>';
+            if (otherBetter.length > 0) {
+                const best = otherBetter.sort((a, b) => a.cost - b.cost)[0];
+                const bestSup = suppliers.find(s => s.id === best.supplierId);
+                // Highlight cheaper option
+                badge = `<span style="color:red; font-size:14px;">ถูกกว่าที่ ${bestSup ? bestSup.name : 'อื่น'} (${Utils.formatCurrency(best.cost)})</span>`;
+            } else if (allSupplierCosts.length > 1) {
+                // Only this price or this is equal best
+                badge = '<span style="color:var(--primary-color); font-weight:bold;">★ ดีที่สุด</span>';
+            } else {
+                badge = '(เจ้าเดียว)';
+            }
+
+
+            return `
+                        <tr style="border-bottom:1px solid #eee;">
+                            <td style="padding:10px;">${product.name}</td>
+                            <td style="padding:10px;">${Utils.formatCurrency(product.price)}</td>
+                            <td style="padding:10px; font-weight:bold;">${Utils.formatCurrency(price.cost)}</td>
+                            <td style="padding:10px; color:${profit > 0 ? 'green' : 'red'};">${Utils.formatCurrency(profit)}</td>
+                            <td style="padding:10px;">${badge}</td>
+                            <td style="padding:10px;">
+                                <button class="icon-btn dangerous" onclick="App.deleteSupplierPrice('${supplier.id}', '${product.id}')">
+                                    <span class="material-symbols-rounded" style="font-size:18px;">close</span>
+                                </button>
+                            </td>
+                        </tr>`;
+        }).join('')}
+                </tbody>
+            </table>
+        `;
+    },
+
+    openSupplierModal: (editId = null) => {
+        const suppliers = DB.getSuppliers();
+        const supplier = editId ? suppliers.find(s => s.id === editId) : null;
+
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('product-modal'); // Reuse this container
+
+        modal.innerHTML = `
+            <h2>${supplier ? 'แก้ไขข้อมูลผู้ขาย' : 'เพิ่มร้านค้าส่ง'}</h2>
+            <form id="supplier-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+                <input type="hidden" id="s-id" value="${supplier ? supplier.id : ''}">
+                
+                <label>ชื่อร้าน</label>
+                <input type="text" id="s-name" value="${supplier ? supplier.name : ''}" required style="padding:8px; font-size:18px;">
+
+                <label>ชื่อคนติดต่อ</label>
+                <input type="text" id="s-contact" value="${supplier ? supplier.contact : ''}" style="padding:8px; font-size:18px;">
+
+                <label>เบอร์โทร</label>
+                <input type="tel" id="s-phone" value="${supplier ? supplier.phone : ''}" style="padding:8px; font-size:18px;">
+
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
+                    <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
+                </div>
+            </form>
+        `;
+
+        document.getElementById('supplier-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('s-id').value || Utils.generateId();
+            const name = document.getElementById('s-name').value;
+            const contact = document.getElementById('s-contact').value;
+            const phone = document.getElementById('s-phone').value;
+
+            DB.saveSupplier({ id, name, contact, phone });
+            App.closeModals();
+            App.renderView('suppliers');
+        });
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    deleteSupplier: (id) => {
+        if (confirm('ลบข้อมูลร้านค้านี้ และรายการราคาทั้งหมด?')) {
+            DB.deleteSupplier(id);
+            App.renderView('suppliers');
+        }
+    },
+
+    openLinkProductModal: (supplierId) => {
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('product-modal');
+        const allProducts = DB.getProducts();
+
+        modal.innerHTML = `
+            <h2>เพิ่มสินค้าให้ร้านค้า</h2>
+            <form id="link-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+                <label>เลือกสินค้าในร้าน</label>
+                <select id="l-product" style="padding:10px; font-size:16px;">
+                    ${allProducts.map(p => `<option value="${p.id}">${p.name} (ขาย: ${p.price})</option>`).join('')}
+                </select>
+
+                <label>ราคาทุน (จากร้านนี้)</label>
+                <input type="number" step="0.01" id="l-cost" required style="padding:10px; font-size:18px;">
+
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
+                    <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
+                </div>
+            </form>
+        `;
+
+        document.getElementById('link-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const productId = document.getElementById('l-product').value;
+            const cost = parseFloat(document.getElementById('l-cost').value);
+
+            DB.saveSupplierPrice({ supplierId, productId, cost });
+            App.closeModals();
+            // Re-render the detail view
+            App.renderSupplierDetail(supplierId);
+        });
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    deleteSupplierPrice: (supplierId, productId) => {
+        if (confirm('นำรายการสินค้านี้ออกจากร้านส่งนี้?')) {
+            DB.deleteSupplierPrice(supplierId, productId);
+            App.renderSupplierDetail(supplierId);
         }
     },
 
