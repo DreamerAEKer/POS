@@ -54,6 +54,8 @@ const App = {
                     App.renderView(view);
                 } else if (item.id === 'btn-check-price') {
                     App.showPriceCheckModal();
+                } else if (item.id === 'btn-parked-mobile') {
+                    App.showParkedCartsModal();
                 }
             });
         });

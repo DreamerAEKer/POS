@@ -7,7 +7,9 @@ const DB = {
     KEYS: {
         PRODUCTS: 'store_products',
         PARKED_CARTS: 'store_parked_carts',
-        SALES: 'store_sales'
+        SALES: 'store_sales',
+        SUPPLIERS: 'store_suppliers',
+        SUPPLIER_PRICES: 'store_suppliers_prices'
     },
 
     // Initial Mock Data
@@ -137,6 +139,51 @@ const DB = {
         sales.push(saleData);
         localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
     },
+    // --- Suppliers ---
+    getSuppliers: () => {
+        return JSON.parse(localStorage.getItem(DB.KEYS.SUPPLIERS) || '[]');
+    },
+    saveSupplier: (supplier) => {
+        const list = DB.getSuppliers();
+        const index = list.findIndex(s => s.id === supplier.id);
+        if (index >= 0) list[index] = supplier;
+        else list.push(supplier);
+        localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(list));
+    },
+    deleteSupplier: (id) => {
+        let list = DB.getSuppliers();
+        list = list.filter(s => s.id !== id);
+        localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(list));
+
+        // Cascade delete prices
+        let prices = DB.getSupplierPrices();
+        prices = prices.filter(p => p.supplierId !== id);
+        localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(prices));
+    },
+
+    // --- Supplier Prices ---
+    getSupplierPrices: () => {
+        return JSON.parse(localStorage.getItem(DB.KEYS.SUPPLIER_PRICES) || '[]');
+    },
+    saveSupplierPrice: (priceData) => { // { supplierId, productId, cost }
+        let list = DB.getSupplierPrices();
+        // Remove existing price for this pair if any
+        list = list.filter(p => !(p.supplierId === priceData.supplierId && p.productId === priceData.productId));
+        list.push(priceData);
+        localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(list));
+    },
+    deleteSupplierPrice: (supplierId, productId) => {
+        let list = DB.getSupplierPrices();
+        list = list.filter(p => !(p.supplierId === supplierId && p.productId === productId));
+        localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(list));
+    },
+    getPricesBySupplier: (supplierId) => {
+        return DB.getSupplierPrices().filter(p => p.supplierId === supplierId);
+    },
+    getPricesByProduct: (productId) => {
+        return DB.getSupplierPrices().filter(p => p.productId === productId);
+    },
+
     // --- Data Backup & Restore ---
     exportData: () => {
         const data = {
