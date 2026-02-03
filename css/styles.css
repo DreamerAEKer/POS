@@ -407,7 +407,18 @@ button {
 
 /* Mobile Devices (iPhone 13, Xiaomi 11T Pro) & Small Tablets */
 /* Max-width 768px covers most phones in portrait */
+/* Mobile Only Utilities */
+.mobile-only {
+    display: none;
+}
+
+/* Mobile Devices (iPhone 13, Xiaomi 11T Pro) & Small Tablets */
+/* Max-width 768px covers most phones in portrait */
 @media screen and (max-width: 768px) {
+    .mobile-only {
+        display: flex !important;
+    }
+
     #app {
         flex-direction: column;
         /* Stack vertically */
@@ -415,10 +426,8 @@ button {
 
     #sidebar {
         width: 100%;
-        height: auto;
-        /* Allow height to fit content */
-        max-height: 80px;
-        /* Limit height for bottom nav feel if needed, but we used flex col */
+        height: 70px;
+        /* Fixed height for bottom bar */
         flex-direction: row;
         /* Horizontal menu */
         border-right: none;
@@ -426,8 +435,10 @@ button {
         order: 2;
         /* Move to bottom */
         padding: 0;
+        z-index: 100;
         overflow-x: auto;
-        /* Scrollable if too many items */
+        justify-content: space-between;
+        background: white;
     }
 
     .brand {
@@ -439,16 +450,19 @@ button {
         flex-direction: row;
         gap: 0;
         padding: 0;
+        width: auto;
+        margin: 0 !important;
+        flex: 1;
         justify-content: space-around;
-        width: 100%;
-        margin-bottom: 0 !important;
-        /* Override inline style */
+        align-items: center;
     }
 
     .nav-item {
-        padding: 8px;
+        padding: 4px;
         flex: 1;
         border-radius: 0;
+        height: 100%;
+        min-width: 60px;
     }
 
     .nav-item span:first-child {
@@ -460,6 +474,7 @@ button {
     .nav-item span:last-child {
         font-size: 10px;
         /* Smaller text */
+        white-space: nowrap;
     }
 
     .nav-footer {
@@ -483,6 +498,16 @@ button {
     .search-container input {
         font-size: 16px;
         /* Prevent zoom on iOS */
+    }
+
+    /* Prevent second nav-menu from breaking layout */
+    #sidebar>.nav-menu[style*="flex:0"] {
+        display: none !important;
+        /* Hide Settings group on mobile bottom nav if too crowded */
+        /* For now, let's keep it but ensure it fits */
+        flex: 0 0 auto;
+        width: 60px;
+        /* Fixed width for settings button */
     }
 
     /* Cart Handling on Mobile */
