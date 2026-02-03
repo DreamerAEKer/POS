@@ -688,6 +688,7 @@ const App = {
         });
 
         totalEl.textContent = Utils.formatCurrency(total);
+        App.updateMobileCartBadge();
     },
 
     updateCartQty: (index, change) => {
@@ -707,6 +708,12 @@ const App = {
             item.qty = newQty;
         }
         App.renderCart();
+    },
+
+    updateMobileCartBadge: () => {
+        const count = App.state.cart.reduce((sum, item) => sum + item.qty, 0);
+        const badge = document.getElementById('mobile-cart-count');
+        if (badge) badge.textContent = count;
     },
 
     // --- Parked Carts Logic ---

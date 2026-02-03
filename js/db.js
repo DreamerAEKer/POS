@@ -136,7 +136,7 @@ const DB = {
         const sales = JSON.parse(localStorage.getItem(DB.KEYS.SALES) || '[]');
         sales.push(saleData);
         localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
-    }
+    },
     // --- Data Backup & Restore ---
     exportData: () => {
         const data = {
