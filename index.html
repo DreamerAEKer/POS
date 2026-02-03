@@ -150,6 +150,31 @@
     <!-- Hidden Receipt for Printing -->
     <div id="receipt-print-area"></div>
 
+    <!-- Mobile Bottom Navigation (Dedicated Structure) -->
+    <nav id="mobile-bottom-nav">
+        <div class="nav-item active" data-view="pos">
+            <span class="material-symbols-rounded">point_of_sale</span>
+            <span>ขาย</span>
+        </div>
+        <div class="nav-item" data-view="stock">
+            <span class="material-symbols-rounded">inventory_2</span>
+            <span>สต็อก</span>
+        </div>
+        <div class="nav-item" data-view="suppliers">
+            <span class="material-symbols-rounded">local_shipping</span>
+            <span>ร้านส่ง</span>
+        </div>
+        <div class="nav-item" id="btn-parked-mobile-2">
+            <!-- ID suffix to avoid collision if needed, but JS selects by class usually. Let's use different ID but same handler logic in app.js if possible, or just same data attribute -->
+            <span class="material-symbols-rounded">shopping_basket</span>
+            <span>พักบิล</span>
+        </div>
+        <div class="nav-item" data-view="settings">
+            <span class="material-symbols-rounded">settings</span>
+            <span>ตั้งค่า</span>
+        </div>
+    </nav>
+
     <!-- Scripts (Order matters for file:// compatibility without modules) -->
     <script src="js/utils.js"></script>
     <script src="js/db.js"></script>
