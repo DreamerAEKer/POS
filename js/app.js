@@ -88,7 +88,11 @@ const App = {
 
     // --- Security Logic ---
     // --- Security Logic ---
+    // --- Security Logic ---
     checkPin: (onSuccess) => {
+        // Force close other modals first to prevent overlap
+        App.closeModals();
+
         const modal = document.getElementById('security-modal');
         const overlay = document.getElementById('modal-overlay');
         const input = document.getElementById('security-pin-input');
@@ -98,7 +102,9 @@ const App = {
         input.value = '';
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
-        input.focus();
+
+        // Slight delay to ensure focus works after transition
+        setTimeout(() => input.focus(), 100);
 
         // Core Logic
         const submitPin = () => {
@@ -140,7 +146,104 @@ const App = {
             App.renderSupplierView(container);
         } else if (viewName === 'settings') {
             App.renderSettingsView(container);
+        } else if (viewName === 'sales') {
+            App.renderSalesView(container);
         }
+    },
+
+    // --- Sales History View ---
+    renderSalesView: (container) => {
+        const allSales = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date)); // Newest first
+
+        // Filter for Today (Simple logic for now, can be expanded to date picker later)
+        const today = new Date().toDateString();
+        const todaysSales = allSales.filter(s => new Date(s.date).toDateString() === today);
+        const todayTotal = todaysSales.reduce((sum, s) => sum + s.total, 0);
+
+        container.innerHTML = `
+            <h2>ยอดขาย</h2>
+            
+            <!-- Dashboard -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
+                <div style="background:var(--primary-color); color:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-md);">
+                    <div style="font-size:14px; opacity:0.8;">ยอดขายวันนี้ (Today)</div>
+                    <div style="font-size:36px; font-weight:bold;">฿${Utils.formatCurrency(todayTotal)}</div>
+                </div>
+                <div style="background:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:center;">
+                    <div style="font-size:14px; color:#666;">จำนวนบิลวันนี้</div>
+                    <div style="font-size:36px; font-weight:bold; color:var(--neutral-900);">${todaysSales.length}</div>
+                </div>
+            </div>
+
+            <!-- Transaction List -->
+            <div style="margin-top:20px; background:white; border-radius:12px; overflow:hidden; box-shadow:var(--shadow-sm);">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead style="background:var(--neutral-100);">
+                        <tr style="text-align:left; color:#666; font-size:14px;">
+                            <th style="padding:15px;">เวลา</th>
+                            <th style="padding:15px;">สินค้า</th>
+                            <th style="padding:15px; text-align:right;">ยอดเงิน</th>
+                            <th style="padding:15px; width:50px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${allSales.map((sale, index) => `
+                            <tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="App.showBillDetail(${index})">
+                                <td style="padding:15px; font-size:14px; color:#666;">
+                                    ${new Date(sale.date).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                                </td>
+                                <td style="padding:15px;">
+                                    ${sale.items.length} รายการ
+                                    <div style="font-size:12px; color:#999;">${sale.items[0].name} ${sale.items.length > 1 ? `และอีก ${sale.items.length - 1} รายการ` : ''}</div>
+                                </td>
+                                <td style="padding:15px; text-align:right; font-weight:bold; color:var(--primary-color);">
+                                    ฿${Utils.formatCurrency(sale.total)}
+                                </td>
+                                <td style="padding:15px; text-align:center; color:#ccc;">
+                                    <span class="material-symbols-rounded">chevron_right</span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${allSales.length === 0 ? '<div style="padding:40px; text-align:center; color:#999;">ยังไม่มีรายการขาย</div>' : ''}
+            </div>
+        `;
+    },
+
+    showBillDetail: (index) => {
+        App.closeModals(); // One-by-one rule
+        const sale = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date))[index];
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('price-check-modal'); // Re-use generic modal
+
+        modal.innerHTML = `
+            <h2>รายละเอียดบิล</h2>
+            <div style="color:#666; font-size:14px; margin-bottom:15px;">
+                ${new Date(sale.date).toLocaleString('th-TH')}
+            </div>
+            
+            <div style="max-height:300px; overflow-y:auto; border-top:1px solid #eee; border-bottom:1px solid #eee; padding:10px 0;">
+                <table style="width:100%;">
+                    ${sale.items.map(item => `
+                        <tr>
+                            <td style="padding:5px 0;">${item.name} <span style="font-size:12px; color:#999;">x${item.qty}</span></td>
+                            <td style="text-align:right;">${Utils.formatCurrency(item.price * item.qty)}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; margin-top:15px; font-weight:bold; font-size:18px;">
+                <span>รวมทั้งสิ้น</span>
+                <span>฿${Utils.formatCurrency(sale.total)}</span>
+            </div>
+
+            <button class="secondary-btn" style="width:100%; margin-top:20px;" onclick="App.closeModals()">ปิด</button>
+        `;
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
     },
 
     // --- Settings View ---
@@ -466,6 +569,7 @@ const App = {
 
     // --- Modals (Product, Supplier, Security) ---
     openProductModal: (editId = null) => {
+        App.closeModals(); // Prevent Overlap
         const product = editId ? App.state.products.find(p => p.id === editId) : null;
         const modal = document.getElementById('product-modal');
         const overlay = document.getElementById('modal-overlay');
@@ -704,6 +808,7 @@ const App = {
     },
 
     openSupplierModal: (editId = null) => {
+        App.closeModals(); // Prevent Overlap
         const suppliers = DB.getSuppliers();
         const s = editId ? suppliers.find(x => x.id === editId) : null;
         const modal = document.getElementById('product-modal'); // reuse modal
@@ -754,6 +859,7 @@ const App = {
     },
 
     openLinkProductModal: (supplierId) => {
+        App.closeModals(); // Prevent Overlap
         const modal = document.getElementById('product-modal');
         const overlay = document.getElementById('modal-overlay');
         const allProducts = DB.getProducts();
@@ -1020,6 +1126,7 @@ const App = {
     },
 
     showParkedCartsModal: () => {
+        App.closeModals(); // Prevent Overlap
         const parked = DB.getParkedCarts();
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal'); // reuse
@@ -1072,6 +1179,7 @@ const App = {
 
     // --- Payment & Receipt ---
     showPaymentModal: () => {
+        App.closeModals(); // Prevent Overlap
         const total = parseFloat(App.elements.cartTotal.textContent.replace(/,/g, ''));
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('payment-modal');
@@ -1093,8 +1201,9 @@ const App = {
                 เงินทอน: -
             </div>
             <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
-                <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>ยืนยัน & พิมพ์</button>
+                <button class="secondary-btn" style="flex:1; background:#f0f0f0; border:1px solid #ccc; color:#333;" onclick="App.closeModals()">ยกเลิก</button>
+                <button class="primary-btn" style="flex:1.5; background:var(--secondary-color);" id="btn-confirm-no-print" disabled>รับเงิน (ไม่พิมพ์)</button>
+                <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>รับเงิน & พิมพ์</button>
             </div>
         `;
 
@@ -1103,6 +1212,7 @@ const App = {
 
         const input = document.getElementById('pay-input');
         const confirmBtn = document.getElementById('btn-confirm-pay');
+        const noPrintBtn = document.getElementById('btn-confirm-no-print');
         const changeDisp = document.getElementById('change-display');
 
         const calculate = () => {
@@ -1111,9 +1221,11 @@ const App = {
                 const change = received - total;
                 changeDisp.innerHTML = `เงินทอน: <span style="color:var(--primary-color); font-weight:bold;">${Utils.formatCurrency(change)}</span>`;
                 confirmBtn.disabled = false;
+                noPrintBtn.disabled = false;
             } else {
                 changeDisp.textContent = 'ยอดเงินไม่พอ';
                 confirmBtn.disabled = true;
+                noPrintBtn.disabled = true;
             }
         };
 
@@ -1121,7 +1233,7 @@ const App = {
         input.focus();
         modal.querySelectorAll('.secondary-btn').forEach(btn => btn.addEventListener('click', () => setTimeout(calculate, 0)));
 
-        const completeSale = () => {
+        const completeSale = (shouldPrint) => {
             const received = parseFloat(input.value);
             const change = received - total;
 
@@ -1138,7 +1250,9 @@ const App = {
 
             DB.recordSale({ date: new Date(), items: App.state.cart, total: total });
 
-            App.printReceipt(total, received, change);
+            if (shouldPrint) {
+                App.printReceipt(total, received, change);
+            }
 
             App.state.cart = [];
             // Refresh Global State
@@ -1148,7 +1262,8 @@ const App = {
             App.closeModals();
         };
 
-        document.getElementById('btn-confirm-pay').addEventListener('click', completeSale);
+        document.getElementById('btn-confirm-pay').addEventListener('click', () => completeSale(true));
+        document.getElementById('btn-confirm-no-print').addEventListener('click', () => completeSale(false));
     },
 
     printReceipt: (total, received, change) => {
@@ -1190,6 +1305,7 @@ const App = {
 
     // --- Price Check ---
     showPriceCheckModal: () => {
+        App.closeModals(); // Prevent Overlap
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
         modal.innerHTML = `

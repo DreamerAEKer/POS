@@ -181,6 +181,10 @@ const DB = {
         localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
     },
 
+    getSales: () => {
+        return DB.safeGet(DB.KEYS.SALES, []);
+    },
+
     // --- Suppliers ---
     getSuppliers: () => {
         return DB.safeGet(DB.KEYS.SUPPLIERS, []);
