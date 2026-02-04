@@ -9,12 +9,29 @@ const DB = {
         PARKED_CARTS: 'store_parked_carts',
         SALES: 'store_sales',
         SUPPLIERS: 'store_suppliers',
-        SUPPLIER_PRICES: 'store_suppliers_prices'
+        SUPPLIER_PRICES: 'store_suppliers_prices',
+        SETTINGS: 'store_settings'
+    },
+
+    // Helper for safe parsing
+    safeGet: (key, fallback) => {
+        try {
+            const val = localStorage.getItem(key);
+            if (!val || val === 'undefined' || val === 'null') return fallback;
+            return JSON.parse(val);
+        } catch (e) {
+            console.error(`Error parsing ${key}:`, e);
+            // If data is corrupt, return fallback to prevent crash
+            return fallback;
+        }
     },
 
     // Initial Mock Data
     init: () => {
-        if (!localStorage.getItem(DB.KEYS.PRODUCTS)) {
+        // Safe check using new helper
+        const products = DB.safeGet(DB.KEYS.PRODUCTS, null);
+
+        if (!products || products.length === 0) {
             const mockProducts = [
                 {
                     id: '8850987123456', // Mock Barcode
@@ -22,7 +39,7 @@ const DB = {
                     name: 'ไวไว ปรุงสำเร็จ (60g)',
                     price: 6.00,
                     stock: 48,
-                    image: null // Placeholder handled in UI
+                    image: null
                 },
                 {
                     id: '8851987123456',
@@ -45,7 +62,7 @@ const DB = {
                     barcode: '8853987123456',
                     name: 'น้ำดื่ม คริสตัล (600ml)',
                     price: 7.00,
-                    stock: 3, // Low stock test
+                    stock: 3,
                     image: null
                 },
                 {
@@ -58,13 +75,36 @@ const DB = {
                 }
             ];
             localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(mockProducts));
-            console.log('Mock Data Initialized');
+            console.log('Mock Data Re-Initialized');
         }
+    },
+
+    // --- Settings & Security ---
+    getSettings: () => {
+        const defaults = {
+            storeName: 'ร้านชำ (Grocery POS)',
+            pin: '0000',
+            address: '',
+            phone: ''
+        };
+        const saved = DB.safeGet(DB.KEYS.SETTINGS, {});
+        return { ...defaults, ...saved };
+    },
+
+    saveSettings: (newSettings) => {
+        const current = DB.getSettings();
+        const updated = { ...current, ...newSettings };
+        localStorage.setItem(DB.KEYS.SETTINGS, JSON.stringify(updated));
+    },
+
+    validatePin: (inputPin) => {
+        const settings = DB.getSettings();
+        return settings.pin === inputPin;
     },
 
     // --- Products ---
     getProducts: () => {
-        return JSON.parse(localStorage.getItem(DB.KEYS.PRODUCTS) || '[]');
+        return DB.safeGet(DB.KEYS.PRODUCTS, []);
     },
 
     saveProduct: (product) => {
@@ -76,19 +116,18 @@ const DB = {
         } else {
             products.push(product);
         }
-
         localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(products));
-    },
-
-    getProductByBarcode: (barcode) => {
-        const products = DB.getProducts();
-        return products.find(p => p.barcode === barcode);
     },
 
     deleteProduct: (id) => {
         let products = DB.getProducts();
         products = products.filter(p => p.id !== id);
         localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(products));
+    },
+
+    getProductByBarcode: (barcode) => {
+        const products = DB.getProducts();
+        return products.find(p => p.barcode === barcode);
     },
 
     updateStock: (id, quantityChange) => {
@@ -102,7 +141,7 @@ const DB = {
 
     // --- Parked Carts ---
     getParkedCarts: () => {
-        return JSON.parse(localStorage.getItem(DB.KEYS.PARKED_CARTS) || '[]');
+        return DB.safeGet(DB.KEYS.PARKED_CARTS, []);
     },
 
     parkCart: (cartItems) => {
@@ -135,13 +174,16 @@ const DB = {
 
     // --- Sales ---
     recordSale: (saleData) => {
-        const sales = JSON.parse(localStorage.getItem(DB.KEYS.SALES) || '[]');
+        const sales = DB.safeGet(DB.KEYS.SALES, []);
+        // Snapshot Store Name for Historical Integrity
+        saleData.storeName = DB.getSettings().storeName;
         sales.push(saleData);
         localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
     },
+
     // --- Suppliers ---
     getSuppliers: () => {
-        return JSON.parse(localStorage.getItem(DB.KEYS.SUPPLIERS) || '[]');
+        return DB.safeGet(DB.KEYS.SUPPLIERS, []);
     },
     saveSupplier: (supplier) => {
         const list = DB.getSuppliers();
@@ -163,12 +205,27 @@ const DB = {
 
     // --- Supplier Prices ---
     getSupplierPrices: () => {
-        return JSON.parse(localStorage.getItem(DB.KEYS.SUPPLIER_PRICES) || '[]');
+        return DB.safeGet(DB.KEYS.SUPPLIER_PRICES, []);
     },
-    saveSupplierPrice: (priceData) => { // { supplierId, productId, cost }
+    saveSupplierPrice: (priceData) => { // { supplierId, productId, cost, buyUnit, packSize, buyPrice }
         let list = DB.getSupplierPrices();
         // Remove existing price for this pair if any
         list = list.filter(p => !(p.supplierId === priceData.supplierId && p.productId === priceData.productId));
+
+        // Auto-Calculate Cost Per Unit if Pack data is provided
+        if (priceData.buyUnit && priceData.buyUnit !== 'piece') {
+            // Ensure numbers
+            const price = parseFloat(priceData.buyPrice) || 0;
+            const size = parseFloat(priceData.packSize) || 1;
+            priceData.cost = size > 0 ? (price / size) : 0;
+        } else {
+            // Fallback for direct piece cost or updates that pass cost directly
+            priceData.cost = parseFloat(priceData.cost) || 0;
+            priceData.buyUnit = 'piece';
+            priceData.packSize = 1;
+            priceData.buyPrice = priceData.cost;
+        }
+
         list.push(priceData);
         localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(list));
     },
@@ -191,7 +248,7 @@ const DB = {
             suppliers: DB.getSuppliers(),
             supplierPrices: DB.getSupplierPrices(),
             parkedCarts: DB.getParkedCarts(),
-            sales: JSON.parse(localStorage.getItem(DB.KEYS.SALES) || '[]'),
+            sales: DB.safeGet(DB.KEYS.SALES, []),
             meta: {
                 exportDate: new Date().toISOString(),
                 version: '1.0'
@@ -211,6 +268,7 @@ const DB = {
 
             // Save to LocalStorage
             localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(data.products || []));
+            localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(data.suppliers || []));
             localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(data.suppliers || []));
             localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(data.supplierPrices || []));
             localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(data.parkedCarts || []));

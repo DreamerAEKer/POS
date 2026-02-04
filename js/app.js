@@ -5,7 +5,7 @@
 const App = {
     state: {
         cart: [],
-        currentView: 'pos', // 'pos', 'stock'
+        currentView: 'pos', // 'pos', 'stock', 'suppliers', 'settings'
         products: [],
         searchQuery: ''
     },
@@ -21,44 +21,109 @@ const App = {
     },
 
     init: () => {
-        // Load Data
-        App.state.products = DB.getProducts();
-        App.updateParkedBadge();
+        try {
+            // Load Data
+            App.state.products = DB.getProducts();
+            App.updateParkedBadge();
 
-        // Setup Event Listeners
-        App.setupNavigation();
-        App.setupGlobalInput();
-        App.setupCartActions();
+            // Setup Event Listeners
+            App.setupNavigation();
+            App.setupGlobalInput();
+            App.setupCartActions();
 
-        // Initial Render
-        App.renderView('pos');
-        App.startClock();
+            // Initial Render
+            App.renderView('pos');
+            App.startClock();
+
+            console.log('App Initialized Successfully');
+        } catch (e) {
+            console.error('App Init Error:', e);
+            alert('ระบบเกิดข้อผิดพลาด: ' + e.message);
+        }
     },
 
     startClock: () => {
-        setInterval(() => {
+        const update = () => {
             App.elements.clock.textContent = Utils.getCurrentTime();
-        }, 1000);
-        App.elements.clock.textContent = Utils.getCurrentTime();
+        };
+        update();
+        setInterval(update, 1000);
     },
 
     // --- Navigation & Views ---
     setupNavigation: () => {
-        document.querySelectorAll('.nav-item').forEach(item => {
+        const allNavItems = document.querySelectorAll('.nav-item');
+        allNavItems.forEach(item => {
             item.addEventListener('click', (e) => {
                 const view = item.dataset.view;
-                if (view) {
-                    // Update Active Class
-                    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                    item.classList.add('active');
+
+                // 1. Settings View (Protected)
+                if (view === 'settings') {
+                    App.checkPin(() => {
+                        App.setActiveNav(view);
+                        App.renderView(view);
+                    });
+                }
+                // 2. Normal Views
+                else if (view) {
+                    App.setActiveNav(view);
                     App.renderView(view);
-                } else if (item.id === 'btn-check-price') {
+                }
+                // 3. Special Buttons
+                else if (item.id === 'btn-check-price') {
                     App.showPriceCheckModal();
                 } else if (item.id === 'btn-parked-mobile' || item.id === 'btn-parked-mobile-2') {
                     App.showParkedCartsModal();
                 }
             });
         });
+    },
+
+    setActiveNav: (viewName) => {
+        document.querySelectorAll('.nav-item').forEach(n => {
+            n.classList.remove('active');
+            if (n.dataset.view === viewName) n.classList.add('active');
+        });
+    },
+
+    // --- Security Logic ---
+    // --- Security Logic ---
+    checkPin: (onSuccess) => {
+        const modal = document.getElementById('security-modal');
+        const overlay = document.getElementById('modal-overlay');
+        const input = document.getElementById('security-pin-input');
+        const confirmBtn = document.getElementById('btn-security-confirm');
+
+        // Reset UI
+        input.value = '';
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+        input.focus();
+
+        // Core Logic
+        const submitPin = () => {
+            if (DB.validatePin(input.value)) {
+                App.closeModals();
+
+                // Cleanup to prevent memory leaks/double-firing
+                confirmBtn.onclick = null;
+                input.onkeydown = null;
+
+                onSuccess();
+            } else {
+                alert('รหัสผ่านไม่ถูกต้อง!');
+                input.value = '';
+                input.focus();
+            }
+        };
+
+        // Bind Events (Direct assignment is safer here than adding/removing listeners)
+        confirmBtn.onclick = submitPin;
+
+        // Enter Key Support
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') submitPin();
+        };
     },
 
     renderView: (viewName) => {
@@ -78,91 +143,199 @@ const App = {
         }
     },
 
-    // --- Settings View (Backup/Restore) ---
+    // --- Settings View ---
     renderSettingsView: (container) => {
+        const settings = DB.getSettings();
         container.innerHTML = `
             <h2>ตั้งค่าระบบ</h2>
-            
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
+                <!-- Store Config -->
+                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                    <h3>ข้อมูลร้านค้า</h3>
+                    <p style="color:#666; font-size:14px; margin-bottom:15px;">ชื่อนี้จะปรากฏบนใบเสร็จ (ไม่มีผลกับบิลเก่า)</p>
+                    <label>ชื่อร้าน</label>
+                    <input type="text" id="set-store-name" value="${settings.storeName}" style="width:100%; padding:10px; font-size:18px; margin-bottom:10px;">
+                    <button class="primary-btn" onclick="App.saveStoreName()">บันทึกชื่อร้าน</button>
+                </div>
+                <!-- Security Config -->
+                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                    <h3>ความปลอดภัย</h3>
+                    <div style="margin-bottom:15px;">
+                        <label>เปลี่ยนรหัสผ่าน (PIN)</label>
+                        <input type="password" id="set-new-pin" placeholder="รหัสใหม่ 4 หลัก" maxlength="4" style="width:100%; padding:10px; font-size:18px; letter-spacing:2px; margin-top:5px;">
+                    </div>
+                    <button class="secondary-btn" onclick="App.changePin()">เปลี่ยนรหัสผ่าน</button>
+                </div>
                 <!-- Backup -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
-                    <span class="material-symbols-rounded" style="font-size:64px; color:var(--primary-color);">cloud_download</span>
-                    <h3>สำรองข้อมูล (Backup)</h3>
-                    <p style="color:#666; margin:10px 0;">ดาวน์โหลดข้อมูลทั้งหมดเก็บไว้ในเครื่อง</p>
-                    <button class="primary-btn" onclick="App.backupData()">ดาวน์โหลดไฟล์ Backup</button>
+                    <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color);">cloud_download</span>
+                    <h3>สำรองข้อมูล</h3>
+                    <button class="primary-btn" onclick="App.backupData()">Download Backup</button>
                 </div>
-
                 <!-- Restore -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
-                    <span class="material-symbols-rounded" style="font-size:64px; color:var(--warning-color);">cloud_upload</span>
-                    <h3>เรียกคืนข้อมูล (Restore)</h3>
-                    <p style="color:#666; margin:10px 0;">นำข้อมูลกลับมา (ข้อมูลปัจจุบันจะถูกทับ)</p>
+                    <span class="material-symbols-rounded" style="font-size:48px; color:var(--warning-color);">cloud_upload</span>
+                    <h3>เรียกคืนข้อมูล</h3>
                     <input type="file" id="restore-input" accept=".json" style="display:none;" onchange="App.restoreData(this)">
-                    <button class="secondary-btn" onclick="document.getElementById('restore-input').click()">เลือกไฟล์ Backup</button>
+                    <button class="secondary-btn" onclick="document.getElementById('restore-input').click()">Upload Backup</button>
                 </div>
             </div>
-
             <div style="margin-top:40px; text-align:center;">
-                 <p style="color:#999;">Grocery POS v1.0.0 (Offline Mode)</p>
+                 <p style="color:#999;">Grocery POS v1.2.0 (Secured & Safe)</p>
             </div>
         `;
     },
 
-    backupData: () => {
-        const json = DB.exportData();
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
+    saveStoreName: () => {
+        const nameInput = document.getElementById('set-store-name');
+        const name = nameInput.value;
+        if (!name) return alert('กรุณาใส่ชื่อร้าน');
 
+        App.checkPin(() => {
+            DB.saveSettings({ storeName: name });
+            alert('บันทึกชื่อร้านเรียบร้อยแล้ว!');
+            App.renderView('settings');
+        });
+    },
+
+    changePin: () => {
+        const newPin = document.getElementById('set-new-pin').value;
+        if (!/^\d{4}$/.test(newPin)) return alert('รหัสผ่านต้องเป็นตัวเลข 4 หลัก');
+        App.checkPin(() => {
+            DB.saveSettings({ pin: newPin });
+            alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!');
+        });
+    },
+
+    backupData: () => {
+        const data = DB.exportData();
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        const date = new Date().toISOString().slice(0, 10);
         a.href = url;
-        a.download = `pos_backup_${date}.json`;
-        document.body.appendChild(a);
+        a.download = `backup_pos_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
     },
 
     restoreData: (input) => {
         const file = input.files[0];
         if (!file) return;
-
-        if (!confirm('คำเตือน: ข้อมูลปัจจุบันทั้งหมดจะถูกลบและแทนที่ด้วยไฟล์นี้\nคุณแน่ใจหรือไม่?')) {
-            input.value = ''; // Reset
-            return;
-        }
-
         const reader = new FileReader();
         reader.onload = (e) => {
             const success = DB.importData(e.target.result);
             if (success) {
-                alert('นำเข้าข้อมูลสำเร็จ! ระบบจะรีโหลด');
+                alert('กู้คืนข้อมูลสำเร็จ!');
                 location.reload();
             } else {
-                alert('ผิดพลาด: ไฟล์ไม่ถูกต้อง');
+                alert('กู้คืนข้อมูลไม่สำเร็จ ไฟล์อาจเสียหาย');
             }
         };
         reader.readAsText(file);
     },
 
-    // --- Suppliers View (Wholesale) ---
+    // --- POS View ---
+    renderPOSView: (container) => {
+        container.innerHTML = `
+            <h2>ขายสินค้า</h2>
+            <div class="product-grid" id="product-grid">
+                <!-- Products will be injected here -->
+            </div>
+        `;
+        App.renderProductGrid();
+    },
+
+    renderProductGrid: () => {
+        const grid = document.getElementById('product-grid');
+        if (!grid) return;
+
+        let displayProducts = App.state.products;
+        if (App.state.searchQuery) {
+            displayProducts = displayProducts.filter(p =>
+                p.name.includes(App.state.searchQuery) ||
+                p.barcode.includes(App.state.searchQuery)
+            );
+        }
+
+        grid.innerHTML = displayProducts.map(p => `
+            <div class="product-card" onclick="App.addToCart(App.state.products.find(x => x.id === '${p.id}'))">
+                ${p.stock <= 5 ? '<div class="stock-badge low">Low Stock</div>' : ''}
+                <div style="height:120px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                    ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : '<span class="material-symbols-rounded" style="font-size:48px; color:#ccc;">image</span>'}
+                </div>
+                <div class="p-info">
+                    <div class="p-name">${p.name}</div>
+                    <div class="p-price">฿${Utils.formatCurrency(p.price)}</div>
+                    <div class="p-stock">${p.stock} items</div>
+                </div>
+            </div>
+        `).join('');
+    },
+
+    // --- Stock View ---
+    renderStockView: (container) => {
+        container.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>จัดการสต็อก</h2>
+                <button class="primary-btn" onclick="App.openProductModal()">+ เพิ่มสินค้า</button>
+            </div>
+            <div style="margin-top:20px; overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden;">
+                    <thead>
+                        <tr style="background:var(--neutral-100); text-align:left;">
+                            <th style="padding:15px;">รูป</th>
+                            <th style="padding:15px;">บาร์โค้ด</th>
+                            <th style="padding:15px;">ชื่อสินค้า</th>
+                            <th style="padding:15px;">ราคา</th>
+                            <th style="padding:15px;">สต็อก</th>
+                            <th style="padding:15px;">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${App.state.products.map(p => `
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:10px;">
+                                    <div style="width:50px; height:50px; background:#eee; border-radius:4px; overflow:hidden;">
+                                        ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                                    </div>
+                                </td>
+                                <td style="padding:10px;">${p.barcode}</td>
+                                <td style="padding:10px;">${p.name}</td>
+                                <td style="padding:10px;">${Utils.formatCurrency(p.price)}</td>
+                                <td style="padding:10px;">
+                                    <span style="color:${p.stock < 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock < 5 ? 'bold' : 'normal'};">
+                                        ${p.stock}
+                                    </span>
+                                </td>
+                                <td style="padding:10px;">
+                                    <button class="icon-btn" onclick="App.openProductModal('${p.id}')">
+                                        <span class="material-symbols-rounded">edit</span>
+                                    </button>
+                                    <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')">
+                                        <span class="material-symbols-rounded">delete</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    },
+
+    // --- Supplier View ---
     renderSupplierView: (container) => {
         const suppliers = DB.getSuppliers();
         container.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                <h2>รายชื่อร้านค้าส่ง</h2>
-                <button class="primary-btn" onclick="App.openSupplierModal()">+ เพิ่มร้านค้าส่ง</button>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>ร้านส่ง / Supplier</h2>
+                <button class="primary-btn" onclick="App.openSupplierModal()">+ เพิ่มร้านค้า</button>
             </div>
-            
-            <div class="product-grid">
-                ${suppliers.map(sup => `
-                    <div class="product-card" onclick="App.renderSupplierDetail('${sup.id}')" style="min-height:150px; justify-content:center;">
-                        <div class="product-info" style="text-align:center;">
-                            <span class="material-symbols-rounded" style="font-size:48px; color:var(--secondary-color);">store</span>
-                            <div class="product-name" style="font-size:20px; margin-top:10px;">${sup.name}</div>
-                            <div style="color:#666;">ติดต่อ: ${sup.contact}</div>
-                            <div style="color:#666;">โทร: ${sup.phone}</div>
-                        </div>
+            <div class="supplier-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px; margin-top:20px;">
+                ${suppliers.map(s => `
+                    <div class="supplier-card" style="background:white; padding:20px; border-radius:var(--radius-md); box-shadow:var(--shadow-sm); cursor:pointer;" onclick="App.renderSupplierDetail('${s.id}')">
+                        <div style="font-weight:bold; font-size:18px;">${s.name}</div>
+                        <div style="color:#666; margin-top:5px;">${s.contact}</div>
+                        <div style="color:var(--primary-color); margin-top:5px;">📞 ${s.phone}</div>
                     </div>
                 `).join('')}
             </div>
@@ -172,282 +345,79 @@ const App = {
     renderSupplierDetail: (supplierId) => {
         const suppliers = DB.getSuppliers();
         const supplier = suppliers.find(s => s.id === supplierId);
-        if (!supplier) return;
+        if (!supplier) return App.renderView('suppliers');
 
-        App.state.currentView = 'supplier-detail'; // Sub-view
-        const container = App.elements.viewContainer;
+        const prices = DB.getPricesBySupplier(supplierId);
 
-        // Get linked products
-        const myPrices = DB.getPricesBySupplier(supplierId);
-        const allProducts = DB.getProducts();
-
-        container.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem;">
-                <button class="icon-btn" onclick="App.renderView('suppliers')">
-                    <span class="material-symbols-rounded">arrow_back</span>
-                </button>
-                <h2>${supplier.name}</h2>
-                <div style="flex:1;"></div>
-                <button class="icon-btn" onclick="App.openSupplierModal('${supplier.id}')"><span class="material-symbols-rounded">edit</span></button>
-                <button class="icon-btn dangerous" onclick="App.deleteSupplier('${supplier.id}')"><span class="material-symbols-rounded">delete</span></button>
+        App.elements.viewContainer.innerHTML = `
+            <button class="secondary-btn" onclick="App.renderView('suppliers')" style="margin-bottom:20px;">
+                <span class="material-symbols-rounded" style="vertical-align:bottom;">arrow_back</span> กลับ
+            </button>
+            
+            <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between;">
+                    <h2>${supplier.name}</h2>
+                    <div>
+                         <button class="icon-btn" onclick="App.openSupplierModal('${supplier.id}')"><span class="material-symbols-rounded">edit</span></button>
+                         <button class="icon-btn dangerous" onclick="App.deleteSupplier('${supplier.id}')"><span class="material-symbols-rounded">delete</span></button>
+                    </div>
+                </div>
+                <p>ผู้ติดต่อ: ${supplier.contact} | โทร: ${supplier.phone}</p>
             </div>
 
-            <div style="background:white; padding:15px; border-radius:8px; display:flex; gap:20px; margin-bottom:20px; flex-wrap:wrap;">
-                <div><strong>ผู้ติดต่อ:</strong> ${supplier.contact}</div>
-                <div><strong>โทร:</strong> ${supplier.phone}</div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>รายการสินค้าที่ส่ง</h3>
+                <button class="primary-btn" onclick="App.openLinkProductModal('${supplier.id}')">+ เพิ่มสินค้า</button>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <h3>สินค้าที่สั่งจากร้านนี้ (${myPrices.length})</h3>
-                <button class="secondary-btn" onclick="App.openLinkProductModal('${supplier.id}')">+ เพิ่มรายการสินค้า</button>
-            </div>
-
-            <table style="width:100%; border-collapse: collapse; background:white; border-radius:8px; overflow:hidden;">
-                <thead style="background:var(--neutral-200); text-align:left;">
-                    <tr>
+            <table style="width:100%; background:white; margin-top:15px; border-radius:8px; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:#f9f9f9; text-align:left;">
                         <th style="padding:10px;">สินค้า</th>
                         <th style="padding:10px;">ราคาขายหน้าร้าน</th>
-                        <th style="padding:10px;">ต้นทุน (ร้านนี้)</th>
-                        <th style="padding:10px;">กำไร</th>
-                        <th style="padding:10px;">เปรียบเทียบ</th>
+                        <th style="padding:10px;">ต้นทุน (Cost)</th>
+                        <th style="padding:10px;">กำไร/ชิ้น</th>
                         <th style="padding:10px;">ลบ</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${myPrices.map(price => {
-            const product = allProducts.find(p => p.id === price.productId);
-            if (!product) return ''; // Zombie record
-
+                    ${prices.map(price => {
+            const product = App.state.products.find(p => p.id === price.productId);
+            if (!product) return '';
             const profit = product.price - price.cost;
+            const profitPercent = (profit / product.price) * 100;
 
-            // Compare Logic
-            const allSupplierCosts = DB.getPricesByProduct(product.id);
-            const otherBetter = allSupplierCosts.filter(p => p.cost < price.cost && p.supplierId !== supplierId);
-
-            let badge = '<span style="color:var(--primary-color); font-weight:bold;">★ ดีที่สุด</span>';
-            if (otherBetter.length > 0) {
-                const best = otherBetter.sort((a, b) => a.cost - b.cost)[0];
-                const bestSup = suppliers.find(s => s.id === best.supplierId);
-                // Highlight cheaper option
-                badge = `<span style="color:red; font-size:14px;">ถูกกว่าที่ ${bestSup ? bestSup.name : 'อื่น'} (${Utils.formatCurrency(best.cost)})</span>`;
-            } else if (allSupplierCosts.length > 1) {
-                // Only this price or this is equal best
-                badge = '<span style="color:var(--primary-color); font-weight:bold;">★ ดีที่สุด</span>';
-            } else {
-                badge = '(เจ้าเดียว)';
+            let costDisplay = Utils.formatCurrency(price.cost);
+            if (price.buyUnit && price.buyUnit !== 'piece') {
+                let unitName = price.buyUnit === 'pack' ? 'แพ็ค' : 'ลัง';
+                costDisplay = `
+                                <div>${Utils.formatCurrency(price.buyPrice)} / ${unitName}</div>
+                                <div style="font-size:12px; color:#666;">(ตกชิ้นละ ${Utils.formatCurrency(price.cost)})</div>
+                             `;
             }
-
 
             return `
                         <tr style="border-bottom:1px solid #eee;">
                             <td style="padding:10px;">${product.name}</td>
                             <td style="padding:10px;">${Utils.formatCurrency(product.price)}</td>
-                            <td style="padding:10px; font-weight:bold;">${Utils.formatCurrency(price.cost)}</td>
-                            <td style="padding:10px; color:${profit > 0 ? 'green' : 'red'};">${Utils.formatCurrency(profit)}</td>
-                            <td style="padding:10px;">${badge}</td>
+                            <td style="padding:10px; font-weight:bold;">${costDisplay}</td>
+                            <td style="padding:10px; color:${profit > 0 ? 'green' : 'red'};">
+                                ${Utils.formatCurrency(profit)} (${profitPercent.toFixed(1)}%)
+                            </td>
                             <td style="padding:10px;">
-                                <button class="icon-btn dangerous" onclick="App.deleteSupplierPrice('${supplier.id}', '${product.id}')">
-                                    <span class="material-symbols-rounded" style="font-size:18px;">close</span>
+                                <button class="icon-btn dangerous" onclick="DB.deleteSupplierPrice('${supplier.id}', '${product.id}'); App.renderSupplierDetail('${supplier.id}');">
+                                    <span class="material-symbols-rounded">close</span>
                                 </button>
                             </td>
-                        </tr>`;
+                        </tr>
+                        `;
         }).join('')}
                 </tbody>
             </table>
         `;
     },
 
-    openSupplierModal: (editId = null) => {
-        const suppliers = DB.getSuppliers();
-        const supplier = editId ? suppliers.find(s => s.id === editId) : null;
-
-        const overlay = document.getElementById('modal-overlay');
-        const modal = document.getElementById('product-modal'); // Reuse this container
-
-        modal.innerHTML = `
-            <h2>${supplier ? 'แก้ไขข้อมูลผู้ขาย' : 'เพิ่มร้านค้าส่ง'}</h2>
-            <form id="supplier-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
-                <input type="hidden" id="s-id" value="${supplier ? supplier.id : ''}">
-                
-                <label>ชื่อร้าน</label>
-                <input type="text" id="s-name" value="${supplier ? supplier.name : ''}" required style="padding:8px; font-size:18px;">
-
-                <label>ชื่อคนติดต่อ</label>
-                <input type="text" id="s-contact" value="${supplier ? supplier.contact : ''}" style="padding:8px; font-size:18px;">
-
-                <label>เบอร์โทร</label>
-                <input type="tel" id="s-phone" value="${supplier ? supplier.phone : ''}" style="padding:8px; font-size:18px;">
-
-                <div style="display:flex; gap:10px; margin-top:15px;">
-                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
-                    <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
-                </div>
-            </form>
-        `;
-
-        document.getElementById('supplier-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const id = document.getElementById('s-id').value || Utils.generateId();
-            const name = document.getElementById('s-name').value;
-            const contact = document.getElementById('s-contact').value;
-            const phone = document.getElementById('s-phone').value;
-
-            DB.saveSupplier({ id, name, contact, phone });
-            App.closeModals();
-            App.renderView('suppliers');
-        });
-
-        overlay.classList.remove('hidden');
-        modal.classList.remove('hidden');
-    },
-
-    deleteSupplier: (id) => {
-        if (confirm('ลบข้อมูลร้านค้านี้ และรายการราคาทั้งหมด?')) {
-            DB.deleteSupplier(id);
-            App.renderView('suppliers');
-        }
-    },
-
-    openLinkProductModal: (supplierId) => {
-        const overlay = document.getElementById('modal-overlay');
-        const modal = document.getElementById('product-modal');
-        const allProducts = DB.getProducts();
-
-        modal.innerHTML = `
-            <h2>เพิ่มสินค้าให้ร้านค้า</h2>
-            <form id="link-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
-                <label>เลือกสินค้าในร้าน</label>
-                <select id="l-product" style="padding:10px; font-size:16px;">
-                    ${allProducts.map(p => `<option value="${p.id}">${p.name} (ขาย: ${p.price})</option>`).join('')}
-                </select>
-
-                <label>ราคาทุน (จากร้านนี้)</label>
-                <input type="number" step="0.01" id="l-cost" required style="padding:10px; font-size:18px;">
-
-                <div style="display:flex; gap:10px; margin-top:15px;">
-                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
-                    <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
-                </div>
-            </form>
-        `;
-
-        document.getElementById('link-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const productId = document.getElementById('l-product').value;
-            const cost = parseFloat(document.getElementById('l-cost').value);
-
-            DB.saveSupplierPrice({ supplierId, productId, cost });
-            App.closeModals();
-            // Re-render the detail view
-            App.renderSupplierDetail(supplierId);
-        });
-
-        overlay.classList.remove('hidden');
-        modal.classList.remove('hidden');
-    },
-
-    deleteSupplierPrice: (supplierId, productId) => {
-        if (confirm('นำรายการสินค้านี้ออกจากร้านส่งนี้?')) {
-            DB.deleteSupplierPrice(supplierId, productId);
-            App.renderSupplierDetail(supplierId);
-        }
-    },
-
-    // --- POS View ---
-    renderPOSView: (container) => {
-        const grid = document.createElement('div');
-        grid.className = 'product-grid';
-
-        // Filter Products
-        const query = App.state.searchQuery.toLowerCase();
-        const filtered = App.state.products.filter(p =>
-            p.name.toLowerCase().includes(query) ||
-            p.barcode.includes(query)
-        );
-
-        if (filtered.length === 0) {
-            container.innerHTML = `<div style="text-align:center; padding: 2rem; color: #888;">
-                <span class="material-symbols-rounded" style="font-size: 48px;">search_off</span>
-                <p>ไม่พบสินค้า</p>
-            </div>`;
-            return;
-        }
-
-        filtered.forEach(product => {
-            const card = document.createElement('div');
-            card.className = `product-card ${product.stock < 5 ? 'low-stock' : ''}`;
-            card.onclick = () => App.addToCart(product);
-
-            const imgUrl = product.image || 'assets/placeholder.png'; // Fallback would be good
-            // Use a colored placeholder if no image
-            const imgContent = product.image
-                ? `<img src="${product.image}" class="product-img" alt="${product.name}">`
-                : `<div class="product-img" style="display:flex;align-items:center;justify-content:center;color:#aaa;background:#eee;">
-                        <span class="material-symbols-rounded">image</span>
-                   </div>`;
-
-            card.innerHTML = `
-                ${imgContent}
-                <div class="product-info">
-                    <div class="product-name">${product.name}</div>
-                    <div class="product-meta">
-                        <div class="product-price">฿${Utils.formatCurrency(product.price)}</div>
-                        <div class="stock-badge ${product.stock < 5 ? 'badge' : ''}">${product.stock} items</div>
-                    </div>
-                </div>
-            `;
-            grid.appendChild(card);
-        });
-
-        container.appendChild(grid);
-    },
-
-    // --- Stock View ---
-    renderStockView: (container) => {
-        container.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                <h2>จัดการสต็อกสินค้า</h2>
-                <button class="primary-btn" onclick="App.openProductModal()">+ เพิ่มสินค้าใหม่</button>
-            </div>
-            <table style="width:100%; border-collapse: collapse; background:white; border-radius:8px; overflow:hidden;">
-                <thead style="background:var(--neutral-200); text-align:left;">
-                    <tr>
-                        <th style="padding:10px;">รูป</th>
-                        <th style="padding:10px;">บาร์โค้ด</th>
-                        <th style="padding:10px;">ชื่อสินค้า</th>
-                        <th style="padding:10px;">ราคา</th>
-                        <th style="padding:10px;">คงเหลือ</th>
-                        <th style="padding:10px;">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${App.state.products.map(p => `
-                        <tr style="border-bottom:1px solid #eee;">
-                            <td style="padding:10px;">
-                                <div style="width:40px;height:40px;background:#eee;border-radius:4px;overflow:hidden;">
-                                    ${p.image ? `<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">` : ''}
-                                </div>
-                            </td>
-                            <td style="padding:10px;">${p.barcode}</td>
-                            <td style="padding:10px;">${p.name}</td>
-                            <td style="padding:10px;">${Utils.formatCurrency(p.price)}</td>
-                            <td style="padding:10px; color:${p.stock < 5 ? 'red' : 'black'}; font-weight:${p.stock < 5 ? 'bold' : 'normal'}">${p.stock}</td>
-                            <td style="padding:10px;">
-                                <button class="icon-btn" onclick="App.openProductModal('${p.id}')">
-                                    <span class="material-symbols-rounded" style="font-size:18px;">edit</span>
-                                </button>
-                                <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')">
-                                    <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-    },
-
-    // --- Product Management (CRUD) ---
+    // --- Modals (Product, Supplier, Security) ---
     openProductModal: (editId = null) => {
         const product = editId ? App.state.products.find(p => p.id === editId) : null;
         const modal = document.getElementById('product-modal');
@@ -463,10 +433,8 @@ const App = {
                     <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1; padding:8px; font-size:18px;">
                     <button type="button" class="secondary-btn" onclick="document.getElementById('p-barcode').focus()">Scan</button>
                 </div>
-
                 <label>ชื่อสินค้า</label>
                 <input type="text" id="p-name" value="${product ? product.name : ''}" required style="padding:8px; font-size:18px;">
-
                 <div style="display:flex; gap:10px;">
                     <div style="flex:1;">
                         <label>ราคา (บาท)</label>
@@ -477,13 +445,11 @@ const App = {
                         <input type="number" id="p-stock" value="${product ? product.stock : ''}" required style="width:100%; padding:8px; font-size:18px;">
                     </div>
                 </div>
-
                 <label>รูปภาพ</label>
                 <input type="file" id="p-image-input" accept="image/*">
                 <div id="p-image-preview" style="width:100px; height:100px; background:#eee; margin-top:5px; border-radius:8px; overflow:hidden;">
                     ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : ''}
                 </div>
-
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
                     <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
@@ -491,11 +457,9 @@ const App = {
             </form>
         `;
 
-        // Handle Image Preview
         setTimeout(() => {
             const fileInput = document.getElementById('p-image-input');
             const preview = document.getElementById('p-image-preview');
-
             fileInput.addEventListener('change', async (e) => {
                 if (e.target.files[0]) {
                     const base64 = await Utils.fileToBase64(e.target.files[0]);
@@ -503,8 +467,6 @@ const App = {
                     preview.dataset.base64 = base64;
                 }
             });
-
-            // Handle Submit
             document.getElementById('product-form').addEventListener('submit', (e) => {
                 e.preventDefault();
                 const id = document.getElementById('p-id').value || Utils.generateId();
@@ -518,7 +480,7 @@ const App = {
                 const newProduct = { id, barcode, name, price, stock, image: newImage };
                 DB.saveProduct(newProduct);
                 App.closeModals();
-                App.renderView('stock'); // Refresh
+                App.renderView('stock');
             });
         }, 100);
 
@@ -533,41 +495,163 @@ const App = {
         }
     },
 
-    // --- Global Search & Scan Logic ---
+    openSupplierModal: (editId = null) => {
+        const suppliers = DB.getSuppliers();
+        const s = editId ? suppliers.find(x => x.id === editId) : null;
+        const modal = document.getElementById('product-modal'); // reuse modal
+        const overlay = document.getElementById('modal-overlay');
+
+        modal.innerHTML = `
+            <h2>${s ? 'แก้ไขร้านค้า' : 'เพิ่มร้านค้าใหม่'}</h2>
+            <form id="supplier-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+                <label>ชื่อร้านค้า</label>
+                <input type="text" id="s-name" value="${s ? s.name : ''}" required style="padding:10px;">
+                <label>ผู้ติดต่อ</label>
+                <input type="text" id="s-contact" value="${s ? s.contact : ''}" style="padding:10px;">
+                <label>เบอร์โทร</label>
+                <input type="tel" id="s-phone" value="${s ? s.phone : ''}" required style="padding:10px;">
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button type="button" class="secondary-btn" onclick="App.closeModals()" style="flex:1;">ยกเลิก</button>
+                    <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
+                </div>
+            </form>
+        `;
+
+        document.getElementById('supplier-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = editId || Utils.generateId();
+            const name = document.getElementById('s-name').value;
+            const contact = document.getElementById('s-contact').value;
+            const phone = document.getElementById('s-phone').value.trim();
+
+            if (!/^0\d{8,9}$/.test(phone)) {
+                alert('เบอร์โทรศัพท์ไม่ถูกต้อง!\n- ต้องขึ้นต้นด้วย 0\n- มีความยาว 9 หรือ 10 หลัก\n- เป็นตัวเลขเท่านั้น');
+                return;
+            }
+
+            DB.saveSupplier({ id, name, contact, phone });
+            App.closeModals();
+            App.renderView('suppliers');
+        });
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    deleteSupplier: (id) => {
+        if (confirm('ลบร้านค้านี้? ข้อมูลราคาที่ผูกไว้จะหายไปด้วย')) {
+            DB.deleteSupplier(id);
+            App.renderView('suppliers');
+        }
+    },
+
+    openLinkProductModal: (supplierId) => {
+        const modal = document.getElementById('product-modal');
+        const overlay = document.getElementById('modal-overlay');
+        const allProducts = DB.getProducts();
+
+        modal.innerHTML = `
+            <h2>เพิ่มสินค้าให้ร้านค้า</h2>
+            <form id="link-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+                <label>เลือกสินค้าในร้าน</label>
+                <select id="l-product" style="padding:10px; font-size:16px;">
+                    ${allProducts.map(p => `<option value="${p.id}">${p.name} (ขาย: ${p.price})</option>`).join('')}
+                </select>
+                <div style="background:var(--neutral-100); padding:10px; border-radius:8px; border:1px solid var(--neutral-300);">
+                    <label>หน่วยการซื้อ</label>
+                    <select id="l-unit" style="width:100%; padding:8px; margin-bottom:10px;" onchange="App.togglePackInput()">
+                         <option value="piece">ชิ้น (Piece)</option>
+                         <option value="pack">แพ็ค (Pack)</option>
+                         <option value="cartoon">ลัง (Carton)</option>
+                    </select>
+
+                    <div id="pack-size-group" style="display:none; margin-bottom:10px;">
+                        <label>จำนวนในแพ็ค/ลัง (ชิ้น)</label>
+                        <input type="number" id="l-pack-size" value="1" min="1" style="width:100%; padding:8px;">
+                    </div>
+
+                    <label id="l-price-label">ราคาซื้อ (บาท)</label>
+                    <input type="number" step="0.01" id="l-buy-price" required style="width:100%; padding:10px; font-size:18px;">
+                    
+                    <div style="margin-top:10px; text-align:right; font-weight:bold; color:var(--primary-color);">
+                        ต้นทุนตกชิ้นละ: <span id="l-calc-cost">0.00</span> บาท
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
+                    <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
+                </div>
+            </form>
+        `;
+
+        App.togglePackInput = () => {
+            const unit = document.getElementById('l-unit').value;
+            const sizeGroup = document.getElementById('pack-size-group');
+            const priceLabel = document.getElementById('l-price-label');
+            if (unit === 'piece') {
+                sizeGroup.style.display = 'none';
+                document.getElementById('l-pack-size').value = 1;
+                priceLabel.textContent = 'ราคาต้นทุน (ต่อชิ้น)';
+            } else {
+                sizeGroup.style.display = 'block';
+                priceLabel.textContent = `ราคายก${unit === 'pack' ? 'แพ็ค' : 'ลัง'}`;
+            }
+            App.calcUnitCost();
+        };
+
+        App.calcUnitCost = () => {
+            const price = parseFloat(document.getElementById('l-buy-price').value) || 0;
+            const size = parseFloat(document.getElementById('l-pack-size').value) || 1;
+            const perUnit = size > 0 ? (price / size) : 0;
+            document.getElementById('l-calc-cost').textContent = Utils.formatCurrency(perUnit);
+        };
+
+        document.getElementById('l-buy-price').addEventListener('input', App.calcUnitCost);
+        document.getElementById('l-pack-size').addEventListener('input', App.calcUnitCost);
+
+        document.getElementById('link-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const productId = document.getElementById('l-product').value;
+            const buyUnit = document.getElementById('l-unit').value;
+            const packSize = parseFloat(document.getElementById('l-pack-size').value) || 1;
+            const buyPrice = parseFloat(document.getElementById('l-buy-price').value) || 0;
+
+            DB.saveSupplierPrice({ supplierId, productId, buyUnit, packSize, buyPrice });
+            App.closeModals();
+            App.renderSupplierDetail(supplierId);
+        });
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    // --- Search & Scan Logic ---
     setupGlobalInput: () => {
         const input = App.elements.globalSearch;
         let timeout = null;
-
-        // Search Filter (Debounced)
         input.addEventListener('input', (e) => {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
                 const val = e.target.value;
                 App.state.searchQuery = val;
-
-                // If it looks like a barcode (digits > 8), try to act on it
                 if (/^\d{8,14}$/.test(val)) {
                     App.handleBarcodeScan(val);
-                    input.value = ''; // Clear after scan
+                    input.value = '';
                     App.state.searchQuery = '';
                 } else {
-                    // Just filter view
-                    if (App.state.currentView === 'pos') App.renderView('pos');
+                    if (App.state.currentView === 'pos') App.renderProductGrid();
                 }
-            }, 300); // Wait for scanner to finish typing potentially
+            }, 300);
         });
 
-        // Focus search when pressing Enter anywhere (optional, maybe not for iPad)
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !document.querySelector('.modal:not(.hidden)')) {
                 input.focus();
             }
         });
 
-        // Scan Trigger Button (for mobile camera - mock for now or focus input)
         document.getElementById('btn-scan-trigger').addEventListener('click', () => {
             input.focus();
-            // In a real PWA on mobile, this could open camera stream
             alert('ใช้เครื่องสแกน ยิงบาร์โค้ดได้เลย\n(Focus on search box)');
         });
     },
@@ -577,25 +661,16 @@ const App = {
         if (product) {
             if (App.state.currentView === 'pos') {
                 App.addToCart(product);
-                // Visual feedback?
             } else if (App.state.currentView === 'stock') {
                 App.openProductModal(product.id);
             }
         } else {
-            // Product not found
             if (confirm(`ไม่พบสินค้า ${barcode}\nต้องการเพิ่มสินค้าใหม่หรือไม่?`)) {
-                // Switch to stock and open add modal
-                // Set nav to stock
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.querySelector('[data-view="stock"]').classList.add('active');
+                // Navigate to stock > Add
                 App.renderView('stock');
-
-                setTimeout(() => { // Wait for view render
+                setTimeout(() => {
                     App.openProductModal();
-                    // Pre-fill barcode
-                    setTimeout(() => {
-                        document.getElementById('p-barcode').value = barcode;
-                    }, 200);
+                    setTimeout(() => document.getElementById('p-barcode').value = barcode, 200);
                 }, 100);
             }
         }
@@ -603,18 +678,10 @@ const App = {
 
     // --- Cart Logic ---
     addToCart: (product) => {
+        if (product.stock <= 0) return alert('สินค้าหมดสต็อก!');
         const existing = App.state.cart.find(item => item.id === product.id);
-
-        if (product.stock <= 0) {
-            alert('สินค้าหมดสตรอก!');
-            return;
-        }
-
         if (existing) {
-            if (existing.qty + 1 > product.stock) {
-                alert('จำนวนสินค้าเกินสต็อกที่มี');
-                return;
-            }
+            if (existing.qty + 1 > product.stock) return alert('จำนวนสินค้าเกินสต็อกที่มี');
             existing.qty++;
         } else {
             App.state.cart.push({ ...product, qty: 1 });
@@ -622,91 +689,37 @@ const App = {
         App.renderCart();
     },
 
-    setupCartActions: () => {
-        document.getElementById('btn-clear-cart').addEventListener('click', () => {
-            if (confirm('ล้างตะกร้าสินค้า?')) {
-                App.state.cart = [];
-                App.renderCart();
-            }
-        });
-
-        document.getElementById('btn-park-cart').addEventListener('click', () => {
-            if (App.state.cart.length === 0) return;
-            DB.parkCart(App.state.cart);
-            App.state.cart = [];
-            App.renderCart();
-            App.updateParkedBadge();
-            alert('พักบิลเรียบร้อย');
-        });
-
-        document.getElementById('btn-parked-carts').addEventListener('click', () => {
-            App.showParkedCartsModal();
-        });
-
-        document.getElementById('btn-checkout').addEventListener('click', () => {
-            if (App.state.cart.length === 0) return;
-            App.showPaymentModal();
-        });
-    },
-
     renderCart: () => {
-        const container = App.elements.cartItemsContainer;
-        const totalEl = App.elements.cartTotal;
-
-        if (App.state.cart.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <span class="material-symbols-rounded" style="font-size:48px; color:#ccc;">shopping_cart_off</span>
-                    <p style="color:#aaa;">ยังไม่มีสินค้า</p>
-                </div>`;
-            totalEl.textContent = '0.00';
-            return;
-        }
-
-        container.innerHTML = '';
-        let total = 0;
-
-        App.state.cart.forEach((item, index) => {
-            const itemTotal = item.price * item.qty;
-            total += itemTotal;
-
-            const div = document.createElement('div');
-            div.className = 'cart-item';
-            div.innerHTML = `
-                <div class="cart-item-info">
-                    <h4>${item.name}</h4>
-                    <div style="font-size:14px; color:#888;">฿${Utils.formatCurrency(item.price)} x ${item.qty}</div>
+        App.elements.cartItemsContainer.innerHTML = App.state.cart.map((item, index) => `
+            <div class="cart-item">
+                <div style="flex:1;">
+                    <div style="font-weight:bold;">${item.name}</div>
+                    <div style="font-size:14px; color:#666;">@${Utils.formatCurrency(item.price)}</div>
                 </div>
-                <div style="text-align:right;">
-                    <div style="font-weight:bold;">${Utils.formatCurrency(itemTotal)}</div>
-                    <div class="cart-item-controls">
-                        <button class="qty-btn" onclick="App.updateCartQty(${index}, -1)">-</button>
-                        <span>${item.qty}</span>
-                        <button class="qty-btn" onclick="App.updateCartQty(${index}, 1)">+</button>
-                    </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <button class="icon-btn small" onclick="App.updateCartQty(${index}, -1)">-</button>
+                    <span style="font-weight:bold; min-width:20px; text-align:center;">${item.qty}</span>
+                    <button class="icon-btn small" onclick="App.updateCartQty(${index}, 1)">+</button>
                 </div>
-            `;
-            container.appendChild(div);
-        });
+                <div style="font-weight:bold; width:60px; text-align:right;">
+                    ${Utils.formatCurrency(item.price * item.qty)}
+                </div>
+            </div>
+        `).join('');
 
-        totalEl.textContent = Utils.formatCurrency(total);
+        const total = App.state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        App.elements.cartTotal.textContent = Utils.formatCurrency(total);
         App.updateMobileCartBadge();
     },
 
     updateCartQty: (index, change) => {
         const item = App.state.cart[index];
         const newQty = item.qty + change;
-
-        // Check stock
-        const product = App.state.products.find(p => p.id === item.id);
-        if (newQty > product.stock) {
-            alert('เกินจำนวนสต็อก');
-            return;
-        }
-
         if (newQty <= 0) {
             App.state.cart.splice(index, 1);
         } else {
+            const product = DB.getProducts().find(p => p.id === item.id);
+            if (newQty > product.stock) return alert('เกินจำนวนสต็อก');
             item.qty = newQty;
         }
         App.renderCart();
@@ -718,10 +731,30 @@ const App = {
         if (badge) badge.textContent = count;
     },
 
-    // --- Parked Carts Logic ---
+    setupCartActions: () => {
+        document.getElementById('btn-clear-cart').addEventListener('click', () => {
+            if (confirm('ล้างตะกร้าสินค้า?')) {
+                App.state.cart = [];
+                App.renderCart();
+            }
+        });
+        document.getElementById('btn-park-cart').addEventListener('click', () => {
+            if (App.state.cart.length === 0) return;
+            DB.parkCart(App.state.cart);
+            App.state.cart = [];
+            App.renderCart();
+            App.updateParkedBadge();
+            alert('พักบิลเรียบร้อย');
+        });
+        document.getElementById('btn-parked-carts').addEventListener('click', App.showParkedCartsModal);
+        document.getElementById('btn-checkout').addEventListener('click', () => {
+            if (App.state.cart.length === 0) return;
+            App.showPaymentModal();
+        });
+    },
+
     updateParkedBadge: () => {
-        const parked = DB.getParkedCarts();
-        const count = parked.length;
+        const count = DB.getParkedCarts().length;
         App.elements.parkedCount.textContent = count;
         App.elements.parkedCount.style.display = count > 0 ? 'inline-block' : 'none';
     },
@@ -729,10 +762,8 @@ const App = {
     showParkedCartsModal: () => {
         const parked = DB.getParkedCarts();
         const overlay = document.getElementById('modal-overlay');
-        const modal = document.getElementById('price-check-modal'); // Reusing or create generic modal container?
-        // Let's use generic approach
+        const modal = document.getElementById('price-check-modal'); // reuse
 
-        // Clear previous content
         modal.innerHTML = `
             <h2>รายการพักบิล (${parked.length})</h2>
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px; max-height:300px; overflow-y:auto;">
@@ -754,7 +785,6 @@ const App = {
             </div>
             <button class="secondary-btn" style="width:100%; margin-top:15px;" onclick="App.closeModals()">ปิด</button>
         `;
-
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
     },
@@ -775,7 +805,7 @@ const App = {
     deleteParked: (id) => {
         if (confirm('ลบบิลนี้?')) {
             DB.removeParkedCart(id);
-            App.showParkedCartsModal(); // Re-render logic inside would be better, but this works strictly
+            App.showParkedCartsModal();
             App.updateParkedBadge();
         }
     },
@@ -791,31 +821,26 @@ const App = {
             <div style="text-align:center; font-size:48px; font-weight:bold; color:var(--primary-color); margin:20px 0;">
                 ฿${Utils.formatCurrency(total)}
             </div>
-            
             <label>รับเงินมา (บาท)</label>
             <input type="number" id="pay-input" style="font-size:24px; padding:10px; width:100%; text-align:center;" placeholder="จำนวนเงิน">
-            
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px;">
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:10px;">
                 <button class="secondary-btn" onclick="document.getElementById('pay-input').value = ${Math.ceil(total)}">พอดี</button>
                 <button class="secondary-btn" onclick="document.getElementById('pay-input').value = 100">100</button>
                 <button class="secondary-btn" onclick="document.getElementById('pay-input').value = 500">500</button>
                 <button class="secondary-btn" onclick="document.getElementById('pay-input').value = 1000">1000</button>
             </div>
-
             <div style="margin-top:20px; text-align:center; font-size:24px;" id="change-display">
                 เงินทอน: -
             </div>
-
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
-                <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>ยืนยัน & พิมพ์ (Enter)</button>
+                <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>ยืนยัน & พิมพ์</button>
             </div>
         `;
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
 
-        // Logic for input
         const input = document.getElementById('pay-input');
         const confirmBtn = document.getElementById('btn-confirm-pay');
         const changeDisp = document.getElementById('change-display');
@@ -834,53 +859,34 @@ const App = {
 
         input.addEventListener('input', calculate);
         input.focus();
-
-        // Quick button handlers already inline, but they need to trigger calculate
-        modal.querySelectorAll('.secondary-btn').forEach(btn => {
-            btn.addEventListener('click', () => setTimeout(calculate, 0));
-        });
+        modal.querySelectorAll('.secondary-btn').forEach(btn => btn.addEventListener('click', () => setTimeout(calculate, 0)));
 
         const completeSale = () => {
             const received = parseFloat(input.value);
             const change = received - total;
+            // Deduct Stock & Record
+            App.state.cart.forEach(item => DB.updateStock(item.id, item.qty));
+            DB.recordSale({ date: new Date(), items: App.state.cart, total: total });
 
-            // 1. Deduct Stock
-            App.state.cart.forEach(item => {
-                DB.updateStock(item.id, item.qty);
-            });
-
-            // 2. Record Sale (Optional logging)
-            DB.recordSale({
-                date: new Date(),
-                items: App.state.cart,
-                total: total
-            });
-
-            // 3. Print
             App.printReceipt(total, received, change);
 
-            // 4. Reset
             App.state.cart = [];
             App.renderCart();
-            App.state.products = DB.getProducts(); // Refresh stock in memory
-            if (App.state.currentView === 'pos') App.renderPOSView(App.elements.viewContainer);
-
+            App.renderView('pos'); // refresh stock
             App.closeModals();
         };
 
         confirmBtn.addEventListener('click', completeSale);
-
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !confirmBtn.disabled) {
-                completeSale();
-            }
+            if (e.key === 'Enter' && !confirmBtn.disabled) completeSale();
         });
     },
 
     printReceipt: (total, received, change) => {
+        const storeName = DB.getSettings().storeName;
         const receiptHtml = `
             <div class="receipt-header">
-                <h2>ร้านชำขายดี</h2>
+                <h2>${storeName}</h2>
                 <p>ใบเสร็จรับเงินอย่างย่อ</p>
                 <p>${new Date().toLocaleString('th-TH')}</p>
             </div>
@@ -909,7 +915,6 @@ const App = {
                 <p>ขอบคุณที่อุดหนุน</p>
             </div>
         `;
-
         App.elements.receiptArea.innerHTML = receiptHtml;
         window.print();
     },
@@ -918,28 +923,24 @@ const App = {
     showPriceCheckModal: () => {
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
-
         modal.innerHTML = `
             <div style="text-align:center;">
                 <span class="material-symbols-rounded" style="font-size:64px; color:var(--secondary-color);">price_check</span>
                 <h2>เช็คราคาสินค้า</h2>
                 <p>ยิงบาร์โค้ด หรือ พิมพ์ค้นหา</p>
                 <input type="text" id="check-input" style="font-size:24px; padding:10px; width:100%; text-align:center; margin-top:20px;" autofocus placeholder="รหัสสินค้า">
-                
                 <div id="check-result" style="margin-top:20px; min-height:100px;"></div>
-
                 <button class="secondary-btn" style="width:100%; margin-top:20px;" onclick="App.closeModals()">ปิด</button>
             </div>
         `;
-
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
 
         const input = document.getElementById('check-input');
         const result = document.getElementById('check-result');
-
         input.focus();
-        // Blur bg input to prevent conflict
+
+        // Blur global search to avoid conflict
         App.elements.globalSearch.blur();
 
         let timeout;
@@ -950,37 +951,33 @@ const App = {
                 if (!val) { result.innerHTML = ''; return; }
 
                 const product = DB.getProductByBarcode(val) || App.state.products.find(p => p.name.includes(val));
-
                 if (product) {
                     result.innerHTML = `
-                        <div style="font-size:24px; font-weight:bold;">${product.name}</div>
-                        <img src="${product.image || ''}" style="max-height:100px; margin:10px 0;">
-                        <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
-                        <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
-                    `;
-                    input.value = ''; // Prepare for next scan
+                         <div style="font-size:24px; font-weight:bold;">${product.name}</div>
+                         ${product.image ? `<img src="${product.image}" style="max-height:100px; margin:10px 0;">` : ''}
+                         <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
+                         <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
+                     `;
+                    input.value = '';
                 } else {
-                    if (val.length > 8) { // Only show not found for long strings to avoid noise while typing
-                        result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
-                    }
+                    if (val.length > 8) result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
                 }
             }, 300);
         });
     },
 
-    // --- Utils ---
     closeModals: () => {
         document.getElementById('modal-overlay').classList.add('hidden');
         document.querySelectorAll('.modal').forEach(m => {
             m.classList.add('hidden');
-            m.innerHTML = ''; // Cleanup
+            // FIX: Do not wipe security-modal content as it is static
+            if (m.id !== 'security-modal') {
+                m.innerHTML = '';
+            }
         });
-        App.renderView(App.state.currentView); // Refresh view to ensure consistency
     }
 };
 
-// Global expose for event handlers in HTML strings
+// Global expose
 window.App = App;
-
-// Start
 document.addEventListener('DOMContentLoaded', App.init);

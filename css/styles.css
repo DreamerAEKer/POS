@@ -403,143 +403,134 @@ button {
     overflow-y: auto;
 }
 
-/* --- RESPONSIVE DESIGN (Devices) --- */
+/* --- RESPONSIVE DESIGN (Dedicated Mobile Nav) --- */
 
-/* Mobile Devices (iPhone 13, Xiaomi 11T Pro) & Small Tablets */
-/* Max-width 768px covers most phones in portrait */
-/* Mobile Only Utilities */
-.mobile-only {
+/* Default: Hide Mobile Nav on Desktop */
+#mobile-bottom-nav {
     display: none;
 }
 
-/* Mobile Devices (iPhone 13, Xiaomi 11T Pro) & Small Tablets */
-/* Max-width 768px covers most phones in portrait */
-@media screen and (max-width: 768px) {
+/* Mobile/Tablet Devices (Max 1024px) - Covers iPad Portrait/Landscape */
+@media screen and (max-width: 1024px) {
+
+    /* 1. Layout Reset */
+    #app {
+        flex-direction: column;
+        padding-bottom: 90px;
+        /* Space for fixed bottom nav + Safe Area */
+    }
+
+    /* 2. Hide Desktop Elements */
+    #sidebar {
+        display: none !important;
+    }
+
     .mobile-only {
         display: flex !important;
     }
 
-    #app {
-        flex-direction: column;
-        /* Stack vertically */
+    /* 3. Show Dedicated Mobile Nav */
+    #mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: auto;
+        min-height: 70px;
+        background: #ffffff;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        justify-content: space-around;
+        align-items: center;
+        /* Safe Area for iPhone X+ AND Android Nav Bar */
+        padding-bottom: env(safe-area-inset-bottom, 20px);
+        padding-bottom: max(env(safe-area-inset-bottom), 20px);
+        /* Ensure at least 20px */
     }
 
-    #sidebar {
+    /* Mobile Nav Items */
+    #mobile-bottom-nav .nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 5px;
+        /* Add vertical padding */
+        color: var(--neutral-400);
+        font-size: 10px;
+    }
+
+    #mobile-bottom-nav .nav-item.active {
+        color: var(--primary-color);
+        background: transparent;
+        /* Remove desktop active bg */
+    }
+
+    #mobile-bottom-nav .nav-item span:first-child {
+        font-size: 26px;
+        margin-bottom: 4px;
+    }
+
+    /* 4. Content Area Adjustments */
+    #main-content {
         width: 100%;
-        height: 70px;
-        /* Fixed height for bottom bar */
-        flex-direction: row;
-        /* Horizontal menu */
-        border-right: none;
-        border-top: 1px solid var(--neutral-300);
-        order: 2;
-        /* Move to bottom */
-        padding: 0;
-        z-index: 100;
-        overflow-x: auto;
-        justify-content: space-between;
-        background: white;
+        height: auto;
+        flex: 1;
+        overflow-y: auto;
+        /* Scroll within content */
+    }
+
+    .top-bar {
+        padding: 0 10px;
+        height: 60px;
+        position: sticky;
+        top: 0;
+        z-index: 50;
     }
 
     .brand {
         display: none;
-        /* Hide brand on mobile bottom nav */
     }
 
-    .nav-menu {
-        flex-direction: row;
-        gap: 0;
-        padding: 0;
-        width: auto;
-        margin: 0 !important;
-        flex: 1;
-        justify-content: space-around;
-        align-items: center;
-    }
-
-    .nav-item {
-        padding: 4px;
-        flex: 1;
-        border-radius: 0;
-        height: 100%;
-        min-width: 60px;
-    }
-
-    .nav-item span:first-child {
-        font-size: 24px;
-        /* Smaller icons */
-        margin-bottom: 2px;
-    }
-
-    .nav-item span:last-child {
-        font-size: 10px;
-        /* Smaller text */
-        white-space: nowrap;
-    }
-
-    .nav-footer {
-        display: none;
-        /* Hide parked cart button here, maybe move to top bar? */
-    }
-
-    #main-content {
-        order: 1;
-        /* Main content above nav */
-        height: calc(100vh - 70px);
-        /* Adjust for bottom nav approx */
-    }
-
-    /* Adjust Top Bar */
-    .top-bar {
-        padding: 0 var(--space-sm);
-        height: 60px;
-    }
-
-    .search-container input {
-        font-size: 16px;
-        /* Prevent zoom on iOS */
-    }
-
-    /* Prevent second nav-menu from breaking layout */
-    #sidebar>.nav-menu[style*="flex:0"] {
-        display: none !important;
-        /* Hide Settings group on mobile bottom nav if too crowded */
-        /* For now, let's keep it but ensure it fits */
-        flex: 0 0 auto;
-        width: 60px;
-        /* Fixed width for settings button */
-    }
-
-    /* Cart Handling on Mobile */
-    /* By default hide cart panel and show it as a modal or logic to toggle */
-    /* For this version, let's make the cart part of the view or a toggle */
-    /* Temporarily: We will use a "Toggle Cart" floating button for mobile */
-
+    /* 5. Cart Logic (Floating) */
     #right-panel {
         position: fixed;
-        right: 0;
         top: 0;
+        right: 0;
         bottom: 0;
-        width: 90%;
-        /* Almost full screen */
+        width: 85%;
         max-width: 350px;
         transform: translateX(100%);
-        /* Hidden by default */
-        box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
-        z-index: 50;
+        z-index: 2000;
+        /* Above bottom nav */
+        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
     }
 
     #right-panel.open {
         transform: translateX(0);
     }
 
-    /* We need a cart trigger button on mobile */
     .mobile-cart-btn {
         display: flex !important;
+        bottom: 100px;
+        /* Lift up higher to avoid overlapping taller bottom nav */
+        right: 15px;
+        z-index: 900;
+    }
+
+    /* Font Sizing */
+    .product-name {
+        font-size: 14px;
+    }
+
+    .product-price {
+        font-size: 16px;
     }
 }
 
-/* Tablet / Desktop */
+/* Tablet/Desktop Tweaks */
 @media screen and (min-width: 769px) {
     .mobile-cart-btn {
         display: none;

@@ -46,15 +46,8 @@
                     <span class="material-symbols-rounded">price_check</span>
                     <span>เช็คราคา</span>
                 </li>
-                <!-- Mobile Only: Parked Carts -->
-                <li class="nav-item mobile-only" id="btn-parked-mobile">
-                    <span class="material-symbols-rounded">shopping_basket</span>
-                    <span>พักบิล</span>
-                </li>
-            </ul>
 
-            <ul class="nav-menu" style="flex:0; margin-bottom:10px;">
-                <li class="nav-item" data-view="settings">
+                <li class="nav-item" data-view="settings" style="margin-top: auto;">
                     <span class="material-symbols-rounded">settings</span>
                     <span>ตั้งค่า</span>
                 </li>
@@ -145,6 +138,18 @@
         <div id="product-modal" class="modal hidden">
             <!-- Add/Edit Product Content -->
         </div>
+        <div id="security-modal" class="modal hidden" style="max-width:300px; text-align:center;">
+            <span class="material-symbols-rounded" style="font-size:48px; color:var(--neutral-800);">lock</span>
+            <h3>กรุณาใส่รหัสผ่าน</h3>
+            <input type="password" id="security-pin-input" maxlength="4"
+                style="width:100%; padding:10px; font-size:24px; text-align:center; margin:15px 0; letter-spacing:8px;"
+                inputmode="numeric">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="secondary-btn" onclick="App.closeModals()">ยกเลิก</button>
+                <button class="primary-btn" id="btn-security-confirm">ยืนยัน</button>
+            </div>
+        </div>
+
     </div>
 
     <!-- Hidden Receipt for Printing -->
