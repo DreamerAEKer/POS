@@ -252,11 +252,47 @@ const App = {
         if (App.state.searchQuery) {
             displayProducts = displayProducts.filter(p =>
                 p.name.includes(App.state.searchQuery) ||
-                p.barcode.includes(App.state.searchQuery)
+                p.barcode.includes(App.state.searchQuery) ||
+                (p.group && p.group.includes(App.state.searchQuery))
             );
         }
 
-        grid.innerHTML = displayProducts.map(p => `
+        // Aggregate by Group
+        const groups = {};
+        const singles = [];
+
+        displayProducts.forEach(p => {
+            if (p.group) {
+                if (!groups[p.group]) groups[p.group] = [];
+                groups[p.group].push(p);
+            } else {
+                singles.push(p);
+            }
+        });
+
+        // 1. Render Groups (Folders)
+        const groupHtml = Object.keys(groups).map(groupName => {
+            const items = groups[groupName];
+            // Use the image of the first item as the folder cover
+            const coverImage = items[0].image;
+            return `
+                <div class="product-card" onclick="App.openVariantModal('${groupName}')" style="border: 2px solid var(--primary-color);">
+                    <div style="height:120px; background:#e0ecff; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative;">
+                        ${coverImage ? `<img src="${coverImage}" style="width:100%; height:100%; object-fit:cover; opacity:0.8;">` : ''}
+                        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.3);">
+                            <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color);">folder</span>
+                        </div>
+                    </div>
+                    <div class="p-info" style="background:var(--primary-light);">
+                        <div class="p-name" style="color:var(--primary-color); font-weight:bold;">${groupName}</div>
+                        <div class="p-price">${items.length} รายการ</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // 2. Render Singles
+        const singleHtml = singles.map(p => `
             <div class="product-card" onclick="App.addToCart(App.state.products.find(x => x.id === '${p.id}'))">
                 ${p.stock <= 5 ? '<div class="stock-badge low">Low Stock</div>' : ''}
                 <div style="height:120px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
@@ -269,6 +305,8 @@ const App = {
                 </div>
             </div>
         `).join('');
+
+        grid.innerHTML = groupHtml + singleHtml;
     },
 
     // --- Stock View ---
@@ -423,6 +461,9 @@ const App = {
         const modal = document.getElementById('product-modal');
         const overlay = document.getElementById('modal-overlay');
 
+        // Initial Groups for Autocomplete
+        const existingGroups = [...new Set(App.state.products.map(p => p.group).filter(g => g))];
+
         modal.innerHTML = `
             <h2>${product ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h2>
             <form id="product-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
@@ -433,16 +474,31 @@ const App = {
                     <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1; padding:8px; font-size:18px;">
                     <button type="button" class="secondary-btn" onclick="document.getElementById('p-barcode').focus()">Scan</button>
                 </div>
-                <label>ชื่อสินค้า</label>
-                <input type="text" id="p-name" value="${product ? product.name : ''}" required style="padding:8px; font-size:18px;">
+                
+                <!-- Grouping Field -->
+                <label>หมวดหมู่/กลุ่ม (ปล่อยว่างถ้าไม่มี)</label>
+                <input type="text" id="p-group" list="group-list" value="${product && product.group ? product.group : ''}" 
+                    placeholder="เช่น น้ำอัดลม, ไข่ไก่" style="padding:8px; font-size:18px;">
+                <datalist id="group-list">
+                    ${existingGroups.map(g => `<option value="${g}">`).join('')}
+                </datalist>
+
+                <label>ชื่อสินค้า (ระบุรสชาติ/ขนาด)</label>
+                <input type="text" id="p-name" value="${product ? product.name : ''}" required style="padding:8px; font-size:18px;" placeholder="เช่น โค้ก (กระป๋อง), เบอร์ 0 (10 ฟอง)">
+                
                 <div style="display:flex; gap:10px;">
                     <div style="flex:1;">
                         <label>ราคา (บาท)</label>
                         <input type="number" id="p-price" value="${product ? product.price : ''}" required style="width:100%; padding:8px; font-size:18px;">
                     </div>
                     <div style="flex:1;">
-                        <label>จำนวนสต็อก</label>
-                        <input type="number" id="p-stock" value="${product ? product.stock : ''}" required style="width:100%; padding:8px; font-size:18px;">
+                        <label>จำนวนสต็อก (ชิ้น/หน่วยย่อย)</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="number" id="p-stock" value="${product ? product.stock : ''}" required style="flex:1; padding:8px; font-size:18px;">
+                            <button type="button" class="secondary-btn" onclick="App.openStockCalc()" title="เครื่องคิดเลขสต็อก" style="padding:0 10px;">
+                                <span class="material-symbols-rounded">calculate</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <label>รูปภาพ</label>
@@ -471,13 +527,14 @@ const App = {
                 e.preventDefault();
                 const id = document.getElementById('p-id').value || Utils.generateId();
                 const barcode = document.getElementById('p-barcode').value;
+                const group = document.getElementById('p-group').value.trim();
                 const name = document.getElementById('p-name').value;
                 const price = parseFloat(document.getElementById('p-price').value);
                 const stock = parseInt(document.getElementById('p-stock').value);
                 const existingImage = product ? product.image : null;
                 const newImage = preview.dataset.base64 || existingImage;
 
-                const newProduct = { id, barcode, name, price, stock, image: newImage };
+                const newProduct = { id, barcode, group, name, price, stock, image: newImage };
                 DB.saveProduct(newProduct);
                 App.closeModals();
                 App.renderView('stock');
@@ -486,6 +543,28 @@ const App = {
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+    },
+
+    openStockCalc: () => {
+        const packs = prompt('จำนวนกี่ลัง/แพ็ค?');
+        if (!packs) return;
+        const perPack = prompt('จำนวนกี่ชิ้นต่อลัง/แพ็ค?');
+        if (!perPack) return;
+
+        const total = parseInt(packs) * parseInt(perPack);
+        if (isNaN(total)) return alert('ใส่ตัวเลขไม่ถูกต้อง');
+
+        const current = parseInt(document.getElementById('p-stock').value) || 0;
+        // Ask if replace or add
+        if (current > 0) {
+            if (confirm(`มีของเดิม ${current} ชิ้น\nต้องการ "บวกเพิ่ม" หรือ "แทนที่"?\n(OK = บวกเพิ่ม ${total} เป็น ${current + total})\n(Cancel = แทนที่ด้วย ${total})`)) {
+                document.getElementById('p-stock').value = current + total;
+            } else {
+                document.getElementById('p-stock').value = total;
+            }
+        } else {
+            document.getElementById('p-stock').value = total;
+        }
     },
 
     deleteProduct: (id) => {
@@ -625,6 +704,39 @@ const App = {
         modal.classList.remove('hidden');
     },
 
+    // --- Variant Modal (Groups) ---
+    openVariantModal: (groupName) => {
+        const modal = document.getElementById('product-modal'); // reuse generic modal container
+        const overlay = document.getElementById('modal-overlay');
+
+        const variants = App.state.products.filter(p => p.group === groupName);
+
+        modal.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2>${groupName}</h2>
+                <button class="icon-btn" onclick="App.closeModals()"><span class="material-symbols-rounded">close</span></button>
+            </div>
+            <div class="variant-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:15px;">
+                ${variants.map(p => `
+                    <div class="product-card" onclick="App.addToCart(App.state.products.find(x => x.id === '${p.id}')); App.closeModals();" style="border:1px solid #eee;">
+                        <div style="height:100px; background:#f9f9f9; display:flex; align-items:center; justify-content:center;">
+                            ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:contain;">` : ''}
+                        </div>
+                        <div style="padding:10px;">
+                            <div style="font-weight:bold; font-size:14px;">${p.name}</div>
+                            <div style="color:var(--primary-color);">฿${Utils.formatCurrency(p.price)}</div>
+                            <div style="font-size:12px; color:#666;">เหลือ ${p.stock}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            <button class="secondary-btn" style="width:100%; margin-top:20px;" onclick="App.closeModals()">ปิด</button>
+        `;
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
     // --- Search & Scan Logic ---
     setupGlobalInput: () => {
         const input = App.elements.globalSearch;
@@ -696,13 +808,24 @@ const App = {
                     <div style="font-weight:bold;">${item.name}</div>
                     <div style="font-size:14px; color:#666;">@${Utils.formatCurrency(item.price)}</div>
                 </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <button class="icon-btn small" onclick="App.updateCartQty(${index}, -1)">-</button>
-                    <span style="font-weight:bold; min-width:20px; text-align:center;">${item.qty}</span>
-                    <button class="icon-btn small" onclick="App.updateCartQty(${index}, 1)">+</button>
-                </div>
-                <div style="font-weight:bold; width:60px; text-align:right;">
-                    ${Utils.formatCurrency(item.price * item.qty)}
+                
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <!-- Qty Controls -->
+                    <div style="display:flex; align-items:center; background:#f0f0f0; border-radius:20px; padding:2px;">
+                        <button class="icon-btn small" onclick="App.updateCartQty(${index}, -1)" style="width:28px; height:28px;">-</button>
+                        <span style="font-weight:bold; min-width:24px; text-align:center;">${item.qty}</span>
+                        <button class="icon-btn small" onclick="App.updateCartQty(${index}, 1)" style="width:28px; height:28px;">+</button>
+                    </div>
+
+                    <!-- Line Total -->
+                    <div style="font-weight:bold; width:50px; text-align:right; font-size:14px;">
+                        ${Utils.formatCurrency(item.price * item.qty)}
+                    </div>
+                    
+                    <!-- Delete Button -->
+                    <button class="icon-btn dangerous" onclick="App.removeCartItem(${index})" title="ลบรายการนี้">
+                        <span class="material-symbols-rounded" style="font-size:20px;">delete</span>
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -710,6 +833,14 @@ const App = {
         const total = App.state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
         App.elements.cartTotal.textContent = Utils.formatCurrency(total);
         App.updateMobileCartBadge();
+    },
+
+    removeCartItem: (index) => {
+        // Confirmation for accidental clicks is good UX
+        if (confirm('ต้องการลบรายการนี้ออกจากตะกร้า?')) {
+            App.state.cart.splice(index, 1);
+            App.renderCart();
+        }
     },
 
     updateCartQty: (index, change) => {
