@@ -403,9 +403,24 @@ const App = {
                 displayStock = parent ? Math.floor(parent.stock / p.packSize) : 0;
             }
 
+            // Days until expiry
+            let badgeHtml = '';
+            if (p.expiryDate) {
+                const daysLeft = Math.ceil((new Date(p.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                if (daysLeft <= 0) badgeHtml += '<div class="stock-badge dangerous" style="top:25px;">Expired!</div>';
+                else if (daysLeft <= 7) badgeHtml += '<div class="stock-badge dangerous" style="top:25px;">Exp: 7d</div>';
+                else if (daysLeft <= 30) badgeHtml += '<span class="material-symbols-rounded" style="position:absolute; top:5px; right:5px; color:#ffc107; background:white; border-radius:50%; padding:2px;">history_toggle_off</span>';
+            }
+
+            // Tags
+            if (p.tags && p.tags.includes('promo')) {
+                badgeHtml += '<div class="stock-badge" style="background:var(--danger-color); top:5px; left:5px; right:auto;">🔥 Promo</div>';
+            }
+
             return `
-            <div class="product-card" onclick="App.addToCart(App.state.products.find(x => x.id === '${p.id}'))">
+            <div class="product-card" onclick="App.addToCart(App.state.products.find(x => x.id === '${p.id}'))" style="${p.tags && p.tags.includes('promo') ? 'border:2px solid var(--danger-color);' : ''}">
                 ${displayStock <= 5 ? '<div class="stock-badge low">Low Stock</div>' : ''}
+                ${badgeHtml}
                 <div style="height:120px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
                     ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : '<span class="material-symbols-rounded" style="font-size:48px; color:#ccc;">image</span>'}
                 </div>
@@ -423,39 +438,74 @@ const App = {
 
     // --- Stock View ---
     renderStockView: (container) => {
+        const totalValue = App.state.products.reduce((sum, p) => sum + (p.stock * (p.cost || 0)), 0);
+        const totalItems = App.state.products.reduce((sum, p) => sum + p.stock, 0);
+
         container.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2>จัดการสต็อก</h2>
-                <button class="primary-btn" onclick="App.openProductModal()">+ เพิ่มสินค้า</button>
+                <div style="text-align:right;">
+                    <button class="primary-btn" onclick="App.openProductModal()">+ เพิ่มสินค้า</button>
+                </div>
             </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:15px;">
+                 <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm); display:flex; justify-content:space-between; align-items:center;">
+                    <span style="color:#666;">จำนวนสินค้าทั้งหมด</span>
+                    <span style="font-weight:bold; font-size:20px;">${totalItems} ชิ้น</span>
+                 </div>
+                 <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm); display:flex; justify-content:space-between; align-items:center;">
+                    <span style="color:#666;">มูลค่าสต็อกรวม (Cost)</span>
+                    <span style="font-weight:bold; font-size:20px; color:var(--primary-color);">฿${Utils.formatCurrency(totalValue)}</span>
+                 </div>
+            </div>
+
             <div style="margin-top:20px; overflow-x:auto;">
                 <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden;">
                     <thead>
                         <tr style="background:var(--neutral-100); text-align:left;">
                             <th style="padding:15px;">รูป</th>
-                            <th style="padding:15px;">บาร์โค้ด</th>
-                            <th style="padding:15px;">ชื่อสินค้า</th>
-                            <th style="padding:15px;">ราคา</th>
+                            <th style="padding:15px;">สินค้า</th>
+                            <th style="padding:15px;">ราคา/ต้นทุน</th>
                             <th style="padding:15px;">สต็อก</th>
+                            <th style="padding:15px;">สถานะ</th>
                             <th style="padding:15px;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${App.state.products.map(p => `
+                        ${App.state.products.map(p => {
+            let statusHtml = '';
+            if (p.expiryDate) {
+                const daysLeft = Math.ceil((new Date(p.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                if (daysLeft <= 0) statusHtml = '<span style="color:red; font-weight:bold;">หมดอายุ!</span>';
+                else if (daysLeft <= 7) statusHtml = `<span style="color:red;">Exp: ${daysLeft} วัน</span>`;
+                else if (daysLeft <= 30) statusHtml = `<span style="color:#ffc107;">Exp: ${daysLeft} วัน</span>`;
+                else statusHtml = `<span style="color:green;">ปกติ</span>`;
+            } else {
+                statusHtml = '<span style="color:#ccc;">-</span>';
+            }
+
+            return `
                             <tr style="border-bottom:1px solid #eee;">
                                 <td style="padding:10px;">
                                     <div style="width:50px; height:50px; background:#eee; border-radius:4px; overflow:hidden;">
                                         ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : ''}
                                     </div>
                                 </td>
-                                <td style="padding:10px;">${p.barcode}</td>
-                                <td style="padding:10px;">${p.name}</td>
-                                <td style="padding:10px;">${Utils.formatCurrency(p.price)}</td>
+                                <td style="padding:10px;">
+                                    <div style="font-weight:bold;">${p.name}</div>
+                                    <div style="font-size:12px; color:#666;">${p.barcode}</div>
+                                </td>
+                                <td style="padding:10px;">
+                                    <div>ขาย: ${Utils.formatCurrency(p.price)}</div>
+                                    <div style="font-size:12px; color:#888;">ทุน: ${p.cost ? Utils.formatCurrency(p.cost) : '-'}</div>
+                                </td>
                                 <td style="padding:10px;">
                                     <span style="color:${p.stock < 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock < 5 ? 'bold' : 'normal'};">
                                         ${p.stock}
                                     </span>
                                 </td>
+                                <td style="padding:10px; font-size:14px;">${statusHtml}</td>
                                 <td style="padding:10px;">
                                     <button class="icon-btn" onclick="App.openProductModal('${p.id}')">
                                         <span class="material-symbols-rounded">edit</span>
@@ -465,7 +515,7 @@ const App = {
                                     </button>
                                 </td>
                             </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             </div>
@@ -603,12 +653,19 @@ const App = {
                 <label>ชื่อสินค้า (ระบุรสชาติ/ขนาด)</label>
                 <input type="text" id="p-name" value="${product ? product.name : ''}" required style="padding:8px; font-size:18px;" placeholder="เช่น โค้ก (กระป๋อง), เบอร์ 0 (10 ฟอง)">
                 
-                <div style="display:flex; gap:10px;">
-                    <div style="flex:1;">
-                        <label>ราคา (บาท)</label>
-                        <input type="number" id="p-price" value="${product ? product.price : ''}" required style="width:100%; padding:8px; font-size:18px;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div>
+                        <label>ราคาขาย (บาท)</label>
+                        <input type="number" step="0.5" id="p-price" value="${product ? product.price : ''}" required style="width:100%; padding:8px; font-size:18px;">
                     </div>
-                    <div style="flex:1;">
+                    <div>
+                        <label>ต้นทุน (Cost)</label>
+                        <input type="number" step="0.5" id="p-cost" value="${product ? (product.cost || '') : ''}" placeholder="ใส่เพื่อคิดกำไร" style="width:100%; padding:8px; font-size:18px;">
+                    </div>
+                </div>
+
+                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div>
                          <!-- Stock / Bundle Switch -->
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                             <label style="margin:0;">จำนวนสต็อก</label>
@@ -659,7 +716,27 @@ const App = {
                                 <span style="font-size:12px; color:#666;">ชิ้น</span>
                             </div>
                         </div>
-
+                    </div>
+                
+                    <div>
+                        <label>วันหมดอายุ (Expiry)</label>
+                        <input type="date" id="p-expiry" value="${product ? (product.expiryDate || '') : ''}" style="width:100%; padding:8px; font-size:16px; margin-bottom:10px;">
+                        
+                        <label>ป้ายกำกับ (Tags)</label>
+                        <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                            <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
+                                <input type="checkbox" name="p-tags" value="promo" ${product && product.tags && product.tags.includes('promo') ? 'checked' : ''}>
+                                🔥 จัดโปร
+                            </label>
+                            <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
+                                <input type="checkbox" name="p-tags" value="expiry" ${product && product.tags && product.tags.includes('expiry') ? 'checked' : ''}>
+                                ⏳ ใกล้หมด
+                            </label>
+                             <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
+                                <input type="checkbox" name="p-tags" value="new" ${product && product.tags && product.tags.includes('new') ? 'checked' : ''}>
+                                ✨ ใหม่
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -681,6 +758,18 @@ const App = {
         setTimeout(() => {
             const fileInput = document.getElementById('p-image-input');
             const preview = document.getElementById('p-image-preview');
+            // Toggle Visuals for Tags
+            document.querySelectorAll('input[name="p-tags"]').forEach(chk => {
+                chk.addEventListener('change', (e) => {
+                    e.target.parentElement.style.background = e.target.checked ? '#e0ecff' : 'transparent';
+                    e.target.parentElement.style.borderColor = e.target.checked ? 'var(--primary-color)' : '#ddd';
+                });
+                if (chk.checked) {
+                    chk.parentElement.style.background = '#e0ecff';
+                    chk.parentElement.style.borderColor = 'var(--primary-color)';
+                }
+            });
+
             fileInput.addEventListener('change', async (e) => {
                 if (e.target.files[0]) {
                     const base64 = await Utils.fileToBase64(e.target.files[0]);
@@ -697,8 +786,12 @@ const App = {
                 const price = parseFloat(document.getElementById('p-price').value);
                 const stock = parseInt(document.getElementById('p-stock').value) || 0;
 
+                // New Fields
+                const cost = parseFloat(document.getElementById('p-cost').value) || 0;
+                const expiryDate = document.getElementById('p-expiry').value;
+                const tags = Array.from(document.querySelectorAll('input[name="p-tags"]:checked')).map(cb => cb.value);
+
                 // --- Duplicate Barcode Check ---
-                // Find existing product with same barcode BUT different ID (to allow editing own self)
                 const existingProduct = App.state.products.find(p => p.barcode === barcode && p.id !== id);
 
                 if (existingProduct) {
@@ -735,7 +828,22 @@ const App = {
                 const existingImage = product ? product.image : null;
                 const newImage = preview.dataset.base64 || existingImage;
 
-                const newProduct = { id, barcode, group, name, price, stock, image: newImage };
+                // Bundle Logic
+                const isBundle = document.getElementById('p-is-bundle').checked;
+                let parentId = null;
+                let packSize = null;
+                if (isBundle) {
+                    parentId = document.getElementById('p-parent-id').value;
+                    packSize = parseInt(document.getElementById('p-pack-size').value) || 1;
+                }
+
+                const newProduct = {
+                    id, barcode, group, name, price, stock, image: newImage,
+                    cost, expiryDate, tags,
+                    parentId, packSize,
+                    updatedAt: Date.now() // Auto-Timestamp
+                };
+
                 DB.saveProduct(newProduct);
                 App.closeModals();
                 App.renderView('stock');
