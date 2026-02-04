@@ -18,7 +18,7 @@ const Utils = {
         const now = new Date();
         return now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
     },
-    
+
     // Generate simple ID
     generateId: () => {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -32,5 +32,11 @@ const Utils = {
             reader.onload = () => resolve(reader.result);
             reader.onerror = error => reject(error);
         });
+    },
+
+    // Toggle hidden class
+    toggle: (id) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden');
     }
 };

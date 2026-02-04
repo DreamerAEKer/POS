@@ -244,6 +244,7 @@ const DB = {
     // --- Data Backup & Restore ---
     exportData: () => {
         const data = {
+            settings: DB.getSettings(), // Include Settings
             products: DB.getProducts(),
             suppliers: DB.getSuppliers(),
             supplierPrices: DB.getSupplierPrices(),
@@ -266,18 +267,26 @@ const DB = {
                 throw new Error('ไฟล์ข้อมูลไม่ถูกต้อง (Invalid Data Structure)');
             }
 
+            // Restore Settings if available (Optional for backward compatibility)
+            if (data.settings) {
+                localStorage.setItem(DB.KEYS.SETTINGS, JSON.stringify(data.settings));
+            }
+
             // Save to LocalStorage
             localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(data.products || []));
-            localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(data.suppliers || []));
             localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(data.suppliers || []));
             localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(data.supplierPrices || []));
             localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(data.parkedCarts || []));
             localStorage.setItem(DB.KEYS.SALES, JSON.stringify(data.sales || []));
 
-            return true;
+            return { success: true };
         } catch (e) {
             console.error(e);
-            return false;
+            let msg = 'ไฟล์ไม่ถูกต้อง';
+            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                msg = 'ความจุเต็ม! (รูปภาพเยอะเกินไป)';
+            }
+            return { success: false, message: msg };
         }
     }
 };

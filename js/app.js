@@ -222,12 +222,12 @@ const App = {
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
-            const success = DB.importData(e.target.result);
-            if (success) {
+            const result = DB.importData(e.target.result);
+            if (result.success) {
                 alert('กู้คืนข้อมูลสำเร็จ!');
                 location.reload();
             } else {
-                alert('กู้คืนข้อมูลไม่สำเร็จ ไฟล์อาจเสียหาย');
+                alert('เกิดข้อผิดพลาด: ' + result.message);
             }
         };
         reader.readAsText(file);
@@ -292,19 +292,28 @@ const App = {
         }).join('');
 
         // 2. Render Singles
-        const singleHtml = singles.map(p => `
+        const singleHtml = singles.map(p => {
+            let displayStock = p.stock;
+            // Bundle Stock Calculation
+            if (p.parentId && p.packSize) {
+                const parent = App.state.products.find(x => x.id === p.parentId);
+                displayStock = parent ? Math.floor(parent.stock / p.packSize) : 0;
+            }
+
+            return `
             <div class="product-card" onclick="App.addToCart(App.state.products.find(x => x.id === '${p.id}'))">
-                ${p.stock <= 5 ? '<div class="stock-badge low">Low Stock</div>' : ''}
+                ${displayStock <= 5 ? '<div class="stock-badge low">Low Stock</div>' : ''}
                 <div style="height:120px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
                     ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : '<span class="material-symbols-rounded" style="font-size:48px; color:#ccc;">image</span>'}
                 </div>
                 <div class="p-info">
                     <div class="p-name">${p.name}</div>
                     <div class="p-price">฿${Utils.formatCurrency(p.price)}</div>
-                    <div class="p-stock">${p.stock} items</div>
+                    <div class="p-stock">${displayStock} items</div>
                 </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
         grid.innerHTML = groupHtml + singleHtml;
     },
@@ -469,19 +478,23 @@ const App = {
             <form id="product-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
                 <input type="hidden" id="p-id" value="${product ? product.id : ''}">
                 
-                <label>บาร์โค้ด (Scan หรือ พิมพ์)</label>
-                <div style="display:flex; gap:5px;">
-                    <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1; padding:8px; font-size:18px;">
-                    <button type="button" class="secondary-btn" onclick="document.getElementById('p-barcode').focus()">Scan</button>
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <label>บาร์โค้ด (Scan หรือ พิมพ์)</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1; padding:8px; font-size:18px;">
+                            <button type="button" class="secondary-btn" onclick="document.getElementById('p-barcode').focus()">Scan</button>
+                        </div>
+                    </div>
+                     <div style="flex:1;">
+                        <label>หมวดหมู่/กลุ่ม (ปล่อยว่างถ้าไม่มี)</label>
+                        <input type="text" id="p-group" list="group-list" value="${product && product.group ? product.group : ''}" 
+                            placeholder="เช่น น้ำอัดลม, ไข่ไก่" style="width:100%; padding:8px; font-size:18px;">
+                        <datalist id="group-list">
+                            ${existingGroups.map(g => `<option value="${g}">`).join('')}
+                        </datalist>
+                    </div>
                 </div>
-                
-                <!-- Grouping Field -->
-                <label>หมวดหมู่/กลุ่ม (ปล่อยว่างถ้าไม่มี)</label>
-                <input type="text" id="p-group" list="group-list" value="${product && product.group ? product.group : ''}" 
-                    placeholder="เช่น น้ำอัดลม, ไข่ไก่" style="padding:8px; font-size:18px;">
-                <datalist id="group-list">
-                    ${existingGroups.map(g => `<option value="${g}">`).join('')}
-                </datalist>
 
                 <label>ชื่อสินค้า (ระบุรสชาติ/ขนาด)</label>
                 <input type="text" id="p-name" value="${product ? product.name : ''}" required style="padding:8px; font-size:18px;" placeholder="เช่น โค้ก (กระป๋อง), เบอร์ 0 (10 ฟอง)">
@@ -492,20 +505,68 @@ const App = {
                         <input type="number" id="p-price" value="${product ? product.price : ''}" required style="width:100%; padding:8px; font-size:18px;">
                     </div>
                     <div style="flex:1;">
-                        <label>จำนวนสต็อก (ชิ้น/หน่วยย่อย)</label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="number" id="p-stock" value="${product ? product.stock : ''}" required style="flex:1; padding:8px; font-size:18px;">
-                            <button type="button" class="secondary-btn" onclick="App.openStockCalc()" title="เครื่องคิดเลขสต็อก" style="padding:0 10px;">
-                                <span class="material-symbols-rounded">calculate</span>
-                            </button>
+                         <!-- Stock / Bundle Switch -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <label style="margin:0;">จำนวนสต็อก</label>
+                            <label style="font-size:12px; display:flex; align-items:center; gap:3px; cursor:pointer;">
+                                <input type="checkbox" id="p-is-bundle" ${product && product.parentId ? 'checked' : ''} onchange="App.toggleBundleMode()">
+                                ตัดสต็อกสินค้าอื่น
+                            </label>
                         </div>
+
+                        <!-- Normal Stock Input -->
+                        <div id="stock-input-group">
+                            <div style="display:flex; gap:5px;">
+                                <input type="number" id="p-stock" value="${product ? product.stock : ''}" style="flex:1; padding:8px; font-size:18px;">
+                                <button type="button" class="secondary-btn" onclick="Utils.toggle('stock-calc-panel')">
+                                    <span class="material-symbols-rounded">calculate</span>
+                                </button>
+                            </div>
+                             <!-- Inline Stock Calculator -->
+                             <div id="stock-calc-panel" class="hidden" style="background:var(--neutral-100); padding:10px; margin-top:5px; border-radius:8px; border:1px solid var(--neutral-300);">
+                                <div style="font-size:12px; color:#666; margin-bottom:5px;">เครื่องมือช่วยคำนวณ</div>
+                                <div style="display:flex; gap:5px; align-items:center;">
+                                    <input type="number" id="sc-packs" placeholder="ลัง" style="flex:1; padding:5px; text-align:center;" oninput="App.calcStockPreview()">
+                                    <span>x</span>
+                                    <input type="number" id="sc-per-pack" placeholder="ชิ้น" style="flex:1; padding:5px; text-align:center;" oninput="App.calcStockPreview()">
+                                    <span>=</span>
+                                    <div id="sc-total" style="font-weight:bold; color:var(--primary-color); width:50px; text-align:right;">0</div>
+                                </div>
+                                <div style="display:flex; gap:5px; margin-top:5px;">
+                                    <button type="button" class="primary-btn small" style="flex:1;" onclick="App.applyStockCalc(true)">+เพิ่ม</button>
+                                    <button type="button" class="secondary-btn small" style="flex:1;" onclick="App.applyStockCalc(false)">แทนที่</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bundle Config Group -->
+                        <div id="bundle-input-group" class="hidden" style="background:#fff3cd; padding:10px; border-radius:8px; border:1px solid #ffeeba;">
+                            <label style="font-size:12px; display:block; margin-bottom:3px;">สินค้าหลัก (Parent)</label>
+                            <input type="text" id="p-parent-search" placeholder="ค้นหา/ยิงบาร์โค้ด" style="width:100%; padding:5px; margin-bottom:5px;" oninput="App.searchParent(this.value)">
+                            <select id="p-parent-id" style="width:100%; padding:5px; margin-bottom:5px;">
+                                ${product && product.parentId ? (() => {
+                const parent = App.state.products.find(p => p.id === product.parentId);
+                return parent ? `<option value="${parent.id}">${parent.name}</option>` : '<option value="">เลือกสินค้าหลัก...</option>';
+            })() : '<option value="">เลือกสินค้าหลัก...</option>'}
+                            </select>
+                            <label style="font-size:12px; display:block; margin-bottom:3px;">จำนวนที่ตัด (Pack Size)</label>
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                <input type="number" id="p-pack-size" value="${product ? product.packSize || 1 : 12}" style="width:100%; padding:5px; text-align:center;">
+                                <span style="font-size:12px; color:#666;">ชิ้น</span>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
+
                 <label>รูปภาพ</label>
-                <input type="file" id="p-image-input" accept="image/*">
-                <div id="p-image-preview" style="width:100px; height:100px; background:#eee; margin-top:5px; border-radius:8px; overflow:hidden;">
-                    ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : ''}
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <div id="p-image-preview" style="width:100px; height:100px; background:#eee; border-radius:8px; overflow:hidden;">
+                        ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : ''}
+                    </div>
+                    <input type="file" id="p-image-input" accept="image/*">
                 </div>
+
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
                     <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
@@ -530,7 +591,43 @@ const App = {
                 const group = document.getElementById('p-group').value.trim();
                 const name = document.getElementById('p-name').value;
                 const price = parseFloat(document.getElementById('p-price').value);
-                const stock = parseInt(document.getElementById('p-stock').value);
+                const stock = parseInt(document.getElementById('p-stock').value) || 0;
+
+                // --- Duplicate Barcode Check ---
+                // Find existing product with same barcode BUT different ID (to allow editing own self)
+                const existingProduct = App.state.products.find(p => p.barcode === barcode && p.id !== id);
+
+                if (existingProduct) {
+                    const warningHtml = `
+                        <div id="dup-warning-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center;">
+                            <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                                <div style="font-size:48px; margin-bottom:10px;">⚠️</div>
+                                <h3 style="margin-bottom:10px;">บาร์โค้ดนี้มีอยู่แล้ว!</h3>
+                                <div style="background:#f0f0f0; padding:10px; border-radius:5px; margin-bottom:15px; text-align:left; font-size:14px;">
+                                    <div><strong>สินค้า:</strong> ${existingProduct.name}</div>
+                                    <div><strong>ราคา:</strong> ฿${Utils.formatCurrency(existingProduct.price)}</div>
+                                    <div><strong>สต็อกเดิม:</strong> ${existingProduct.stock}</div>
+                                </div>
+                                <p style="margin-bottom:15px; font-size:14px;">คุณต้องการทำรายการอย่างไร?</p>
+                                <div style="display:flex; flex-direction:column; gap:8px;">
+                                    <button class="primary-btn" onclick="App.combineStock('${existingProduct.id}', ${stock})">
+                                        📥 รวมสต็อก (เพิ่ม +${stock})
+                                    </button>
+                                    <button class="secondary-btn" onclick="App.switchToEdit('${existingProduct.id}')">
+                                        ✏️ แก้ไขสินค้าเดิม
+                                    </button>
+                                    <button class="secondary-btn" style="background:#fff; border:1px solid #ddd;" onclick="document.getElementById('dup-warning-overlay').remove()">
+                                        ❌ ยกเลิก
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', warningHtml);
+                    return; // STOP SAVE
+                }
+                // -------------------------------
+
                 const existingImage = product ? product.image : null;
                 const newImage = preview.dataset.base64 || existingImage;
 
@@ -545,26 +642,58 @@ const App = {
         modal.classList.remove('hidden');
     },
 
-    openStockCalc: () => {
-        const packs = prompt('จำนวนกี่ลัง/แพ็ค?');
-        if (!packs) return;
-        const perPack = prompt('จำนวนกี่ชิ้นต่อลัง/แพ็ค?');
-        if (!perPack) return;
+    // --- Duplicate Check Helpers ---
+    combineStock: (id, addedQty) => {
+        const product = App.state.products.find(p => p.id === id);
+        if (product) {
+            product.stock += addedQty;
+            DB.saveProduct(product);
+            alert(`อัปเดตสต็อกเรียบร้อย!\n(รวมเป็น ${product.stock} ชิ้น)`);
 
-        const total = parseInt(packs) * parseInt(perPack);
-        if (isNaN(total)) return alert('ใส่ตัวเลขไม่ถูกต้อง');
-
-        const current = parseInt(document.getElementById('p-stock').value) || 0;
-        // Ask if replace or add
-        if (current > 0) {
-            if (confirm(`มีของเดิม ${current} ชิ้น\nต้องการ "บวกเพิ่ม" หรือ "แทนที่"?\n(OK = บวกเพิ่ม ${total} เป็น ${current + total})\n(Cancel = แทนที่ด้วย ${total})`)) {
-                document.getElementById('p-stock').value = current + total;
-            } else {
-                document.getElementById('p-stock').value = total;
-            }
-        } else {
-            document.getElementById('p-stock').value = total;
+            document.getElementById('dup-warning-overlay').remove();
+            App.closeModals();
+            App.renderView('stock');
         }
+    },
+
+    switchToEdit: (id) => {
+        document.getElementById('dup-warning-overlay').remove();
+        App.openProductModal(id);
+    },
+
+    calcStockPreview: () => {
+        const packs = parseInt(document.getElementById('sc-packs').value) || 0;
+        const perPack = parseInt(document.getElementById('sc-per-pack').value) || 0;
+        document.getElementById('sc-total').textContent = packs * perPack;
+    },
+
+    setPackSize: (size) => {
+        document.getElementById('sc-per-pack').value = size;
+        App.calcStockPreview();
+    },
+
+    applyStockCalc: (isAdd) => {
+        const packs = parseInt(document.getElementById('sc-packs').value) || 0;
+        const perPack = parseInt(document.getElementById('sc-per-pack').value) || 0;
+        const total = packs * perPack;
+
+        if (total === 0) return;
+
+        const stockInput = document.getElementById('p-stock');
+        const current = parseInt(stockInput.value) || 0;
+
+        if (isAdd) {
+            stockInput.value = current + total;
+        } else {
+            stockInput.value = total;
+        }
+
+        // Hide panel after Apply
+        document.getElementById('stock-calc-panel').classList.add('hidden');
+
+        // Reset inputs
+        document.getElementById('sc-packs').value = '';
+        // Keep perPack as it might be reused
     },
 
     deleteProduct: (id) => {
@@ -995,22 +1124,31 @@ const App = {
         const completeSale = () => {
             const received = parseFloat(input.value);
             const change = received - total;
+
             // Deduct Stock & Record
-            App.state.cart.forEach(item => DB.updateStock(item.id, item.qty));
+            App.state.cart.forEach(item => {
+                if (item.parentId && item.packSize) {
+                    // Deduct from Parent (Bundle)
+                    DB.updateStock(item.parentId, item.qty * item.packSize);
+                } else {
+                    // Deduct Normal
+                    DB.updateStock(item.id, item.qty);
+                }
+            });
+
             DB.recordSale({ date: new Date(), items: App.state.cart, total: total });
 
             App.printReceipt(total, received, change);
 
             App.state.cart = [];
+            // Refresh Global State
+            App.state.products = DB.getProducts();
             App.renderCart();
-            App.renderView('pos'); // refresh stock
+            App.renderProductGrid(); // Refresh Grid to show new stock
             App.closeModals();
         };
 
-        confirmBtn.addEventListener('click', completeSale);
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !confirmBtn.disabled) completeSale();
-        });
+        document.getElementById('btn-confirm-pay').addEventListener('click', completeSale);
     },
 
     printReceipt: (total, received, change) => {
