@@ -68,6 +68,8 @@
         align-items: flex-start;
         margin-bottom: 6px;
         font-size: 18px;
+        font-weight: 900;
+        /* Extra Bold to match Header */
     }
 
     .receipt-total {
