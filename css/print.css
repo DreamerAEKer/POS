@@ -1,8 +1,9 @@
-/* Print Styles - optimized for Thermal Printers (Sunmi) */
+/* Print Styles - Optimized for 57mm/58mm Thermal Printers */
 @media print {
     @page {
         margin: 0;
-        size: auto;
+        size: 58mm auto;
+        /* Critical for thermal printers */
     }
 
     body * {
@@ -21,43 +22,56 @@
         position: absolute;
         left: 0;
         top: 0;
-        width: 100%;
-        /* Adapts to paper width (58mm or 80mm) */
-        padding: 5px;
+        width: 57mm;
+        /* Exact printable width */
+        padding: 2px 5px;
+        /* Minimal padding */
         background: white;
         color: black;
-        font-family: 'Courier New', Courier, monospace;
-        /* Monospace aligns better */
-        font-size: 12px;
+        font-family: 'Sarabun', sans-serif;
+        /* Clean font */
+        font-size: 11px;
+        /* Readable on small paper */
+        line-height: 1.2;
     }
 
     .receipt-header,
     .receipt-footer {
         text-align: center;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
 
     .receipt-header h2 {
-        font-size: 16px;
-        margin-bottom: 5px;
+        font-size: 14px;
+        margin-bottom: 2px;
+        font-weight: bold;
     }
 
     .receipt-divider {
         border-top: 1px dashed black;
-        margin: 5px 0;
+        margin: 4px 0;
     }
 
     .receipt-item {
         display: flex;
         justify-content: space-between;
         margin-bottom: 2px;
+        font-size: 11px;
     }
 
     .receipt-total {
         display: flex;
         justify-content: space-between;
         font-weight: bold;
-        font-size: 14px;
+        font-size: 13px;
         margin-top: 5px;
+        border-top: 1px solid black;
+        /* Solid line for total */
+        padding-top: 2px;
+    }
+
+    /* Hide URLs/dates that browsers sometimes add */
+    a[href]:after {
+        content: none !important;
     }
 }

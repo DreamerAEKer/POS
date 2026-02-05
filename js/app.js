@@ -1422,6 +1422,13 @@ const App = {
             }
         };
 
+        // Focus & Highlight Input (Visual only since read-only)
+        setTimeout(() => {
+            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            input.style.borderColor = 'var(--secondary-color)';
+            input.style.boxShadow = '0 0 0 4px rgba(76, 175, 80, 0.2)'; // Green glow
+        }, 100);
+
 
 
         const completeSale = (shouldPrint) => {
