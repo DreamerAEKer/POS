@@ -23,54 +23,51 @@
         left: 0;
         top: 0;
         width: 100%;
-        /* Use full width */
-        padding: 0 4px;
-        /* Slight padding for safety */
+        padding: 0 2px;
         background: white;
         color: black;
         font-family: 'Sarabun', sans-serif;
-        font-size: 14px;
-        /* Increased from 11px */
-        line-height: 1.3;
-        font-weight: 500;
+        font-size: 18px;
+        /* Huge base size for A4 fallback */
+        line-height: 1.2;
+        font-weight: 600;
     }
 
     .receipt-header,
     .receipt-footer {
         text-align: center;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
 
     .receipt-header h2 {
-        font-size: 18px;
-        /* Increased from 14px */
+        font-size: 24px;
+        /* Massive header */
         margin-bottom: 5px;
-        font-weight: bold;
+        font-weight: 900;
     }
 
     .receipt-divider {
         border-top: 2px dashed black;
-        /* Thicker line */
-        margin: 8px 0;
+        margin: 10px 0;
     }
 
     .receipt-item {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 4px;
-        font-size: 14px;
-        /* Increased */
+        align-items: flex-start;
+        margin-bottom: 6px;
+        font-size: 18px;
     }
 
     .receipt-total {
         display: flex;
         justify-content: space-between;
-        font-weight: bold;
-        font-size: 16px;
-        /* Increased */
-        margin-top: 10px;
-        border-top: 2px solid black;
-        padding-top: 5px;
+        font-weight: 900;
+        font-size: 22px;
+        /* Very large total */
+        margin-top: 15px;
+        border-top: 3px solid black;
+        padding-top: 8px;
     }
 
     /* Hide URLs/dates that browsers sometimes add */
