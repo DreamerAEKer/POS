@@ -1312,6 +1312,9 @@ const App = {
     // --- Payment & Receipt ---
     showPaymentModal: () => {
         App.closeModals(); // Prevent Overlap
+        // Hide Mobile Cart for better view
+        if (App.toggleMobileCart) App.toggleMobileCart(false);
+
         const total = parseFloat(App.elements.cartTotal.textContent.replace(/,/g, ''));
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('payment-modal');
@@ -1353,7 +1356,7 @@ const App = {
                 เงินทอน: -
             </div>
             <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="secondary-btn" style="flex:1; background:#f0f0f0; border:1px solid #ccc; color:#333;" onclick="App.closeModals()">ยกเลิก</button>
+                <button class="secondary-btn" style="flex:1; background:#f0f0f0; border:1px solid #ccc; color:#333;" onclick="App.cancelPayment()">กลับไปแก้ไข</button>
                 <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>ยืนยันการรับเงิน</button>
             </div>
         `;
@@ -1363,6 +1366,12 @@ const App = {
 
         // New helper methods for keypad (attached to App for inline onclicks)
         App.currentPayInput = '';
+
+        App.cancelPayment = () => {
+            App.closeModals();
+            // Re-open mobile cart to allow editing
+            if (App.toggleMobileCart) App.toggleMobileCart(true);
+        };
 
         App.setPayAmount = (amount) => {
             App.currentPayInput = amount.toString();
@@ -1400,9 +1409,21 @@ const App = {
             }
         };
 
+        // Helper to toggle mobile cart
+        App.toggleMobileCart = (show) => {
+            const cartPanel = document.getElementById('right-panel');
+            const mobileOverlay = document.getElementById('mobile-cart-overlay');
+            if (show) {
+                cartPanel.classList.add('open');
+                if (window.innerWidth <= 1024) mobileOverlay.style.display = 'block';
+            } else {
+                cartPanel.classList.remove('open');
+                mobileOverlay.style.display = 'none';
+            }
+        };
+
         const completeSale = (shouldPrint) => {
             const received = parseFloat(App.currentPayInput);
-            // ... rest is same
             const change = received - total;
 
             // Deduct Stock & Record
@@ -1424,6 +1445,7 @@ const App = {
             App.renderCart();
             App.renderProductGrid(); // Refresh Grid to show new stock
             App.closeModals();
+            App.toggleMobileCart(false); // Ensure cart is closed after success
         };
 
         document.getElementById('btn-confirm-pay').addEventListener('click', () => completeSale(false));
