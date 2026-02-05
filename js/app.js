@@ -1321,14 +1321,34 @@ const App = {
             <div style="text-align:center; font-size:48px; font-weight:bold; color:var(--primary-color); margin:20px 0;">
                 ฿${Utils.formatCurrency(total)}
             </div>
-            <label>รับเงินมา (บาท)</label>
-            <input type="number" id="pay-input" style="font-size:24px; padding:10px; width:100%; text-align:center;" placeholder="จำนวนเงิน">
-            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:10px;">
-                <button class="secondary-btn" onclick="document.getElementById('pay-input').value = ${Math.ceil(total)}">พอดี</button>
-                <button class="secondary-btn" onclick="document.getElementById('pay-input').value = 100">100</button>
-                <button class="secondary-btn" onclick="document.getElementById('pay-input').value = 500">500</button>
-                <button class="secondary-btn" onclick="document.getElementById('pay-input').value = 1000">1000</button>
+            <div style="display:flex; flex-direction:column; align-items:center;">
+                <input type="text" id="pay-input" style="font-size:32px; padding:15px; width:100%; text-align:center; margin-bottom:10px; border:2px solid var(--primary-color); border-radius:8px; font-weight:bold;" placeholder="0.00" readonly>
+                
+                <!-- Quick Amounts -->
+                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; width:100%; margin-bottom:10px;">
+                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(${Math.ceil(total)})">พอดี</button>
+                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(100)">100</button>
+                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(500)">500</button>
+                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(1000)">1000</button>
+                </div>
+
+                <!-- Numpad -->
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; width:100%; max-width:300px;">
+                    <button class="numpad-btn" onclick="App.appendPayKey('7')">7</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('8')">8</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('9')">9</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('4')">4</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('5')">5</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('6')">6</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('1')">1</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('2')">2</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('3')">3</button>
+                    <button class="numpad-btn" style="color:red;" onclick="App.appendPayKey('C')">C</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('0')">0</button>
+                    <button class="numpad-btn" onclick="App.appendPayKey('.')">.</button>
+                </div>
             </div>
+
             <div style="margin-top:20px; text-align:center; font-size:24px;" id="change-display">
                 เงินทอน: -
             </div>
@@ -1341,29 +1361,48 @@ const App = {
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
 
+        // New helper methods for keypad (attached to App for inline onclicks)
+        App.currentPayInput = '';
+
+        App.setPayAmount = (amount) => {
+            App.currentPayInput = amount.toString();
+            updateDisplay();
+        };
+
+        App.appendPayKey = (key) => {
+            if (key === 'C') {
+                App.currentPayInput = '';
+            } else if (key === '.') {
+                if (!App.currentPayInput.includes('.')) {
+                    App.currentPayInput += key;
+                }
+            } else {
+                App.currentPayInput += key;
+            }
+            updateDisplay();
+        };
+
         const input = document.getElementById('pay-input');
         const confirmBtn = document.getElementById('btn-confirm-pay');
-        const noPrintBtn = document.getElementById('btn-confirm-no-print');
         const changeDisp = document.getElementById('change-display');
 
-        const calculate = () => {
-            const received = parseFloat(input.value);
+        const updateDisplay = () => {
+            input.value = App.currentPayInput;
+            const received = parseFloat(App.currentPayInput);
+
             if (!isNaN(received) && received >= total) {
                 const change = received - total;
                 changeDisp.innerHTML = `เงินทอน: <span style="color:var(--primary-color); font-weight:bold;">${Utils.formatCurrency(change)}</span>`;
                 confirmBtn.disabled = false;
             } else {
-                changeDisp.textContent = 'ยอดเงินไม่พอ';
+                changeDisp.innerHTML = 'เงินทอน: -';
                 confirmBtn.disabled = true;
             }
         };
 
-        input.addEventListener('input', calculate);
-        input.focus();
-        modal.querySelectorAll('.secondary-btn').forEach(btn => btn.addEventListener('click', () => setTimeout(calculate, 0)));
-
         const completeSale = (shouldPrint) => {
-            const received = parseFloat(input.value);
+            const received = parseFloat(App.currentPayInput);
+            // ... rest is same
             const change = received - total;
 
             // Deduct Stock & Record

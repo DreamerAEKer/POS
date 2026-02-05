@@ -688,3 +688,24 @@ button {
         font-size: 36px;
     }
 }
+
+/* --- On-Screen Keypad --- */
+.numpad-btn {
+    background: white;
+    border: 1px solid var(--neutral-300);
+    border-radius: 8px;
+    font-size: 24px;
+    font-weight: bold;
+    padding: 15px 0;
+    cursor: pointer;
+    transition: background 0.1s;
+    user-select: none;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
+    color: var(--neutral-900);
+}
+
+.numpad-btn:active {
+    background: var(--neutral-200);
+    transform: translateY(2px);
+    box-shadow: none;
+}
