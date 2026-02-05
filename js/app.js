@@ -1446,7 +1446,13 @@ const App = {
                 }
             });
 
-            DB.recordSale({ date: new Date(), items: App.state.cart, total: total });
+            DB.recordSale({
+                date: new Date(),
+                items: App.state.cart,
+                total: total,
+                received: received,
+                change: change
+            });
 
             App.state.cart = [];
             // Refresh Global State
@@ -1471,6 +1477,9 @@ const App = {
 
     printReceipt: (sale) => {
         const storeName = DB.getSettings().storeName;
+        const received = sale.received || sale.total; // Fallback for old records
+        const change = sale.change || 0;
+
         const receiptHtml = `
             <div class="receipt-header">
                 <h2>${storeName}</h2>
@@ -1489,7 +1498,21 @@ const App = {
                 <span>รวมทั้งสิ้น</span>
                 <span>${Utils.formatCurrency(sale.total)}</span>
             </div>
-            <!-- Historical Change info not stored properly in v1, hiding for reprint simplicity unless requested -->
+            <div style="margin-top:5px; font-size:16px;">
+                <div style="display:flex; justify-content:space-between;">
+                    <span>รับเงิน</span>
+                    <span>${Utils.formatCurrency(received)}</span>
+                </div>
+                ${change > 0 ? `
+                <div style="display:flex; justify-content:space-between;">
+                    <span>เงินทอน</span>
+                    <span>${Utils.formatCurrency(change)}</span>
+                </div>
+                ` : ''}
+                ${received === sale.total ? `
+                <div style="text-align:center; font-size:14px; color:gray; margin-top:2px;">(รับเงินพอดี)</div>
+                ` : ''}
+            </div>
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
