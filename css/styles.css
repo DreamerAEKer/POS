@@ -588,6 +588,7 @@ button {
     /* Apple Human Interface Guidelines */
 }
 
+
 /* --- iPad / Tablet Specific (Portrait & Landscape) --- */
 /* Target range covers iPad Mini up to Pro 11" in standard orientations */
 @media screen and (min-width: 768px) and (max-width: 1180px) {
@@ -599,8 +600,17 @@ button {
         --text-base: 20px;
         --text-lg: 24px;
         --text-xl: 28px;
-        --space-md: 20px;
-        /* More breathing room */
+        --space-md: 16px;
+        /* Reduced from 20px back to 16px to save vertical space */
+    }
+
+    /* Fix Viewport Height for iPad Chrome/Safari */
+    body,
+    #app {
+        height: 100vh;
+        height: 100dvh;
+        /* Dynamic viewport height */
+        min-height: -webkit-fill-available;
     }
 
     input,
@@ -615,12 +625,15 @@ button {
         width: 95%;
         /* Use full width */
         max-width: none;
+        max-height: 90dvh;
+        /* Prevent modal from being too tall */
     }
 
     /* 2. Product Grid - Larger Cards */
     .product-grid {
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 20px;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        /* Slightly smaller min to fit more width-wise */
+        gap: 15px;
     }
 
     .product-card {
@@ -631,15 +644,44 @@ button {
     /* 3. Landscape Tweaks (Sidebar visible) */
     #sidebar {
         width: 90px;
-        /* Slightly smaller sidebar to save space for content */
+    }
+
+    /* COMPACT SIDEBAR: Fit all icons on screen without scrolling */
+    .nav-menu {
+        gap: 5px;
+        /* Tighter gap */
+        justify-content: center;
+        /* Center items vertically if there's space */
+        padding: 10px 5px;
+    }
+
+    .nav-item {
+        padding: 10px 5px;
+        /* Reduce padding significantly */
     }
 
     .nav-item span:first-child {
-        font-size: 36px;
-        /* Bigger icons */
+        font-size: 32px;
+        /* Standard icon size is plenty big */
+        margin-bottom: 2px;
     }
 
     .nav-item span:last-child {
-        font-size: 14px;
+        font-size: 13px;
+        line-height: 1.1;
+    }
+
+    /* Hide Brand Title in Sidebar to save space if needed, or make it smaller */
+    .brand {
+        padding: 10px;
+    }
+
+    .brand h1 {
+        display: none;
+        /* Hide text, keep logo icon only if possible? Or just small text */
+    }
+
+    .logo-icon {
+        font-size: 36px;
     }
 }
