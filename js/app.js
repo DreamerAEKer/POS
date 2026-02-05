@@ -1475,7 +1475,6 @@ const App = {
             <div class="receipt-header">
                 <h2>${storeName}</h2>
                 <p>ใบเสร็จรับเงินอย่างย่อ</p>
-                <p style="font-weight:bold; margin-top:5px;">TAX INV: ${sale.billId || '-'}</p>
                 <p>${new Date(sale.date).toLocaleString('th-TH')}</p>
             </div>
             <div class="receipt-divider"></div>
