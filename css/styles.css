@@ -591,6 +591,7 @@ button {
 
 /* --- iPad / Tablet Specific (Portrait & Landscape) --- */
 /* Target range covers iPad Mini up to Pro 11" in standard orientations */
+/* USER REQUEST: KEEP THIS RATIO (100dvh, Compact Sidebar) - DO NOT CHANGE WITHOUT PERMISSION */
 @media screen and (min-width: 768px) and (max-width: 1180px) {
 
     /* 1. Typography & Inputs - Make them BIG */

@@ -239,7 +239,12 @@ const App = {
                 <span>฿${Utils.formatCurrency(sale.total)}</span>
             </div>
 
-            <button class="secondary-btn" style="width:100%; margin-top:20px;" onclick="App.closeModals()">ปิด</button>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ปิด</button>
+                <button class="primary-btn" style="flex:1;" onclick="App.printReceiptFromHistory(${index})">
+                    <span class="material-symbols-rounded" style="vertical-align:bottom; margin-right:5px;">print</span> พิมพ์ใบเสร็จ
+                </button>
+            </div>
         `;
 
         overlay.classList.remove('hidden');
@@ -1310,8 +1315,7 @@ const App = {
             </div>
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="secondary-btn" style="flex:1; background:#f0f0f0; border:1px solid #ccc; color:#333;" onclick="App.closeModals()">ยกเลิก</button>
-                <button class="primary-btn" style="flex:1.5; background:var(--secondary-color);" id="btn-confirm-no-print" disabled>รับเงิน (ไม่พิมพ์)</button>
-                <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>รับเงิน & พิมพ์</button>
+                <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>ยืนยันการรับเงิน</button>
             </div>
         `;
 
@@ -1329,11 +1333,9 @@ const App = {
                 const change = received - total;
                 changeDisp.innerHTML = `เงินทอน: <span style="color:var(--primary-color); font-weight:bold;">${Utils.formatCurrency(change)}</span>`;
                 confirmBtn.disabled = false;
-                noPrintBtn.disabled = false;
             } else {
                 changeDisp.textContent = 'ยอดเงินไม่พอ';
                 confirmBtn.disabled = true;
-                noPrintBtn.disabled = true;
             }
         };
 
@@ -1358,12 +1360,6 @@ const App = {
 
             DB.recordSale({ date: new Date(), items: App.state.cart, total: total });
 
-            if (shouldPrint) {
-                // Pass billId if available (it might be in sale record now)
-                const lastSale = DB.getSales()[DB.getSales().length - 1];
-                App.printReceipt(total, received, change, lastSale ? lastSale.billId : '-');
-            }
-
             App.state.cart = [];
             // Refresh Global State
             App.state.products = DB.getProducts();
@@ -1372,21 +1368,29 @@ const App = {
             App.closeModals();
         };
 
-        document.getElementById('btn-confirm-pay').addEventListener('click', () => completeSale(true));
-        document.getElementById('btn-confirm-no-print').addEventListener('click', () => completeSale(false));
+        document.getElementById('btn-confirm-pay').addEventListener('click', () => completeSale(false));
     },
 
-    printReceipt: (total, received, change, billId) => {
+    printReceiptFromHistory: (index) => {
+        const sale = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date))[index];
+        // Calculate change (Assuming exact/cash - logic for historical change not stored? 
+        // Actually recordSale doesn't store 'received' and 'change'. 
+        // For reprint, we might just show Total. Or we should update recordSale to store payment details.
+        // For now, let's just print Total. User didn't ask for change tracking on reprint.
+        App.printReceipt(sale);
+    },
+
+    printReceipt: (sale) => {
         const storeName = DB.getSettings().storeName;
         const receiptHtml = `
             <div class="receipt-header">
                 <h2>${storeName}</h2>
                 <p>ใบเสร็จรับเงินอย่างย่อ</p>
-                <p style="font-weight:bold; margin-top:5px;">TAX INV: ${billId}</p>
-                <p>${new Date().toLocaleString('th-TH')}</p>
+                <p style="font-weight:bold; margin-top:5px;">TAX INV: ${sale.billId || '-'}</p>
+                <p>${new Date(sale.date).toLocaleString('th-TH')}</p>
             </div>
             <div class="receipt-divider"></div>
-            ${App.state.cart.map(item => `
+            ${sale.items.map(item => `
                 <div class="receipt-item">
                     <span>${item.name} (${item.qty})</span>
                     <span>${Utils.formatCurrency(item.price * item.qty)}</span>
@@ -1395,16 +1399,9 @@ const App = {
             <div class="receipt-divider"></div>
             <div class="receipt-total">
                 <span>รวมทั้งสิ้น</span>
-                <span>${Utils.formatCurrency(total)}</span>
+                <span>${Utils.formatCurrency(sale.total)}</span>
             </div>
-            <div class="receipt-item">
-                <span>รับเงิน</span>
-                <span>${Utils.formatCurrency(received)}</span>
-            </div>
-            <div class="receipt-item">
-                <span>เงินทอน</span>
-                <span>${Utils.formatCurrency(change)}</span>
-            </div>
+            <!-- Historical Change info not stored properly in v1, hiding for reprint simplicity unless requested -->
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
