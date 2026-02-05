@@ -1310,10 +1310,23 @@ const App = {
     },
 
     // --- Payment & Receipt ---
+    // Helper to toggle mobile cart (defined here to be accessible)
+    toggleMobileCart: (show) => {
+        const cartPanel = document.getElementById('right-panel');
+        const mobileOverlay = document.getElementById('mobile-cart-overlay');
+        if (show) {
+            cartPanel.classList.add('open');
+            if (window.innerWidth <= 1024) mobileOverlay.style.display = 'block';
+        } else {
+            cartPanel.classList.remove('open');
+            mobileOverlay.style.display = 'none';
+        }
+    },
+
     showPaymentModal: () => {
         App.closeModals(); // Prevent Overlap
         // Hide Mobile Cart for better view
-        if (App.toggleMobileCart) App.toggleMobileCart(false);
+        App.toggleMobileCart(false);
 
         const total = parseFloat(App.elements.cartTotal.textContent.replace(/,/g, ''));
         const overlay = document.getElementById('modal-overlay');
@@ -1409,18 +1422,7 @@ const App = {
             }
         };
 
-        // Helper to toggle mobile cart
-        App.toggleMobileCart = (show) => {
-            const cartPanel = document.getElementById('right-panel');
-            const mobileOverlay = document.getElementById('mobile-cart-overlay');
-            if (show) {
-                cartPanel.classList.add('open');
-                if (window.innerWidth <= 1024) mobileOverlay.style.display = 'block';
-            } else {
-                cartPanel.classList.remove('open');
-                mobileOverlay.style.display = 'none';
-            }
-        };
+
 
         const completeSale = (shouldPrint) => {
             const received = parseFloat(App.currentPayInput);
