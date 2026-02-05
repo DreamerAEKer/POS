@@ -1230,6 +1230,25 @@ const App = {
             if (App.state.cart.length === 0) return;
             App.showPaymentModal();
         });
+
+        // --- Mobile Cart Toggle ---
+        const cartPanel = document.getElementById('right-panel');
+        const mobileCartBtn = document.getElementById('btn-mobile-cart');
+        const mobileOverlay = document.getElementById('mobile-cart-overlay');
+
+        if (mobileCartBtn) {
+            mobileCartBtn.addEventListener('click', () => {
+                cartPanel.classList.add('open');
+                mobileOverlay.style.display = 'block';
+            });
+        }
+
+        if (mobileOverlay) {
+            mobileOverlay.addEventListener('click', () => {
+                cartPanel.classList.remove('open');
+                mobileOverlay.style.display = 'none';
+            });
+        }
     },
 
     updateParkedBadge: () => {

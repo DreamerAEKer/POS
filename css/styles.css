@@ -520,13 +520,15 @@ button {
         z-index: 900;
     }
 
-    /* Font Sizing */
+    /* Font Sizing - Optimized for Sunmi V3 / Mobile */
     .product-name {
-        font-size: 14px;
+        font-size: 16px;
+        /* Increased from 14px for better readability */
     }
 
     .product-price {
-        font-size: 16px;
+        font-size: 18px;
+        /* High contrast price */
     }
 }
 
