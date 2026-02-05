@@ -637,16 +637,16 @@ const App = {
             <form id="product-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
                 <input type="hidden" id="p-id" value="${product ? product.id : ''}">
                 
-                <div style="display:flex; gap:10px;">
-                    <div style="flex:1;">
+                <div style="display:flex; flex-wrap:wrap; gap:15px;">
+                    <div style="flex: 1 1 250px;">
                         <label>บาร์โค้ด (Scan หรือ พิมพ์)</label>
                         <div style="display:flex; gap:5px;">
                             <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1;">
                             <button type="button" class="secondary-btn" onclick="document.getElementById('p-barcode').focus()">Scan</button>
                         </div>
                     </div>
-                     <div style="flex:1;">
-                        <label>หมวดหมู่/กลุ่ม (ปล่อยว่างถ้าไม่มี)</label>
+                     <div style="flex: 1 1 200px;">
+                        <label>หมวดหมู่ (ปล่อยว่างถ้าไม่มี)</label>
                         <input type="text" id="p-group" list="group-list" value="${product && product.group ? product.group : ''}" 
                             placeholder="เช่น น้ำอัดลม, ไข่ไก่" style="width:100%;">
                         <datalist id="group-list">
@@ -658,19 +658,20 @@ const App = {
                 <label>ชื่อสินค้า (ระบุรสชาติ/ขนาด)</label>
                 <input type="text" id="p-name" value="${product ? product.name : ''}" required placeholder="เช่น โค้ก (กระป๋อง), เบอร์ 0 (10 ฟอง)" style="width:100%;">
                 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <div>
+                <div style="display:flex; flex-wrap:wrap; gap:15px;">
+                    <div style="flex: 1 1 150px;">
                         <label>ราคาขาย (บาท)</label>
                         <input type="number" step="0.5" id="p-price" value="${product ? product.price : ''}" required style="width:100%;">
                     </div>
-                    <div>
+                    <div style="flex: 1 1 150px;">
                         <label>ต้นทุน (Cost)</label>
                         <input type="number" step="0.5" id="p-cost" value="${product ? (product.cost || '') : ''}" placeholder="ใส่เพื่อคิดกำไร" style="width:100%;">
                     </div>
                 </div>
 
-                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <div>
+                 <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:flex-start;">
+                    <!-- Stock Column -->
+                    <div style="flex: 1 1 250px;">
                          <!-- Stock / Bundle Switch -->
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                             <label style="margin:0;">จำนวนสต็อก</label>
@@ -723,35 +724,44 @@ const App = {
                         </div>
                     </div>
                 
-                    <div>
-                        <label>วันหมดอายุ (Expiry)</label>
-                        <input type="date" id="p-expiry" value="${product ? (product.expiryDate || '') : ''}" style="width:100%; margin-bottom:10px;">
+                    <!-- Tags & Image Column -->
+                    <div style="flex: 1 1 200px; display:flex; flex-direction:column; gap:10px;">
+                        <div>
+                            <label>วันหมดอายุ (Expiry)</label>
+                            <input type="date" id="p-expiry" value="${product ? (product.expiryDate || '') : ''}" style="width:100%; margin-bottom:10px;">
+                        </div>
                         
-                        <label>ป้ายกำกับ (Tags)</label>
-                        <div style="display:flex; gap:5px; flex-wrap:wrap;">
-                            <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
-                                <input type="checkbox" name="p-tags" value="promo" ${product && product.tags && product.tags.includes('promo') ? 'checked' : ''}>
-                                🔥 จัดโปร
-                            </label>
-                            <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
-                                <input type="checkbox" name="p-tags" value="expiry" ${product && product.tags && product.tags.includes('expiry') ? 'checked' : ''}>
-                                ⏳ ใกล้หมด
-                            </label>
-                             <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
-                                <input type="checkbox" name="p-tags" value="new" ${product && product.tags && product.tags.includes('new') ? 'checked' : ''}>
-                                ✨ ใหม่
-                            </label>
+                        <div>
+                            <label>ป้ายกำกับ (Tags)</label>
+                            <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                                <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
+                                    <input type="checkbox" name="p-tags" value="promo" ${product && product.tags && product.tags.includes('promo') ? 'checked' : ''}>
+                                    🔥 โปรฯ
+                                </label>
+                                <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
+                                    <input type="checkbox" name="p-tags" value="expiry" ${product && product.tags && product.tags.includes('expiry') ? 'checked' : ''}>
+                                    ⏳ ใกล้หมด
+                                </label>
+                                 <label class="tag-check" style="cursor:pointer; padding:5px 8px; border:1px solid #ddd; border-radius:15px; display:flex; align-items:center; gap:3px;">
+                                    <input type="checkbox" name="p-tags" value="new" ${product && product.tags && product.tags.includes('new') ? 'checked' : ''}>
+                                    ✨ ใหม่
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label>รูปภาพ</label>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <div id="p-image-preview" style="width:60px; height:60px; background:#eee; border-radius:8px; overflow:hidden; flex-shrink:0;">
+                                    ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : ''}
+                                </div>
+                                <input type="file" id="p-image-input" accept="image/*" style="width:100%;">
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <label>รูปภาพ</label>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <div id="p-image-preview" style="width:100px; height:100px; background:#eee; border-radius:8px; overflow:hidden;">
-                        ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : ''}
-                    </div>
-                    <input type="file" id="p-image-input" accept="image/*">
-                </div>
+
 
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
