@@ -569,6 +569,77 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
-    font-weight: bold;
+}
+
+/* --- Global Touch Optimizations --- */
+input,
+select,
+textarea {
+    font-size: 18px;
+    /* Prevent iOS zoom */
+    padding: 12px;
+    /* Larger touch target */
+    border-radius: var(--radius-md);
+    border: 1px solid var(--neutral-300);
+}
+
+button {
+    min-height: 44px;
+    /* Apple Human Interface Guidelines */
+}
+
+/* --- iPad / Tablet Specific (Portrait & Landscape) --- */
+/* Target range covers iPad Mini up to Pro 11" in standard orientations */
+@media screen and (min-width: 768px) and (max-width: 1180px) {
+
+    /* 1. Typography & Inputs - Make them BIG */
+    :root {
+        --text-xs: 16px;
+        --text-sm: 18px;
+        --text-base: 20px;
+        --text-lg: 24px;
+        --text-xl: 28px;
+        --space-md: 20px;
+        /* More breathing room */
+    }
+
+    input,
+    select,
+    textarea {
+        font-size: 22px !important;
+        /* Force readable size */
+        padding: 15px;
+    }
+
+    .modal {
+        width: 95%;
+        /* Use full width */
+        max-width: none;
+    }
+
+    /* 2. Product Grid - Larger Cards */
+    .product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 20px;
+    }
+
+    .product-card {
+        border-width: 2px;
+        /* Thicker borders for visibility */
+    }
+
+    /* 3. Landscape Tweaks (Sidebar visible) */
+    #sidebar {
+        width: 90px;
+        /* Slightly smaller sidebar to save space for content */
+    }
+
+    .nav-item span:first-child {
+        font-size: 36px;
+        /* Bigger icons */
+    }
+
+    .nav-item span:last-child {
+        font-size: 14px;
+    }
 }

@@ -636,14 +636,14 @@ const App = {
                     <div style="flex:1;">
                         <label>บาร์โค้ด (Scan หรือ พิมพ์)</label>
                         <div style="display:flex; gap:5px;">
-                            <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1; padding:8px; font-size:18px;">
+                            <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1;">
                             <button type="button" class="secondary-btn" onclick="document.getElementById('p-barcode').focus()">Scan</button>
                         </div>
                     </div>
                      <div style="flex:1;">
                         <label>หมวดหมู่/กลุ่ม (ปล่อยว่างถ้าไม่มี)</label>
                         <input type="text" id="p-group" list="group-list" value="${product && product.group ? product.group : ''}" 
-                            placeholder="เช่น น้ำอัดลม, ไข่ไก่" style="width:100%; padding:8px; font-size:18px;">
+                            placeholder="เช่น น้ำอัดลม, ไข่ไก่" style="width:100%;">
                         <datalist id="group-list">
                             ${existingGroups.map(g => `<option value="${g}">`).join('')}
                         </datalist>
@@ -651,16 +651,16 @@ const App = {
                 </div>
 
                 <label>ชื่อสินค้า (ระบุรสชาติ/ขนาด)</label>
-                <input type="text" id="p-name" value="${product ? product.name : ''}" required style="padding:8px; font-size:18px;" placeholder="เช่น โค้ก (กระป๋อง), เบอร์ 0 (10 ฟอง)">
+                <input type="text" id="p-name" value="${product ? product.name : ''}" required placeholder="เช่น โค้ก (กระป๋อง), เบอร์ 0 (10 ฟอง)" style="width:100%;">
                 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                     <div>
                         <label>ราคาขาย (บาท)</label>
-                        <input type="number" step="0.5" id="p-price" value="${product ? product.price : ''}" required style="width:100%; padding:8px; font-size:18px;">
+                        <input type="number" step="0.5" id="p-price" value="${product ? product.price : ''}" required style="width:100%;">
                     </div>
                     <div>
                         <label>ต้นทุน (Cost)</label>
-                        <input type="number" step="0.5" id="p-cost" value="${product ? (product.cost || '') : ''}" placeholder="ใส่เพื่อคิดกำไร" style="width:100%; padding:8px; font-size:18px;">
+                        <input type="number" step="0.5" id="p-cost" value="${product ? (product.cost || '') : ''}" placeholder="ใส่เพื่อคิดกำไร" style="width:100%;">
                     </div>
                 </div>
 
@@ -678,7 +678,7 @@ const App = {
                         <!-- Normal Stock Input -->
                         <div id="stock-input-group">
                             <div style="display:flex; gap:5px;">
-                                <input type="number" id="p-stock" value="${product ? product.stock : ''}" style="flex:1; padding:8px; font-size:18px;">
+                                <input type="number" id="p-stock" value="${product ? product.stock : ''}" style="flex:1;">
                                 <button type="button" class="secondary-btn" onclick="Utils.toggle('stock-calc-panel')">
                                     <span class="material-symbols-rounded">calculate</span>
                                 </button>
@@ -720,7 +720,7 @@ const App = {
                 
                     <div>
                         <label>วันหมดอายุ (Expiry)</label>
-                        <input type="date" id="p-expiry" value="${product ? (product.expiryDate || '') : ''}" style="width:100%; padding:8px; font-size:16px; margin-bottom:10px;">
+                        <input type="date" id="p-expiry" value="${product ? (product.expiryDate || '') : ''}" style="width:100%; margin-bottom:10px;">
                         
                         <label>ป้ายกำกับ (Tags)</label>
                         <div style="display:flex; gap:5px; flex-wrap:wrap;">
@@ -976,7 +976,7 @@ const App = {
             <h2>เพิ่มสินค้าให้ร้านค้า</h2>
             <form id="link-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
                 <label>เลือกสินค้าในร้าน</label>
-                <select id="l-product" style="padding:10px; font-size:16px;">
+                <select id="l-product" style="width:100%;">
                     ${allProducts.map(p => `<option value="${p.id}">${p.name} (ขาย: ${p.price})</option>`).join('')}
                 </select>
                 <div style="background:var(--neutral-100); padding:10px; border-radius:8px; border:1px solid var(--neutral-300);">
@@ -993,7 +993,7 @@ const App = {
                     </div>
 
                     <label id="l-price-label">ราคาซื้อ (บาท)</label>
-                    <input type="number" step="0.01" id="l-buy-price" required style="width:100%; padding:10px; font-size:18px;">
+                    <input type="number" step="0.01" id="l-buy-price" required style="width:100%;">
                     
                     <div style="margin-top:10px; text-align:right; font-weight:bold; color:var(--primary-color);">
                         ต้นทุนตกชิ้นละ: <span id="l-calc-cost">0.00</span> บาท
@@ -1246,7 +1246,7 @@ const App = {
                 ${parked.map(cart => `
                     <div style="border:1px solid #eee; padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <div style="font-weight:bold;">บิล: ${cart.id.substr(0, 8)}</div>
+                            <div style="font-weight:bold; font-size:16px; color:var(--primary-color);">${cart.id}</div>
                             <div style="font-size:12px; color:#888;">${new Date(cart.timestamp).toLocaleTimeString('th-TH')} - ${cart.items.length} รายการ</div>
                         </div>
                         <div>
@@ -1359,7 +1359,9 @@ const App = {
             DB.recordSale({ date: new Date(), items: App.state.cart, total: total });
 
             if (shouldPrint) {
-                App.printReceipt(total, received, change);
+                // Pass billId if available (it might be in sale record now)
+                const lastSale = DB.getSales()[DB.getSales().length - 1];
+                App.printReceipt(total, received, change, lastSale ? lastSale.billId : '-');
             }
 
             App.state.cart = [];
@@ -1374,12 +1376,13 @@ const App = {
         document.getElementById('btn-confirm-no-print').addEventListener('click', () => completeSale(false));
     },
 
-    printReceipt: (total, received, change) => {
+    printReceipt: (total, received, change, billId) => {
         const storeName = DB.getSettings().storeName;
         const receiptHtml = `
             <div class="receipt-header">
                 <h2>${storeName}</h2>
                 <p>ใบเสร็จรับเงินอย่างย่อ</p>
+                <p style="font-weight:bold; margin-top:5px;">TAX INV: ${billId}</p>
                 <p>${new Date().toLocaleString('th-TH')}</p>
             </div>
             <div class="receipt-divider"></div>

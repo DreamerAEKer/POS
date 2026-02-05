@@ -139,6 +139,23 @@ const DB = {
         }
     },
 
+    // --- Bill ID Generation ---
+    generateBillId: () => {
+        const today = new Date();
+        const yy = today.getFullYear().toString().slice(-2);
+        const mm = (today.getMonth() + 1).toString().padStart(2, '0');
+        const dd = today.getDate().toString().padStart(2, '0');
+        const prefix = `B${yy}${mm}${dd}`; // e.g., B260205
+
+        const key = `counter_${prefix}`;
+        let count = parseInt(localStorage.getItem(key)) || 0;
+        count++;
+        localStorage.setItem(key, count.toString());
+
+        const runningNum = count.toString().padStart(3, '0');
+        return `${prefix}-${runningNum}`;
+    },
+
     // --- Parked Carts ---
     getParkedCarts: () => {
         return DB.safeGet(DB.KEYS.PARKED_CARTS, []);
@@ -147,7 +164,7 @@ const DB = {
     parkCart: (cartItems) => {
         const parked = DB.getParkedCarts();
         parked.push({
-            id: Utils.generateId(),
+            id: DB.generateBillId(), // Use new Readable ID
             timestamp: Date.now(),
             items: cartItems
         });
@@ -177,6 +194,10 @@ const DB = {
         const sales = DB.safeGet(DB.KEYS.SALES, []);
         // Snapshot Store Name for Historical Integrity
         saleData.storeName = DB.getSettings().storeName;
+        // Generate Bill ID if not present
+        if (!saleData.billId) {
+            saleData.billId = DB.generateBillId();
+        }
         sales.push(saleData);
         localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
     },
