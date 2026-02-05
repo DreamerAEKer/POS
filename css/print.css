@@ -6,20 +6,25 @@
         /* Critical for thermal printers */
     }
 
-    body * {
-        visibility: hidden;
-        height: 0;
-        overflow: hidden;
+    /* STRICTLY hide all direct children of body except the receipt area */
+    body>*:not(#receipt-print-area) {
+        display: none !important;
     }
 
-    #receipt-print-area,
-    #receipt-print-area * {
-        visibility: visible;
-        height: auto;
+    /* Reset HTML/Body to prevent overflow */
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
     }
 
+    /* Force show the receipt area */
     #receipt-print-area {
+        display: block !important;
         position: absolute;
+        /* Absolute positioning ensures it starts at top-left */
         left: 0;
         top: 0;
         width: 100%;
@@ -31,6 +36,12 @@
         /* Huge base size for A4 fallback */
         line-height: 1.2;
         font-weight: 600;
+        z-index: 9999;
+    }
+
+    #receipt-print-area * {
+        visibility: visible;
+        /* Ensure children are visible */
     }
 
     .receipt-header,
