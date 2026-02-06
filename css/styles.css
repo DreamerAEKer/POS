@@ -450,7 +450,8 @@ button {
     }
 
     /* Mobile Nav Items */
-    #mobile-bottom-nav .nav-item {
+    #mobile-bottom-nav .nav-item,
+    #mobile-bottom-nav .nav-action-item {
         flex: 1;
         display: flex;
         flex-direction: column;
@@ -462,13 +463,15 @@ button {
         font-size: 10px;
     }
 
-    #mobile-bottom-nav .nav-item.active {
+    #mobile-bottom-nav .nav-item.active,
+    #mobile-bottom-nav .nav-action-item.active {
         color: var(--primary-color);
         background: transparent;
         /* Remove desktop active bg */
     }
 
-    #mobile-bottom-nav .nav-item span:first-child {
+    #mobile-bottom-nav .nav-item span:first-child,
+    #mobile-bottom-nav .nav-action-item span:first-child {
         font-size: 26px;
         margin-bottom: 4px;
     }
