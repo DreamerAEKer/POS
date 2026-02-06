@@ -67,6 +67,7 @@ const App = {
                 }
                 // 2. Normal Views
                 else if (view) {
+                    App.closeModals(); // Fix: Close any open popups (like Stock Add/Edit) when changing views
                     App.setActiveNav(view);
                     App.renderView(view);
                 }
