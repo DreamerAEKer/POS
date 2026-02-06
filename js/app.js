@@ -1263,7 +1263,7 @@ const App = {
         });
         document.getElementById('btn-park-cart').addEventListener('click', () => {
             try {
-                if (App.state.cart.length === 0) return;
+                if (App.state.cart.length === 0) return alert('กรุณาเลือกสินค้าลงตะกร้าก่อนพักบิล');
 
                 let note = '';
                 let timestamp = null;
