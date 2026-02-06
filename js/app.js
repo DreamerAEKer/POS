@@ -1217,6 +1217,7 @@ const App = {
             App.renderCart();
             App.updateParkedBadge();
             App.closeModals(); // Close any open modals
+            if (App.toggleMobileCart) App.toggleMobileCart(false); // Close mobile cart drawer
             alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
         } catch (err) {
             alert('เกิดข้อผิดพลาดในการพักบิล: ' + err.message);
