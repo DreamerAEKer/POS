@@ -5,6 +5,7 @@
 const App = {
     state: {
         cart: [],
+        activeBill: null, // Track currently active restored bill
         currentView: 'pos', // 'pos', 'stock', 'suppliers', 'settings'
         products: [],
         searchQuery: ''
@@ -1260,29 +1261,33 @@ const App = {
             }
         });
         document.getElementById('btn-park-cart').addEventListener('click', () => {
-            if (App.state.cart.length === 0) return;
+            try {
+                if (App.state.cart.length === 0) return;
 
-            let note = '';
-            let timestamp = null;
+                let note = '';
+                let timestamp = null;
 
-            // Smart Re-park Check
-            if (App.state.activeBill) {
-                note = App.state.activeBill.note;
-                timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
-                // Optional: Flash message that we are updating?
-            } else {
-                note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+                // Smart Re-park Check
+                if (App.state.activeBill) {
+                    note = App.state.activeBill.note;
+                    timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
+                } else {
+                    note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+                }
+
+                DB.parkCart(App.state.cart, note, timestamp);
+
+                // Clear Active State
+                App.state.activeBill = null;
+                App.state.cart = [];
+
+                App.renderCart();
+                App.updateParkedBadge();
+                alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดในการพักบิล: ' + err.message);
+                console.error(err);
             }
-
-            DB.parkCart(App.state.cart, note, timestamp);
-
-            // Clear Active State
-            App.state.activeBill = null;
-            App.state.cart = [];
-
-            App.renderCart();
-            App.updateParkedBadge();
-            alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
         });
         document.getElementById('btn-parked-carts').addEventListener('click', App.showParkedCartsModal);
         document.getElementById('btn-checkout').addEventListener('click', () => {
