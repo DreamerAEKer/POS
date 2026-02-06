@@ -161,11 +161,12 @@ const DB = {
         return DB.safeGet(DB.KEYS.PARKED_CARTS, []);
     },
 
-    parkCart: (cartItems) => {
+    parkCart: (cartItems, note = '') => {
         const parked = DB.getParkedCarts();
         parked.push({
             id: DB.generateBillId(), // Use new Readable ID
             timestamp: Date.now(),
+            note: note,
             items: cartItems
         });
         localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));

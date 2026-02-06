@@ -1229,7 +1229,11 @@ const App = {
         });
         document.getElementById('btn-park-cart').addEventListener('click', () => {
             if (App.state.cart.length === 0) return;
-            DB.parkCart(App.state.cart);
+
+            // Custom Name Prompt
+            const note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+
+            DB.parkCart(App.state.cart, note);
             App.state.cart = [];
             App.renderCart();
             App.updateParkedBadge();
@@ -1280,7 +1284,9 @@ const App = {
                 ${parked.map(cart => `
                     <div style="border:1px solid #eee; padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <div style="font-weight:bold; font-size:16px; color:var(--primary-color);">${cart.id}</div>
+                            <div style="font-weight:bold; font-size:16px; color:var(--primary-color);">
+                                ${cart.note ? `${cart.note} <span style="font-size:12px; color:#666;">(${cart.id})</span>` : cart.id}
+                            </div>
                             <div style="font-size:12px; color:#888;">${new Date(cart.timestamp).toLocaleTimeString('th-TH')} - ${cart.items.length} รายการ</div>
                         </div>
                         <div>
