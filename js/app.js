@@ -219,8 +219,9 @@ const App = {
 
         modal.innerHTML = `
             <h2>รายละเอียดบิล</h2>
-            <div style="color:#666; font-size:14px; margin-bottom:15px;">
-                ${new Date(sale.date).toLocaleString('th-TH')}
+            <div style="display:flex; justify-content:space-between; color:#666; font-size:14px; margin-bottom:15px;">
+                <span>${new Date(sale.date).toLocaleString('th-TH')}</span>
+                <span style="font-weight:bold;">${sale.billId}</span>
             </div>
             
             <div style="max-height:300px; overflow-y:auto; border-top:1px solid #eee; border-bottom:1px solid #eee; padding:10px 0;">
@@ -240,15 +241,46 @@ const App = {
             </div>
 
             <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ปิด</button>
+                <button class="secondary-btn" style="flex:1; background:#fff3e0; color:#e65100; border:1px solid #ffcc80;" onclick="App.editHistoricalBill('${sale.billId}')">
+                    <span class="material-symbols-rounded" style="vertical-align:bottom;">edit_note</span> แก้ไขบิล
+                </button>
                 <button class="primary-btn" style="flex:1;" onclick="App.printReceiptFromHistory(${index})">
-                    <span class="material-symbols-rounded" style="vertical-align:bottom; margin-right:5px;">print</span> พิมพ์ใบเสร็จ
+                    <span class="material-symbols-rounded" style="vertical-align:bottom; margin-right:5px;">print</span> พิมพ์
                 </button>
             </div>
+            <button class="secondary-btn" style="width:100%; margin-top:10px;" onclick="App.closeModals()">ปิด</button>
         `;
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+    },
+
+    editHistoricalBill: (billId) => {
+        if (!confirm('⚠️ คำเตือน: การแก้ไขบิลจะทำการ:\n1. คืนสต็อกสินค้าเดิมกลับเข้าระบบ\n2. นำรายการสินค้าเข้าตะกร้าเพื่อให้แก้ไข\n\nคุณต้องการดำเนินการต่อหรือไม่?')) return;
+
+        const sale = DB.getSaleById(billId);
+        if (!sale) return alert('ไม่พบข้อมูลบิลนี้');
+
+        // 1. Revert Stock (Add back)
+        sale.items.forEach(item => {
+            if (item.parentId && item.packSize) {
+                DB.updateStock(item.parentId, -(item.qty * item.packSize)); // Negative to ADD
+            } else {
+                DB.updateStock(item.id, -(item.qty));
+            }
+        });
+
+        // 2. Load to Cart
+        App.state.cart = JSON.parse(JSON.stringify(sale.items)); // Deep copy
+        App.state.editingBillId = sale.billId;
+        App.state.editingSaleDate = sale.date;
+
+        // 3. Switch View
+        App.renderCart();
+        App.closeModals();
+        App.renderView('pos');
+
+        alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
     // --- Settings View ---
@@ -1230,14 +1262,27 @@ const App = {
         document.getElementById('btn-park-cart').addEventListener('click', () => {
             if (App.state.cart.length === 0) return;
 
-            // Custom Name Prompt
-            const note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+            let note = '';
+            let timestamp = null;
 
-            DB.parkCart(App.state.cart, note);
+            // Smart Re-park Check
+            if (App.state.activeBill) {
+                note = App.state.activeBill.note;
+                timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
+                // Optional: Flash message that we are updating?
+            } else {
+                note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+            }
+
+            DB.parkCart(App.state.cart, note, timestamp);
+
+            // Clear Active State
+            App.state.activeBill = null;
             App.state.cart = [];
+
             App.renderCart();
             App.updateParkedBadge();
-            alert('พักบิลเรียบร้อย');
+            alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
         });
         document.getElementById('btn-parked-carts').addEventListener('click', App.showParkedCartsModal);
         document.getElementById('btn-checkout').addEventListener('click', () => {
@@ -1273,27 +1318,53 @@ const App = {
 
     showParkedCartsModal: () => {
         App.closeModals(); // Prevent Overlap
-        const parked = DB.getParkedCarts();
+        const parked = DB.getParkedCarts(); // Sorted by DB
+        const trash = DB.getParkedTrash();
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal'); // reuse
 
+        // Trash View Toggle
+        const showTrash = App.state.showingTrash || false;
+        const listToRender = showTrash ? trash : parked;
+        const title = showTrash ? `ถังขยะ (${trash.length}) - ย้อนหลัง 10 รายการ` : `รายการพักบิล (${parked.length})`;
+
         modal.innerHTML = `
-            <h2>รายการพักบิล (${parked.length})</h2>
-            <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px; max-height:300px; overflow-y:auto;">
-                ${parked.length === 0 ? '<p>ไม่มีรายการพักบิล</p>' : ''}
-                ${parked.map(cart => `
-                    <div style="border:1px solid #eee; padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <div style="font-weight:bold; font-size:16px; color:var(--primary-color);">
-                                ${cart.note ? `${cart.note} <span style="font-size:12px; color:#666;">(${cart.id})</span>` : cart.id}
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>${title}</h2>
+                <button class="secondary-btn small" onclick="App.toggleTrash()" style="${showTrash ? 'background:#ffebee; color:red; border:1px solid red;' : ''}">
+                    ${showTrash ? 'กลับไปรายการปกติ' : `🗑️ ถังขยะ (${trash.length})`}
+                </button>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px; max-height:400px; overflow-y:auto;">
+                ${listToRender.length === 0 ? `<p style="text-align:center; color:#888;">${showTrash ? 'ถังขยะว่างเปล่า' : 'ไม่มีรายการพักบิล'}</p>` : ''}
+                ${listToRender.map(cart => `
+                    <div style="border:1px solid #eee; padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; background:${showTrash ? '#fff5f5' : '#fff'};">
+                        <div style="flex:1;">
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                <div style="font-weight:bold; font-size:16px; color:var(--primary-color);">
+                                    ${cart.note ? cart.note : '<span style="color:#ccc;">(ไม่มีชื่อ)</span>'}
+                                </div>
+                                ${!showTrash ? `
+                                <button class="icon-btn small" onclick="App.editParkedName('${cart.id}', '${cart.note || ''}')" title="เปลี่ยนชื่อ">
+                                    <span class="material-symbols-rounded" style="font-size:16px;">edit</span>
+                                </button>
+                                ` : ''}
                             </div>
-                            <div style="font-size:12px; color:#888;">${new Date(cart.timestamp).toLocaleTimeString('th-TH')} - ${cart.items.length} รายการ</div>
+                            <div style="font-size:12px; color:#888;">
+                                ${cart.id} | ${new Date(cart.timestamp).toLocaleString('th-TH')} (${Utils.timeAgo(cart.timestamp)})
+                            </div>
+                            <div style="font-size:12px;">${cart.items.length} รายการ - ${Utils.formatCurrency(cart.items.reduce((s, i) => s + (i.price * i.qty), 0))} บาท</div>
                         </div>
-                        <div>
-                            <button class="primary-btn" style="padding:5px 10px; font-size:14px;" onclick="App.restoreParked('${cart.id}')">เรียกคืน</button>
-                            <button class="icon-btn dangerous" onclick="App.deleteParked('${cart.id}')">
-                                <span class="material-symbols-rounded">delete</span>
-                            </button>
+                        <div style="margin-left:10px;">
+                            ${showTrash ? `
+                                <button class="primary-btn" onclick="App.restoreFromTrash('${cart.id}')">กู้คืน</button>
+                            ` : `
+                                <button class="primary-btn" style="padding:5px 10px; font-size:14px;" onclick="App.restoreParked('${cart.id}')">เรียกคืน</button>
+                                <button class="icon-btn dangerous" onclick="App.deleteParked('${cart.id}')">
+                                    <span class="material-symbols-rounded">delete</span>
+                                </button>
+                            `}
                         </div>
                     </div>
                 `).join('')}
@@ -1304,13 +1375,37 @@ const App = {
         modal.classList.remove('hidden');
     },
 
+    toggleTrash: () => {
+        App.state.showingTrash = !App.state.showingTrash;
+        App.showParkedCartsModal();
+    },
+
+    editParkedName: (id, currentName) => {
+        const newName = prompt('แก้ไขชื่อบิล:', currentName);
+        if (newName !== null) {
+            DB.updateParkedNote(id, newName);
+            App.showParkedCartsModal();
+        }
+    },
+
     restoreParked: (id) => {
         if (App.state.cart.length > 0) {
             if (!confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
         }
-        const items = DB.retrieveParkedCart(id);
-        if (items) {
-            App.state.cart = items;
+
+        // Note: retrieve logic in DB now returns the object but deletes it from DB
+        // But we want to allow "re-parking" to same slot.
+        const parkingData = DB.retrieveParkedCart(id);
+
+        if (parkingData) {
+            App.state.cart = parkingData.items;
+
+            // Set Active Bill State for Smart Re-parking
+            App.state.activeBill = {
+                note: parkingData.note,
+                timestamp: parkingData.timestamp // Keep Original Queue Time!
+            };
+
             App.renderCart();
             App.updateParkedBadge();
             App.closeModals();
@@ -1318,11 +1413,17 @@ const App = {
     },
 
     deleteParked: (id) => {
-        if (confirm('ลบบิลนี้?')) {
+        if (confirm('ย้ายไปถังขยะ?')) {
             DB.removeParkedCart(id);
             App.showParkedCartsModal();
             App.updateParkedBadge();
         }
+    },
+
+    restoreFromTrash: (id) => {
+        DB.restoreParkedFromTrash(id);
+        App.showParkedCartsModal();
+        App.updateParkedBadge();
     },
 
     // --- Payment & Receipt ---
@@ -1463,12 +1564,17 @@ const App = {
             });
 
             DB.recordSale({
-                date: new Date(),
+                billId: App.state.editingBillId || null, // Preserve ID if editing
+                date: App.state.editingSaleDate || new Date(), // Preserve Date if editing
                 items: App.state.cart,
                 total: total,
                 received: received,
                 change: change
             });
+
+            // Clear Edit State
+            App.state.editingBillId = null;
+            App.state.editingSaleDate = null;
 
             App.state.cart = [];
             // Refresh Global State

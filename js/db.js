@@ -158,53 +158,113 @@ const DB = {
 
     // --- Parked Carts ---
     getParkedCarts: () => {
-        return DB.safeGet(DB.KEYS.PARKED_CARTS, []);
+        // Sort by Timestamp ASC (First In - Top)
+        return DB.safeGet(DB.KEYS.PARKED_CARTS, []).sort((a, b) => a.timestamp - b.timestamp);
     },
 
-    parkCart: (cartItems, note = '') => {
+    getParkedTrash: () => {
+        return DB.safeGet('store_parked_trash', []); // New Key
+    },
+
+    parkCart: (cartItems, note = '', customTimestamp = null) => {
         const parked = DB.getParkedCarts();
         parked.push({
-            id: DB.generateBillId(), // Use new Readable ID
-            timestamp: Date.now(),
+            id: DB.generateBillId(),
+            timestamp: customTimestamp || Date.now(), // Allow persistent queue position
             note: note,
             items: cartItems
         });
         localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));
     },
 
-    retrieveParkedCart: (id) => {
-        let parked = DB.getParkedCarts();
-        const cart = parked.find(c => c.id === id);
-        if (cart) {
-            // Remove from parked
-            parked = parked.filter(c => c.id !== id);
+    updateParkedNote: (id, newNote) => {
+        const parked = DB.getParkedCarts();
+        const item = parked.find(c => c.id === id);
+        if (item) {
+            item.note = newNote;
             localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));
-            return cart.items;
+        }
+    },
+
+    retrieveParkedCart: (id) => {
+        const parked = DB.getParkedCarts();
+        const cartIndex = parked.findIndex(c => c.id === id);
+        if (cartIndex > -1) {
+            const cart = parked[cartIndex];
+            // Remove from parked
+            parked.splice(cartIndex, 1);
+            localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));
+            return cart; // Return full object to access timestamp/note
         }
         return null;
     },
 
     removeParkedCart: (id) => {
-        let parked = DB.getParkedCarts();
-        parked = parked.filter(c => c.id !== id);
-        localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));
+        // Soft Delete to Trash
+        const parked = DB.getParkedCarts();
+        const item = parked.find(c => c.id === id);
+
+        if (item) {
+            // Add to Trash
+            const trash = DB.getParkedTrash();
+            trash.unshift(item); // Add to top
+            if (trash.length > 10) trash.pop(); // Keep max 10
+            localStorage.setItem('store_parked_trash', JSON.stringify(trash));
+
+            // Remove from Active
+            const newParked = parked.filter(c => c.id !== id);
+            localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(newParked));
+        }
+    },
+
+    restoreParkedFromTrash: (id) => {
+        const trash = DB.getParkedTrash();
+        const itemIndex = trash.findIndex(c => c.id === id);
+        if (itemIndex > -1) {
+            const item = trash[itemIndex];
+
+            // Move back to Parked
+            const parked = DB.getParkedCarts();
+            parked.push(item);
+            localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));
+
+            // Remove from Trash
+            trash.splice(itemIndex, 1);
+            localStorage.setItem('store_parked_trash', JSON.stringify(trash));
+        }
     },
 
     // --- Sales ---
+    // --- Sales ---
     recordSale: (saleData) => {
         const sales = DB.safeGet(DB.KEYS.SALES, []);
-        // Snapshot Store Name for Historical Integrity
-        saleData.storeName = DB.getSettings().storeName;
-        // Generate Bill ID if not present
-        if (!saleData.billId) {
+
+        // If ID exists, it might be an update
+        if (saleData.billId) {
+            const existingIndex = sales.findIndex(s => s.billId === saleData.billId);
+            if (existingIndex >= 0) {
+                // UPDATE existing sale
+                // Merge but preserve original date if not provided
+                sales[existingIndex] = { ...sales[existingIndex], ...saleData };
+                localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
+                return;
+            }
+        } else {
             saleData.billId = DB.generateBillId();
         }
+
+        // Snapshot Store Name for Historical Integrity
+        saleData.storeName = DB.getSettings().storeName;
         sales.push(saleData);
         localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
     },
 
     getSales: () => {
         return DB.safeGet(DB.KEYS.SALES, []);
+    },
+
+    getSaleById: (id) => {
+        return DB.safeGet(DB.KEYS.SALES, []).find(s => s.billId === id);
     },
 
     // --- Suppliers ---
