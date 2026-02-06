@@ -1193,6 +1193,37 @@ const App = {
         App.renderCart();
     },
 
+    actionParkCart: () => {
+        try {
+            if (App.state.cart.length === 0) return alert('กรุณาเลือกสินค้าลงตะกร้าก่อนพักบิล');
+
+            let note = '';
+            let timestamp = null;
+
+            // Smart Re-park Check
+            if (App.state.activeBill) {
+                note = App.state.activeBill.note;
+                timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
+            } else {
+                note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+            }
+
+            DB.parkCart(App.state.cart, note, timestamp);
+
+            // Clear Active State
+            App.state.activeBill = null;
+            App.state.cart = [];
+
+            App.renderCart();
+            App.updateParkedBadge();
+            App.closeModals(); // Close any open modals
+            alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
+        } catch (err) {
+            alert('เกิดข้อผิดพลาดในการพักบิล: ' + err.message);
+            console.error(err);
+        }
+    },
+
     renderCart: () => {
         App.elements.cartItemsContainer.innerHTML = App.state.cart.map((item, index) => `
             <div class="cart-item">
@@ -1261,35 +1292,7 @@ const App = {
                 App.renderCart();
             }
         });
-        document.getElementById('btn-park-cart').addEventListener('click', () => {
-            try {
-                if (App.state.cart.length === 0) return alert('กรุณาเลือกสินค้าลงตะกร้าก่อนพักบิล');
-
-                let note = '';
-                let timestamp = null;
-
-                // Smart Re-park Check
-                if (App.state.activeBill) {
-                    note = App.state.activeBill.note;
-                    timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
-                } else {
-                    note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
-                }
-
-                DB.parkCart(App.state.cart, note, timestamp);
-
-                // Clear Active State
-                App.state.activeBill = null;
-                App.state.cart = [];
-
-                App.renderCart();
-                App.updateParkedBadge();
-                alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
-            } catch (err) {
-                alert('เกิดข้อผิดพลาดในการพักบิล: ' + err.message);
-                console.error(err);
-            }
-        });
+        document.getElementById('btn-park-cart').addEventListener('click', App.actionParkCart);
         document.getElementById('btn-parked-carts').addEventListener('click', App.showParkedCartsModal);
         document.getElementById('btn-checkout').addEventListener('click', () => {
             if (App.state.cart.length === 0) return;
@@ -1341,6 +1344,16 @@ const App = {
                     ${showTrash ? 'กลับไปรายการปกติ' : `🗑️ ถังขยะ (${trash.length})`}
                 </button>
             </div>
+
+            ${App.state.cart.length > 0 && !showTrash ? `
+            <div style="margin-top:15px; margin-bottom:10px;">
+                <button class="primary-btn" style="width:100%; display:flex; justify-content:center; align-items:center; gap:10px; padding:15px;" onclick="App.actionParkCart()">
+                    <span class="material-symbols-rounded">move_to_inbox</span> พักบิลรายการปัจจุบันทันที (${App.state.cart.length} รายการ)
+                </button>
+                <div style="text-align:center; margin-top:5px; font-size:12px; color:#666;">(กดเพื่อพักรายการในตะกร้าและเคลียร์หน้าจอ)</div>
+                <hr style="margin:15px 0; border:0; border-top:1px solid #eee;">
+            </div>
+            ` : ''}
             
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px; max-height:400px; overflow-y:auto;">
                 ${listToRender.length === 0 ? `<p style="text-align:center; color:#888;">${showTrash ? 'ถังขยะว่างเปล่า' : 'ไม่มีรายการพักบิล'}</p>` : ''}
