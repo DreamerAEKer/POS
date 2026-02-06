@@ -260,7 +260,23 @@ const DB = {
     },
 
     getSales: () => {
-        return DB.safeGet(DB.KEYS.SALES, []);
+        const sales = DB.safeGet(DB.KEYS.SALES, []);
+        let updated = false;
+        sales.forEach(s => {
+            if (!s.billId) {
+                // Generate a retro-active ID based on date or random if not possible
+                // Using timestamp part from date if available, else random
+                const datePart = s.date ? new Date(s.date).getTime().toString().slice(-6) : Math.floor(Math.random() * 10000);
+                s.billId = `B-${datePart}-${Math.floor(Math.random() * 1000)}`;
+                updated = true;
+            }
+        });
+
+        if (updated) {
+            localStorage.setItem(DB.KEYS.SALES, JSON.stringify(sales));
+        }
+
+        return sales;
     },
 
     getSaleById: (id) => {
