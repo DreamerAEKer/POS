@@ -573,6 +573,46 @@ button {
     cursor: pointer;
 }
 
+/* Emergency Park FAB (Left Side) */
+.park-fab-btn {
+    display: none;
+    /* Hidden on desktop */
+    position: fixed;
+    bottom: 90px;
+    left: 20px;
+    /* Safe from right-side cart button */
+    width: 60px;
+    height: 60px;
+    background-color: #ff9800;
+    /* Orange to distinguish */
+    color: white;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: 2147483647;
+    /* Max Safe Integer */
+    cursor: pointer;
+    font-size: 10px;
+}
+
+.park-fab-btn .material-symbols-rounded {
+    font-size: 24px;
+    margin-bottom: -2px;
+}
+
+.park-fab-btn .fab-label {
+    font-size: 10px;
+    font-weight: bold;
+}
+
+@media screen and (max-width: 1024px) {
+    .park-fab-btn {
+        display: flex !important;
+    }
+}
+
 .mobile-cart-count {
     position: absolute;
     top: -5px;
