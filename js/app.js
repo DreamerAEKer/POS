@@ -74,11 +74,22 @@ const App = {
                 // 3. Special Buttons
                 else if (item.id === 'btn-check-price') {
                     App.showPriceCheckModal();
-                } else if (item.id === 'btn-parked-mobile' || item.id === 'btn-parked-mobile-2') {
+                } else if (item.id === 'btn-parked-mobile') {
                     App.showParkedCartsModal();
                 }
             });
         });
+
+        // 4. Special Mobile Bottom Nav Button (Direct ID binding)
+        const mobileParkBtn = document.getElementById('btn-parked-mobile-2');
+        if (mobileParkBtn) {
+            mobileParkBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                App.closeModals();
+                App.showParkedCartsModal();
+            });
+        }
     },
 
     setActiveNav: (viewName) => {

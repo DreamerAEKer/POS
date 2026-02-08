@@ -72,9 +72,20 @@ body {
     text-align: center;
 }
 
-.nav-item span:first-child {
+.nav-item span:first-child,
+.nav-action-item span:first-child {
     font-size: 32px;
     margin-bottom: var(--space-xs);
+}
+
+/* Ensure button reset for nav action items */
+button.nav-action-item {
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
+    width: 100%;
+    /* Fill flex container */
 }
 
 .nav-item span:last-child {
