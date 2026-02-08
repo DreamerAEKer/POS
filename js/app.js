@@ -80,16 +80,22 @@ const App = {
             });
         });
 
-        // 4. Special Mobile Bottom Nav Button (Direct ID binding)
-        const mobileParkBtn = document.getElementById('btn-parked-mobile-2');
-        if (mobileParkBtn) {
-            mobileParkBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                App.closeModals();
-                App.showParkedCartsModal();
-            });
+
+    },
+
+    handleMobilePark: (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
         }
+        // Force close everything first
+        App.closeModals();
+        if (App.toggleMobileCart) App.toggleMobileCart(false);
+
+        // Slight delay to allow UI to settle (fixes some touch ghosting)
+        setTimeout(() => {
+            App.showParkedCartsModal();
+        }, 50);
     },
 
     setActiveNav: (viewName) => {
