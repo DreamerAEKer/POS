@@ -1757,6 +1757,7 @@ window.App = App;
 
 // EMERGENCY FIX: Robust Touch/Click Handler
 window.handleParkInteraction = function (e) {
+    alert('DEBUG: PARK BUTTON PRESSED'); // VISUAL CONFIRMATION
     // Critical: Prevent ghost clicks if touch fired
     if (e && e.type === 'touchstart') {
         e.preventDefault(); // Prevents mouse emulation
