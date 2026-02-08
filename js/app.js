@@ -21,7 +21,7 @@ const App = {
         receiptArea: document.getElementById('receipt-print-area')
     },
 
-    init: () => {
+    init: async () => {
         try {
             // Load Data
             App.state.products = DB.getProducts();
@@ -39,7 +39,7 @@ const App = {
             console.log('App Initialized Successfully');
         } catch (e) {
             console.error('App Init Error:', e);
-            alert('ระบบเกิดข้อผิดพลาด: ' + e.message);
+            await App.alert('ระบบเกิดข้อผิดพลาด: ' + e.message);
         }
     },
 
@@ -126,7 +126,7 @@ const App = {
         setTimeout(() => input.focus(), 100);
 
         // Core Logic
-        const submitPin = () => {
+        const submitPin = async () => {
             if (DB.validatePin(input.value)) {
                 App.closeModals();
 
@@ -136,7 +136,7 @@ const App = {
 
                 onSuccess();
             } else {
-                alert('รหัสผ่านไม่ถูกต้อง!');
+                await App.alert('รหัสผ่านไม่ถูกต้อง!');
                 input.value = '';
                 input.focus();
             }
@@ -274,11 +274,14 @@ const App = {
         modal.classList.remove('hidden');
     },
 
-    editHistoricalBill: (billId) => {
-        if (!confirm('⚠️ คำเตือน: การแก้ไขบิลจะทำการ:\n1. คืนสต็อกสินค้าเดิมกลับเข้าระบบ\n2. นำรายการสินค้าเข้าตะกร้าเพื่อให้แก้ไข\n\nคุณต้องการดำเนินการต่อหรือไม่?')) return;
+    editHistoricalBill: async (billId) => {
+        if (!await App.confirm('⚠️ คำเตือน: การแก้ไขบิลจะทำการ:\n1. คืนสต็อกสินค้าเดิมกลับเข้าระบบ\n2. นำรายการสินค้าเข้าตะกร้าเพื่อให้แก้ไข\n\nคุณต้องการดำเนินการต่อหรือไม่?')) return;
 
         const sale = DB.getSaleById(billId);
-        if (!sale) return alert('ไม่พบข้อมูลบิลนี้');
+        if (!sale) {
+            await App.alert('ไม่พบข้อมูลบิลนี้');
+            return;
+        }
 
         // 1. Revert Stock (Add back)
         sale.items.forEach(item => {
@@ -299,7 +302,7 @@ const App = {
         App.closeModals();
         App.renderView('pos');
 
-        alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
+        await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
     // --- Settings View ---
@@ -348,21 +351,27 @@ const App = {
     saveStoreName: () => {
         const nameInput = document.getElementById('set-store-name');
         const name = nameInput.value;
-        if (!name) return alert('กรุณาใส่ชื่อร้าน');
+        if (!name) {
+            App.alert('กรุณาใส่ชื่อร้าน');
+            return;
+        }
 
-        App.checkPin(() => {
+        App.checkPin(async () => {
             DB.saveSettings({ storeName: name });
-            alert('บันทึกชื่อร้านเรียบร้อยแล้ว!');
+            await App.alert('บันทึกชื่อร้านเรียบร้อยแล้ว!');
             App.renderView('settings');
         });
     },
 
     changePin: () => {
         const newPin = document.getElementById('set-new-pin').value;
-        if (!/^\d{4}$/.test(newPin)) return alert('รหัสผ่านต้องเป็นตัวเลข 4 หลัก');
-        App.checkPin(() => {
+        if (!/^\d{4}$/.test(newPin)) {
+            App.alert('รหัสผ่านต้องเป็นตัวเลข 4 หลัก');
+            return;
+        }
+        App.checkPin(async () => {
             DB.saveSettings({ pin: newPin });
-            alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!');
+            await App.alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!');
         });
     },
 
@@ -380,13 +389,13 @@ const App = {
         const file = input.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             const result = DB.importData(e.target.result);
             if (result.success) {
-                alert('กู้คืนข้อมูลสำเร็จ!');
+                await App.alert('กู้คืนข้อมูลสำเร็จ!');
                 location.reload();
             } else {
-                alert('เกิดข้อผิดพลาด: ' + result.message);
+                await App.alert('เกิดข้อผิดพลาด: ' + result.message);
             }
         };
         reader.readAsText(file);
@@ -921,12 +930,12 @@ const App = {
     },
 
     // --- Duplicate Check Helpers ---
-    combineStock: (id, addedQty) => {
+    combineStock: async (id, addedQty) => {
         const product = App.state.products.find(p => p.id === id);
         if (product) {
             product.stock += addedQty;
             DB.saveProduct(product);
-            alert(`อัปเดตสต็อกเรียบร้อย!\n(รวมเป็น ${product.stock} ชิ้น)`);
+            await App.alert(`อัปเดตสต็อกเรียบร้อย!\n(รวมเป็น ${product.stock} ชิ้น)`);
 
             document.getElementById('dup-warning-overlay').remove();
             App.closeModals();
@@ -974,8 +983,8 @@ const App = {
         // Keep perPack as it might be reused
     },
 
-    deleteProduct: (id) => {
-        if (confirm('ต้องการลบสินค้านี้ใช่หรือไม่?')) {
+    deleteProduct: async (id) => {
+        if (await App.confirm('ต้องการลบสินค้านี้ใช่หรือไม่?')) {
             DB.deleteProduct(id);
             App.renderView('stock');
         }
@@ -1004,7 +1013,7 @@ const App = {
             </form>
         `;
 
-        document.getElementById('supplier-form').addEventListener('submit', (e) => {
+        document.getElementById('supplier-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = editId || Utils.generateId();
             const name = document.getElementById('s-name').value;
@@ -1012,7 +1021,7 @@ const App = {
             const phone = document.getElementById('s-phone').value.trim();
 
             if (!/^0\d{8,9}$/.test(phone)) {
-                alert('เบอร์โทรศัพท์ไม่ถูกต้อง!\n- ต้องขึ้นต้นด้วย 0\n- มีความยาว 9 หรือ 10 หลัก\n- เป็นตัวเลขเท่านั้น');
+                await App.alert('เบอร์โทรศัพท์ไม่ถูกต้อง!\n- ต้องขึ้นต้นด้วย 0\n- มีความยาว 9 หรือ 10 หลัก\n- เป็นตัวเลขเท่านั้น');
                 return;
             }
 
@@ -1025,8 +1034,8 @@ const App = {
         modal.classList.remove('hidden');
     },
 
-    deleteSupplier: (id) => {
-        if (confirm('ลบร้านค้านี้? ข้อมูลราคาที่ผูกไว้จะหายไปด้วย')) {
+    deleteSupplier: async (id) => {
+        if (await App.confirm('ลบร้านค้านี้? ข้อมูลราคาที่ผูกไว้จะหายไปด้วย')) {
             DB.deleteSupplier(id);
             App.renderView('suppliers');
         }
@@ -1171,13 +1180,13 @@ const App = {
             }
         });
 
-        document.getElementById('btn-scan-trigger').addEventListener('click', () => {
+        document.getElementById('btn-scan-trigger').addEventListener('click', async () => {
             input.focus();
-            alert('ใช้เครื่องสแกน ยิงบาร์โค้ดได้เลย\n(Focus on search box)');
+            await App.alert('ใช้เครื่องสแกน ยิงบาร์โค้ดได้เลย\n(Focus on search box)');
         });
     },
 
-    handleBarcodeScan: (barcode) => {
+    handleBarcodeScan: async (barcode) => {
         const product = DB.getProductByBarcode(barcode);
         if (product) {
             if (App.state.currentView === 'pos') {
@@ -1186,7 +1195,7 @@ const App = {
                 App.openProductModal(product.id);
             }
         } else {
-            if (confirm(`ไม่พบสินค้า ${barcode}\nต้องการเพิ่มสินค้าใหม่หรือไม่?`)) {
+            if (await App.confirm(`ไม่พบสินค้า ${barcode}\nต้องการเพิ่มสินค้าใหม่หรือไม่?`)) {
                 // Navigate to stock > Add
                 App.renderView('stock');
                 setTimeout(() => {
@@ -1198,11 +1207,17 @@ const App = {
     },
 
     // --- Cart Logic ---
-    addToCart: (product) => {
-        if (product.stock <= 0) return alert('สินค้าหมดสต็อก!');
+    addToCart: async (product) => {
+        if (product.stock <= 0) {
+            await App.alert('สินค้าหมดสต็อก!');
+            return;
+        }
         const existing = App.state.cart.find(item => item.id === product.id);
         if (existing) {
-            if (existing.qty + 1 > product.stock) return alert('จำนวนสินค้าเกินสต็อกที่มี');
+            if (existing.qty + 1 > product.stock) {
+                await App.alert('จำนวนสินค้าเกินสต็อกที่มี');
+                return;
+            }
             existing.qty++;
         } else {
             App.state.cart.push({ ...product, qty: 1 });
@@ -1210,9 +1225,12 @@ const App = {
         App.renderCart();
     },
 
-    actionParkCart: () => {
+    actionParkCart: async () => {
         try {
-            if (App.state.cart.length === 0) return alert('กรุณาเลือกสินค้าลงตะกร้าก่อนพักบิล');
+            if (App.state.cart.length === 0) {
+                await App.alert('กรุณาเลือกสินค้าลงตะกร้าก่อนพักบิล');
+                return;
+            }
 
             let note = '';
             let timestamp = null;
@@ -1222,7 +1240,7 @@ const App = {
                 note = App.state.activeBill.note;
                 timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
             } else {
-                note = prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+                note = await App.prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
             }
 
             DB.parkCart(App.state.cart, note, timestamp);
@@ -1235,9 +1253,9 @@ const App = {
             App.updateParkedBadge();
             App.closeModals(); // Close any open modals
             if (App.toggleMobileCart) App.toggleMobileCart(false); // Close mobile cart drawer
-            alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
+            await App.alert(`พักบิลเรียบร้อย ${note ? '(' + note + ')' : ''}`);
         } catch (err) {
-            alert('เกิดข้อผิดพลาดในการพักบิล: ' + err.message);
+            await App.alert('เกิดข้อผิดพลาดในการพักบิล: ' + err.message);
             console.error(err);
         }
     },
@@ -1276,22 +1294,25 @@ const App = {
         App.updateMobileCartBadge();
     },
 
-    removeCartItem: (index) => {
+    removeCartItem: async (index) => {
         // Confirmation for accidental clicks is good UX
-        if (confirm('ต้องการลบรายการนี้ออกจากตะกร้า?')) {
+        if (await App.confirm('ต้องการลบรายการนี้ออกจากตะกร้า?')) {
             App.state.cart.splice(index, 1);
             App.renderCart();
         }
     },
 
-    updateCartQty: (index, change) => {
+    updateCartQty: async (index, change) => {
         const item = App.state.cart[index];
         const newQty = item.qty + change;
         if (newQty <= 0) {
             App.state.cart.splice(index, 1);
         } else {
             const product = DB.getProducts().find(p => p.id === item.id);
-            if (newQty > product.stock) return alert('เกินจำนวนสต็อก');
+            if (newQty > product.stock) {
+                await App.alert('เกินจำนวนสต็อก');
+                return;
+            }
             item.qty = newQty;
         }
         App.renderCart();
@@ -1304,8 +1325,8 @@ const App = {
     },
 
     setupCartActions: () => {
-        document.getElementById('btn-clear-cart').addEventListener('click', () => {
-            if (confirm('ล้างตะกร้าสินค้า?')) {
+        document.getElementById('btn-clear-cart').addEventListener('click', async () => {
+            if (await App.confirm('ต้องการล้างตะกร้าสินค้าทั้งหมด?', 'ล้างตะกร้า')) {
                 App.state.cart = [];
                 App.renderCart();
             }
@@ -1387,7 +1408,7 @@ const App = {
                                 ` : ''}
                             </div>
                             <div style="font-size:12px; color:#888;">
-                                ${cart.id} | ${new Date(cart.timestamp).toLocaleString('th-TH')} (${Utils.timeAgo(cart.timestamp)})
+                                ${cart.id} | ${new Date(cart.timestamp).toLocaleString('th-TH')} <span style="color:blue;">(${typeof Utils !== 'undefined' && Utils.timeAgo ? Utils.timeAgo(cart.timestamp) : 'เพิ่งพัก'})</span>
                             </div>
                             <div style="font-size:12px;">${cart.items.length} รายการ - ${Utils.formatCurrency(cart.items.reduce((s, i) => s + (i.price * i.qty), 0))} บาท</div>
                         </div>
@@ -1410,22 +1431,125 @@ const App = {
         modal.classList.remove('hidden');
     },
 
+    // --- Custom Modal Helpers ---
+    confirm: (message, title = 'ยืนยันการทำรายการ') => {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmation-modal');
+            const overlay = document.getElementById('modal-overlay');
+
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            document.getElementById('confirm-icon').textContent = '❓';
+
+            const btnOk = document.getElementById('btn-confirm-ok');
+            const btnCancel = document.getElementById('btn-confirm-cancel');
+
+            btnCancel.style.display = 'block'; // Ensure cancel is visible
+            btnOk.textContent = 'ตกลง';
+            btnOk.className = 'primary-btn';
+
+            const close = (result) => {
+                modal.classList.add('hidden');
+                overlay.classList.add('hidden');
+                resolve(result);
+            };
+
+            btnOk.onclick = () => close(true);
+            btnCancel.onclick = () => close(false);
+
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+            setTimeout(() => btnOk.focus(), 100);
+        });
+    },
+
+    alert: (message, title = 'แจ้งเตือน') => {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmation-modal');
+            const overlay = document.getElementById('modal-overlay');
+
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            document.getElementById('confirm-icon').textContent = 'ℹ️';
+
+            const btnOk = document.getElementById('btn-confirm-ok');
+            const btnCancel = document.getElementById('btn-confirm-cancel');
+
+            btnCancel.style.display = 'none'; // Hide cancel for alerts
+            btnOk.textContent = 'รับทราบ';
+            btnOk.className = 'primary-btn';
+
+            const close = () => {
+                modal.classList.add('hidden');
+                overlay.classList.add('hidden');
+                resolve(true);
+            };
+
+            btnOk.onclick = () => close();
+
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+            setTimeout(() => btnOk.focus(), 100);
+        });
+    },
+
+    prompt: (message, defaultValue = '', title = 'กรอกข้อมูล') => {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmation-modal');
+            const overlay = document.getElementById('modal-overlay');
+
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            document.getElementById('confirm-icon').textContent = '📝';
+
+            const input = document.getElementById('confirm-input');
+            input.value = defaultValue;
+            input.classList.remove('hidden'); // Show input
+
+            const btnOk = document.getElementById('btn-confirm-ok');
+            const btnCancel = document.getElementById('btn-confirm-cancel');
+
+            btnCancel.style.display = 'block';
+            btnOk.textContent = 'ตกลง';
+            btnOk.className = 'primary-btn';
+
+            const close = (result) => {
+                modal.classList.add('hidden');
+                overlay.classList.add('hidden');
+                input.classList.add('hidden'); // Hide input again
+                resolve(result);
+            };
+
+            btnOk.onclick = () => close(input.value);
+            btnCancel.onclick = () => close(null);
+
+            // Enter key support
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') close(input.value);
+            };
+
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+            setTimeout(() => input.focus(), 100);
+        });
+    },
+
     toggleTrash: () => {
         App.state.showingTrash = !App.state.showingTrash;
         App.showParkedCartsModal();
     },
 
-    editParkedName: (id, currentName) => {
-        const newName = prompt('แก้ไขชื่อบิล:', currentName);
+    editParkedName: async (id, currentName) => {
+        const newName = await App.prompt('แก้ไขชื่อบิล:', currentName);
         if (newName !== null) {
             DB.updateParkedNote(id, newName);
             App.showParkedCartsModal();
         }
     },
 
-    restoreParked: (id) => {
+    restoreParked: async (id) => {
         if (App.state.cart.length > 0) {
-            if (!confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
+            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
         }
 
         // Note: retrieve logic in DB now returns the object but deletes it from DB
@@ -1447,8 +1571,8 @@ const App = {
         }
     },
 
-    deleteParked: (id) => {
-        if (confirm('ย้ายไปถังขยะ?')) {
+    deleteParked: async (id) => {
+        if (await App.confirm('ย้ายไปถังขยะ?')) {
             DB.removeParkedCart(id);
             App.showParkedCartsModal();
             App.updateParkedBadge();
