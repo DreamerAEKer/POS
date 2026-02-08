@@ -34,6 +34,22 @@ const Utils = {
         });
     },
 
+    // Calculate Time Ago (e.g. "5 mins ago")
+    timeAgo: (timestamp) => {
+        const seconds = Math.floor((new Date() - new Date(timestamp)) / 1000);
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + " ปีที่แล้ว";
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + " เดือนที่แล้ว";
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + " วันที่แล้ว";
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + " ชม. ที่แล้ว";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + " นาทีที่แล้ว";
+        return Math.floor(seconds) + " วินาทีที่แล้ว";
+    },
+
     // Toggle hidden class
     toggle: (id) => {
         const el = document.getElementById(id);
