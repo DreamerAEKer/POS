@@ -1755,5 +1755,39 @@ const App = {
 // Global expose
 window.App = App;
 
+// EMERGENCY FIX: Robust Touch/Click Handler
+window.handleParkInteraction = function (e) {
+    // Critical: Prevent ghost clicks if touch fired
+    if (e && e.type === 'touchstart') {
+        e.preventDefault(); // Prevents mouse emulation
+    }
+    if (e && e.stopPropagation) e.stopPropagation();
+
+    console.log('Park Interaction:', e ? e.type : 'manual');
+
+    // 1. Force Close All Overlays (The "Nuclear" Close)
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) overlay.classList.add('hidden');
+
+    document.querySelectorAll('.modal').forEach(m => {
+        m.classList.add('hidden');
+    });
+
+    const cartPanel = document.getElementById('right-panel');
+    const mobileOverlay = document.getElementById('mobile-cart-overlay');
+    if (cartPanel) cartPanel.classList.remove('open');
+    if (mobileOverlay) mobileOverlay.style.display = 'none';
+
+    // 2. Trigger Logic Securely
+    setTimeout(() => {
+        if (typeof App !== 'undefined' && App.showParkedCartsModal) {
+            App.showParkedCartsModal();
+        } else {
+            console.error('App not ready');
+            // Fallback reload if something is truly broken
+            window.location.reload();
+        }
+    }, 50);
+};
 
 document.addEventListener('DOMContentLoaded', App.init);
