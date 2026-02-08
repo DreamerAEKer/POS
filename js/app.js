@@ -1780,6 +1780,20 @@ window.handleParkInteraction = function (e) {
 
     // 2. Trigger Logic Securely
     setTimeout(() => {
+        // EMERGENCY POLYFILL: Force Utils.timeAgo if missing (Fixes Caching Issues)
+        if (typeof Utils !== 'undefined' && !Utils.timeAgo) {
+            console.warn('Polyfilling Utils.timeAgo');
+            Utils.timeAgo = (timestamp) => {
+                const seconds = Math.floor((new Date() - new Date(timestamp)) / 1000);
+                if (seconds < 60) return Math.floor(seconds) + " วินาทีที่แล้ว";
+                const minutes = Math.floor(seconds / 60);
+                if (minutes < 60) return minutes + " นาทีที่แล้ว";
+                const hours = Math.floor(minutes / 60);
+                if (hours < 24) return hours + " ชม. ที่แล้ว";
+                return Math.floor(hours / 24) + " วันที่แล้ว";
+            };
+        }
+
         if (typeof App !== 'undefined' && App.showParkedCartsModal) {
             App.showParkedCartsModal();
         } else {
