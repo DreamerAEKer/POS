@@ -83,16 +83,16 @@ const App = {
 
     },
 
-    handleMobilePark: (e) => {
+    openParkedModalFromNav: (e) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
         }
-        // Force close everything first
+        // 1. Close ALL Overlays/Drawers
         App.closeModals();
         if (App.toggleMobileCart) App.toggleMobileCart(false);
 
-        // Slight delay to allow UI to settle (fixes some touch ghosting)
+        // 2. Open Target Modal
         setTimeout(() => {
             App.showParkedCartsModal();
         }, 50);
@@ -1754,29 +1754,6 @@ const App = {
 
 // Global expose
 window.App = App;
-// Global Failsafe Handler for Park Bill
-window.debugPark = function (e) {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
 
-    // 1. Force Close Modals
-    const overlay = document.getElementById('modal-overlay');
-    if (overlay) overlay.classList.add('hidden');
-    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-
-    // 2. Close Mobile Cart
-    const rightPanel = document.getElementById('right-panel');
-    const mobileOverlay = document.getElementById('mobile-cart-overlay');
-    if (rightPanel) rightPanel.classList.remove('open');
-    if (mobileOverlay) mobileOverlay.style.display = 'none';
-
-    // 3. Show Parked Modal (Delayed safety)
-    setTimeout(() => {
-        if (App && App.showParkedCartsModal) {
-            App.showParkedCartsModal();
-        } else {
-            alert('กำลังโหลดระบบ... กรุณากดใหม่อีกครั้ง');
-        }
-    }, 50);
-};
 
 document.addEventListener('DOMContentLoaded', App.init);
