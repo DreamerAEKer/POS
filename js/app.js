@@ -1318,21 +1318,19 @@ const App = {
         });
 
         // --- Mobile Cart Toggle ---
-        const cartPanel = document.getElementById('right-panel');
+        // --- Mobile Cart Toggle ---
         const mobileCartBtn = document.getElementById('btn-mobile-cart');
         const mobileOverlay = document.getElementById('mobile-cart-overlay');
 
         if (mobileCartBtn) {
             mobileCartBtn.addEventListener('click', () => {
-                cartPanel.classList.add('open');
-                mobileOverlay.style.display = 'block';
+                App.toggleMobileCart(true);
             });
         }
 
         if (mobileOverlay) {
             mobileOverlay.addEventListener('click', () => {
-                cartPanel.classList.remove('open');
-                mobileOverlay.style.display = 'none';
+                App.toggleMobileCart(false);
             });
         }
     },
@@ -1727,6 +1725,19 @@ const App = {
                 }
             }, 300);
         });
+    },
+
+    toggleMobileCart: (show) => {
+        const cartPanel = document.getElementById('right-panel');
+        const mobileOverlay = document.getElementById('mobile-cart-overlay');
+
+        if (show) {
+            cartPanel.classList.add('open');
+            if (mobileOverlay) mobileOverlay.style.display = 'block';
+        } else {
+            cartPanel.classList.remove('open');
+            if (mobileOverlay) mobileOverlay.style.display = 'none';
+        }
     },
 
     closeModals: () => {
