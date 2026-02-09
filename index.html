@@ -156,22 +156,24 @@
             </div>
         </div>
 
+
+        <div id="confirmation-modal" class="modal hidden" style="max-width:320px; text-align:center; padding: 20px;">
+            <div style="font-size: 48px; margin-bottom: 10px;" id="confirm-icon">❓</div>
+            <h3 id="confirm-title" style="margin-bottom:10px; font-size: 18px;">ยืนยัน</h3>
+            <p id="confirm-message" style="margin-bottom:20px; color:#555; font-size: 16px;">ข้อความ</p>
+            <input type="text" id="confirm-input" class="hidden"
+                style="width:100%; padding:10px; margin-bottom:20px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button id="btn-confirm-cancel" class="secondary-btn" style="flex:1;">ยกเลิก</button>
+                <button id="btn-confirm-ok" class="primary-btn" style="flex:1;">ตกลง</button>
+            </div>
+        </div>
     </div>
 
     <!-- Hidden Receipt for Printing -->
     <div id="receipt-print-area"></div>
 
-    <div id="confirmation-modal" class="modal hidden" style="max-width:320px; text-align:center; padding: 20px;">
-        <div style="font-size: 48px; margin-bottom: 10px;" id="confirm-icon">❓</div>
-        <h3 id="confirm-title" style="margin-bottom:10px; font-size: 18px;">ยืนยัน</h3>
-        <p id="confirm-message" style="margin-bottom:20px; color:#555; font-size: 16px;">ข้อความ</p>
-        <input type="text" id="confirm-input" class="hidden"
-            style="width:100%; padding:10px; margin-bottom:20px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
-        <div style="display:flex; gap:10px; justify-content:center;">
-            <button id="btn-confirm-cancel" class="secondary-btn" style="flex:1;">ยกเลิก</button>
-            <button id="btn-confirm-ok" class="primary-btn" style="flex:1;">ตกลง</button>
-        </div>
-    </div>
+
 
     <!-- Mobile Bottom Navigation (Dedicated Structure) -->
     <nav id="mobile-bottom-nav">
