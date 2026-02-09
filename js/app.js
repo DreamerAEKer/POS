@@ -275,6 +275,7 @@ const App = {
     },
 
     editHistoricalBill: async (billId) => {
+        App.closeModals(); // REQUEST: Hide detail modal before confirmation
         if (!await App.confirm('⚠️ คำเตือน: การแก้ไขบิลจะทำการ:\n1. คืนสต็อกสินค้าเดิมกลับเข้าระบบ\n2. นำรายการสินค้าเข้าตะกร้าเพื่อให้แก้ไข\n\nคุณต้องการดำเนินการต่อหรือไม่?')) return;
 
         const sale = DB.getSaleById(billId);
@@ -1237,10 +1238,14 @@ const App = {
 
             // Smart Re-park Check
             if (App.state.activeBill) {
-                note = App.state.activeBill.note;
+                // REQUEST: Always ask, but pre-fill old name
+                const oldNote = App.state.activeBill.note || '';
+                note = await App.prompt('ยืนยันชื่อบิลพัก (สามารถแก้ไขได้):', oldNote);
+                if (note === null) return; // User cancelled
                 timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
             } else {
-                note = await App.prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '') || '';
+                note = await App.prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '');
+                if (note === null) return; // User cancelled
             }
 
             DB.parkCart(App.state.cart, note, timestamp);
@@ -1455,106 +1460,161 @@ const App = {
 
     confirm: (message, title = 'ยืนยันการทำรายการ') => {
         return new Promise((resolve) => {
-            App._ensureConfirmationModal();
-            const modal = document.getElementById('confirmation-modal');
-            const overlay = document.getElementById('modal-overlay');
+            try {
+                App._ensureConfirmationModal();
+                const modal = document.getElementById('confirmation-modal');
+                const overlay = document.getElementById('modal-overlay');
 
-            document.getElementById('confirm-title').textContent = title;
-            document.getElementById('confirm-message').textContent = message;
-            document.getElementById('confirm-icon').textContent = '❓';
+                document.getElementById('confirm-title').textContent = title;
+                document.getElementById('confirm-message').textContent = message;
+                document.getElementById('confirm-icon').textContent = '❓';
 
-            const btnOk = document.getElementById('btn-confirm-ok');
-            const btnCancel = document.getElementById('btn-confirm-cancel');
+                const btnOk = document.getElementById('btn-confirm-ok');
+                const btnCancel = document.getElementById('btn-confirm-cancel');
 
-            btnCancel.style.display = 'block'; // Ensure cancel is visible
-            btnOk.textContent = 'ตกลง';
-            btnOk.className = 'primary-btn';
+                const input = document.getElementById('confirm-input');
+                if (input) input.classList.add('hidden'); // Ensure input is hidden
 
-            const close = (result) => {
-                modal.classList.add('hidden');
-                overlay.classList.add('hidden');
-                resolve(result);
-            };
+                btnCancel.style.display = 'block';
+                btnOk.textContent = 'ตกลง';
+                btnOk.className = 'primary-btn';
 
-            btnOk.onclick = () => close(true);
-            btnCancel.onclick = () => close(false);
+                const close = (result) => {
+                    modal.classList.add('hidden');
+                    overlay.classList.add('hidden');
+                    resolve(result);
+                };
 
-            modal.classList.remove('hidden');
-            overlay.classList.remove('hidden');
-            setTimeout(() => btnOk.focus(), 100);
+                // Clone buttons to remove old listeners
+                const newBtnOk = btnOk.cloneNode(true);
+                const newBtnCancel = btnCancel.cloneNode(true);
+                btnOk.parentNode.replaceChild(newBtnOk, btnOk);
+                btnCancel.parentNode.replaceChild(newBtnCancel, btnCancel);
+
+                newBtnOk.onclick = () => close(true);
+                newBtnCancel.onclick = () => close(false);
+
+                modal.classList.remove('hidden');
+                overlay.classList.remove('hidden');
+
+                // Safe focus
+                setTimeout(() => {
+                    try { newBtnOk.focus(); } catch (e) { /* ignore */ }
+                }, 100);
+            } catch (e) {
+                console.error('Confirm Modal Error:', e);
+                resolve(false); // Fail safe
+            }
         });
     },
 
     alert: (message, title = 'แจ้งเตือน') => {
         return new Promise((resolve) => {
-            App._ensureConfirmationModal();
-            const modal = document.getElementById('confirmation-modal');
-            const overlay = document.getElementById('modal-overlay');
+            try {
+                App._ensureConfirmationModal();
+                const modal = document.getElementById('confirmation-modal');
+                const overlay = document.getElementById('modal-overlay');
 
-            document.getElementById('confirm-title').textContent = title;
-            document.getElementById('confirm-message').textContent = message;
-            document.getElementById('confirm-icon').textContent = 'ℹ️';
+                document.getElementById('confirm-title').textContent = title;
+                document.getElementById('confirm-message').textContent = message;
+                document.getElementById('confirm-icon').textContent = 'ℹ️';
 
-            const btnOk = document.getElementById('btn-confirm-ok');
-            const btnCancel = document.getElementById('btn-confirm-cancel');
+                const btnOk = document.getElementById('btn-confirm-ok');
+                const btnCancel = document.getElementById('btn-confirm-cancel');
 
-            btnCancel.style.display = 'none'; // Hide cancel for alerts
-            btnOk.textContent = 'รับทราบ';
-            btnOk.className = 'primary-btn';
+                const input = document.getElementById('confirm-input');
+                if (input) input.classList.add('hidden');
 
-            const close = () => {
-                modal.classList.add('hidden');
-                overlay.classList.add('hidden');
+                btnCancel.style.display = 'none';
+                btnOk.textContent = 'รับทราบ';
+                btnOk.className = 'primary-btn';
+
+                const close = () => {
+                    modal.classList.add('hidden');
+                    overlay.classList.add('hidden');
+                    resolve(true);
+                };
+
+                const newBtnOk = btnOk.cloneNode(true);
+                btnOk.parentNode.replaceChild(newBtnOk, btnOk);
+
+                newBtnOk.onclick = () => close();
+
+                modal.classList.remove('hidden');
+                overlay.classList.remove('hidden');
+
+                setTimeout(() => {
+                    try { newBtnOk.focus(); } catch (e) { /* ignore */ }
+                }, 100);
+            } catch (e) {
+                console.error('Alert Modal Error:', e);
                 resolve(true);
-            };
-
-            btnOk.onclick = () => close();
-
-            modal.classList.remove('hidden');
-            overlay.classList.remove('hidden');
-            setTimeout(() => btnOk.focus(), 100);
+            }
         });
     },
 
     prompt: (message, defaultValue = '', title = 'กรอกข้อมูล') => {
         return new Promise((resolve) => {
-            App._ensureConfirmationModal();
-            const modal = document.getElementById('confirmation-modal');
-            const overlay = document.getElementById('modal-overlay');
+            try {
+                App._ensureConfirmationModal();
+                const modal = document.getElementById('confirmation-modal');
+                const overlay = document.getElementById('modal-overlay');
 
-            document.getElementById('confirm-title').textContent = title;
-            document.getElementById('confirm-message').textContent = message;
-            document.getElementById('confirm-icon').textContent = '📝';
+                document.getElementById('confirm-title').textContent = title;
+                document.getElementById('confirm-message').textContent = message;
+                document.getElementById('confirm-icon').textContent = '📝';
 
-            const input = document.getElementById('confirm-input');
-            input.value = defaultValue;
-            input.classList.remove('hidden'); // Show input
+                const input = document.getElementById('confirm-input');
+                input.value = defaultValue;
+                input.classList.remove('hidden');
 
-            const btnOk = document.getElementById('btn-confirm-ok');
-            const btnCancel = document.getElementById('btn-confirm-cancel');
+                const btnOk = document.getElementById('btn-confirm-ok');
+                const btnCancel = document.getElementById('btn-confirm-cancel');
 
-            btnCancel.style.display = 'block';
-            btnOk.textContent = 'ตกลง';
-            btnOk.className = 'primary-btn';
+                btnCancel.style.display = 'block';
+                btnOk.textContent = 'ตกลง';
+                btnOk.className = 'primary-btn';
 
-            const close = (result) => {
-                modal.classList.add('hidden');
-                overlay.classList.add('hidden');
-                input.classList.add('hidden'); // Hide input again
-                resolve(result);
-            };
+                const close = (result) => {
+                    modal.classList.add('hidden');
+                    overlay.classList.add('hidden');
+                    input.classList.add('hidden');
+                    resolve(result);
+                };
 
-            btnOk.onclick = () => close(input.value);
-            btnCancel.onclick = () => close(null);
+                const newBtnOk = btnOk.cloneNode(true);
+                const newBtnCancel = btnCancel.cloneNode(true);
+                btnOk.parentNode.replaceChild(newBtnOk, btnOk);
+                btnCancel.parentNode.replaceChild(newBtnCancel, btnCancel);
 
-            // Enter key support
-            input.onkeydown = (e) => {
-                if (e.key === 'Enter') close(input.value);
-            };
+                // Re-fetch input if it was replaced (unlikely but safe)
+                const currentInput = document.getElementById('confirm-input');
 
-            modal.classList.remove('hidden');
-            overlay.classList.remove('hidden');
-            setTimeout(() => input.focus(), 100);
+                newBtnOk.onclick = () => close(currentInput.value);
+                newBtnCancel.onclick = () => close(null);
+
+                // Clear old listeners on input
+                const newInput = currentInput.cloneNode(true);
+                currentInput.parentNode.replaceChild(newInput, currentInput);
+
+                // Re-bind enter key
+                newInput.onkeydown = (e) => {
+                    if (e.key === 'Enter') close(newInput.value);
+                };
+                // Restore value and state
+                newInput.value = defaultValue;
+                newInput.classList.remove('hidden');
+
+                modal.classList.remove('hidden');
+                overlay.classList.remove('hidden');
+
+                setTimeout(() => {
+                    try { newInput.focus(); } catch (e) { /* ignore */ }
+                }, 100);
+            } catch (e) {
+                console.error('Prompt Modal Error:', e);
+                resolve(null);
+            }
         });
     },
 
