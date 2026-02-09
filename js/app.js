@@ -1432,8 +1432,30 @@ const App = {
     },
 
     // --- Custom Modal Helpers ---
+    _ensureConfirmationModal: () => {
+        const modal = document.getElementById('confirmation-modal');
+        if (!modal) return null; // Should exist from HTML
+
+        // Check if content is missing (was wiped)
+        if (!document.getElementById('confirm-input') || !document.getElementById('btn-confirm-ok')) {
+            console.warn('Re-injecting confirmation modal content');
+            modal.innerHTML = `
+                <div style="font-size: 48px; margin-bottom: 10px;" id="confirm-icon">❓</div>
+                <h3 id="confirm-title" style="margin-bottom:10px; font-size: 18px;">ยืนยัน</h3>
+                <p id="confirm-message" style="margin-bottom:20px; color:#555; font-size: 16px;">ข้อความ</p>
+                <input type="text" id="confirm-input" class="hidden" style="width:100%; padding:10px; margin-bottom:20px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button id="btn-confirm-cancel" class="secondary-btn" style="flex:1;">ยกเลิก</button>
+                    <button id="btn-confirm-ok" class="primary-btn" style="flex:1;">ตกลง</button>
+                </div>
+             `;
+        }
+        return modal;
+    },
+
     confirm: (message, title = 'ยืนยันการทำรายการ') => {
         return new Promise((resolve) => {
+            App._ensureConfirmationModal();
             const modal = document.getElementById('confirmation-modal');
             const overlay = document.getElementById('modal-overlay');
 
@@ -1465,6 +1487,7 @@ const App = {
 
     alert: (message, title = 'แจ้งเตือน') => {
         return new Promise((resolve) => {
+            App._ensureConfirmationModal();
             const modal = document.getElementById('confirmation-modal');
             const overlay = document.getElementById('modal-overlay');
 
@@ -1495,6 +1518,7 @@ const App = {
 
     prompt: (message, defaultValue = '', title = 'กรอกข้อมูล') => {
         return new Promise((resolve) => {
+            App._ensureConfirmationModal();
             const modal = document.getElementById('confirmation-modal');
             const overlay = document.getElementById('modal-overlay');
 
@@ -1868,8 +1892,8 @@ const App = {
         document.getElementById('modal-overlay').classList.add('hidden');
         document.querySelectorAll('.modal').forEach(m => {
             m.classList.add('hidden');
-            // FIX: Do not wipe security-modal content as it is static
-            if (m.id !== 'security-modal') {
+            // FIX: Do not wipe security-modal or confirmation-modal content as they are static
+            if (m.id !== 'security-modal' && m.id !== 'confirmation-modal') {
                 m.innerHTML = '';
             }
         });
