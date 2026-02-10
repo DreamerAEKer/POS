@@ -24,9 +24,9 @@ const Utils = {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     },
 
-    // Convert File to Base64 (for images)
     // Convert File to Base64 (with Resize)
-    fileToBase64: (file, maxWidth = 500) => {
+    // Aggressive Resize for Sunmi V3 (Low Memory)
+    fileToBase64: (file, maxWidth = 300) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -48,8 +48,8 @@ const Utils = {
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // Compress to JPEG 80% to save space
-                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    // Compress to JPEG 60% to save space (Critical for Thermal Printer Buffer)
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
                 };
                 img.onerror = error => reject(error);
             };

@@ -461,7 +461,9 @@ const App = {
         }
     },
 
-    clearImage: (type) => {
+    clearImage: async (type) => {
+        if (!await App.confirm('ต้องการลบรูปภาพนี้ใช่หรือไม่?')) return;
+
         const updates = {};
         updates[type] = null;
         DB.saveSettings(updates);
@@ -2004,12 +2006,15 @@ const App = {
             </div>
         `;
         area.innerHTML = receiptHtml;
-        window.print();
 
-        // Cleanup
+        // Wait for images to render (base64 is fast, but just in case)
         setTimeout(() => {
-            area.innerHTML = '';
-        }, 1000);
+            window.print();
+            // Cleanup after print dialog closes (or 1s delay)
+            setTimeout(() => {
+                area.innerHTML = '';
+            }, 2000); // Increased timeout for cleanup
+        }, 500); // Added delay before printing
     },
 
     // --- Price Check ---
