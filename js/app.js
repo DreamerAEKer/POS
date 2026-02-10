@@ -1403,11 +1403,11 @@ const App = {
                     <div style="border:1px solid #eee; padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; background:${showTrash ? '#fff5f5' : '#fff'};">
                         <div style="flex:1;">
                             <div style="display:flex; align-items:center; gap:5px;">
-                                <div style="font-weight:bold; font-size:16px; color:var(--primary-color);">
+                                <div style="font-weight:bold; font-size:16px; color:var(--primary-color); cursor:pointer;" onclick="App.editParkedName('${cart.id}', '${cart.note || ''}', event)" title="แก้ไขชื่อ">
                                     ${cart.note ? cart.note : '<span style="color:#ccc;">(ไม่มีชื่อ)</span>'}
                                 </div>
                                 ${!showTrash ? `
-                                <button class="icon-btn small" onclick="App.editParkedName('${cart.id}', '${cart.note || ''}')" title="เปลี่ยนชื่อ">
+                                <button class="icon-btn small" onclick="App.editParkedName('${cart.id}', '${cart.note || ''}', event)" title="เปลี่ยนชื่อ">
                                     <span class="material-symbols-rounded" style="font-size:16px;">edit</span>
                                 </button>
                                 ` : ''}
@@ -1623,7 +1623,8 @@ const App = {
         App.showParkedCartsModal();
     },
 
-    editParkedName: async (id, currentName) => {
+    editParkedName: async (id, currentName, event) => {
+        if (event) event.stopPropagation(); // Stop bubbling to prevent accidental clicks
         const newName = await App.prompt('แก้ไขชื่อบิล:', currentName);
         if (newName !== null) {
             DB.updateParkedNote(id, newName);
