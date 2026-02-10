@@ -392,7 +392,8 @@ const App = {
                 <button class="primary-btn" onclick="App.savePrinterSettings()" style="margin-top:15px;">บันทึกตั้งค่าเครื่องพิมพ์</button>
             </div>
             <div style="margin-top:40px; text-align:center;">
-                 <p style="color:#999;">Grocery POS v1.2.0 (Secured & Safe)</p>
+                 <p style="color:#999; font-size:12px;">Grocery POS v1.3.0 (80mm Support)</p>
+                 <p style="color:#ccc; font-size:10px;">ID: ${new Date().getTime().toString().slice(-6)} - Clear Cache if not visible</p>
             </div>
         `;
     },
