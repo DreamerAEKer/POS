@@ -25,11 +25,34 @@ const Utils = {
     },
 
     // Convert File to Base64 (for images)
-    fileToBase64: (file) => {
+    // Convert File to Base64 (with Resize)
+    fileToBase64: (file, maxWidth = 500) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Compress to JPEG 80% to save space
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.onerror = error => reject(error);
+            };
             reader.onerror = error => reject(error);
         });
     },

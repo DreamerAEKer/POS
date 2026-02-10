@@ -50,6 +50,8 @@
         height: 15mm;
         /* Space for auto-cutter */
         color: transparent;
+        page-break-after: always;
+        /* Hint to cut paper */
     }
 
     .receipt-logo {
