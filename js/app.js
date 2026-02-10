@@ -342,6 +342,54 @@ const App = {
                     <input type="file" id="restore-input" accept=".json" style="display:none;" onchange="App.restoreData(this)">
                     <button class="secondary-btn" onclick="document.getElementById('restore-input').click()">Upload Backup</button>
                 </div>
+                </div>
+            </div>
+            
+            <!-- Printer Config -->
+            <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); margin-top:20px;">
+                <h3>ตั้งค่าใบเสร็จ (80mm / 58mm)</h3>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:15px;">
+                    <!-- Logo Upload -->
+                    <div>
+                        <label>โลโก้ร้าน (หัวบิล)</label>
+                        <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
+                            <div id="preview-logo" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                                ${settings.logo ? `<img src="${settings.logo}" style="width:100%; height:100%; object-fit:contain;">` : '<span style="color:#ccc;">No Logo</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" id="set-logo-input" accept="image/*" style="width:100%;">
+                                <button class="secondary-btn small" onclick="App.clearImage('logo')" style="margin-top:5px;">ลบรูป</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- QR Upload -->
+                    <div>
+                        <label>QR Code รับเงิน (ท้ายบิล)</label>
+                        <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
+                            <div id="preview-qr" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                                ${settings.qrCode ? `<img src="${settings.qrCode}" style="width:100%; height:100%; object-fit:contain;">` : '<span style="color:#ccc;">No QR</span>'}
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" id="set-qr-input" accept="image/*" style="width:100%;">
+                                <button class="secondary-btn small" onclick="App.clearImage('qrCode')" style="margin-top:5px;">ลบรูป</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top:15px; border-top:1px solid #eee; padding-top:15px;">
+                     <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                        <input type="checkbox" id="set-print-logo" ${settings.printLogo ? 'checked' : ''}>
+                        พิมพ์โลโก้ที่หัวบิล (Default)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-top:5px;">
+                        <input type="checkbox" id="set-print-qr" ${settings.printQr ? 'checked' : ''}>
+                        พิมพ์ QR Code ที่ท้ายบิล (Default)
+                    </label>
+                </div>
+                
+                <button class="primary-btn" onclick="App.savePrinterSettings()" style="margin-top:15px;">บันทึกตั้งค่าเครื่องพิมพ์</button>
             </div>
             <div style="margin-top:40px; text-align:center;">
                  <p style="color:#999;">Grocery POS v1.2.0 (Secured & Safe)</p>
@@ -384,6 +432,39 @@ const App = {
         a.href = url;
         a.download = `backup_pos_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
+    },
+
+    savePrinterSettings: async () => {
+        const printLogo = document.getElementById('set-print-logo').checked;
+        const printQr = document.getElementById('set-print-qr').checked;
+
+        // Handle Images
+        const logoInput = document.getElementById('set-logo-input');
+        const qrInput = document.getElementById('set-qr-input');
+
+        const updates = { printLogo, printQr };
+
+        try {
+            if (logoInput.files[0]) {
+                updates.logo = await Utils.fileToBase64(logoInput.files[0]);
+            }
+            if (qrInput.files[0]) {
+                updates.qrCode = await Utils.fileToBase64(qrInput.files[0]);
+            }
+
+            DB.saveSettings(updates);
+            await App.alert('บันทึกตั้งค่าเครื่องพิมพ์เรียบร้อย!');
+            App.renderView('settings');
+        } catch (e) {
+            await App.alert('เกิดข้อผิดพลาดในการบันทึกภาพ (อาจใหญ่เกินไป): ' + e.message);
+        }
+    },
+
+    clearImage: (type) => {
+        const updates = {};
+        updates[type] = null;
+        DB.saveSettings(updates);
+        App.renderView('settings');
     },
 
     restoreData: (input) => {
@@ -1729,6 +1810,19 @@ const App = {
             <div style="margin-top:20px; text-align:center; font-size:24px;" id="change-display">
                 เงินทอน: -
             </div>
+
+            <!-- Print Options Toggles -->
+            <div style="display:flex; gap:15px; margin-top:15px; justify-content:center;">
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์โลโก้บนหัวใบเสร็จ">
+                    <input type="checkbox" id="pay-print-logo" ${DB.getSettings().printLogo ? 'checked' : ''}>
+                    <span>Logo</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ QR Code ท้ายใบเสร็จ">
+                    <input type="checkbox" id="pay-print-qr" ${DB.getSettings().printQr ? 'checked' : ''}>
+                    <span>QR Code</span>
+                </label>
+            </div>
+
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="secondary-btn" style="flex:1; background:#f0f0f0; border:1px solid #ccc; color:#333;" onclick="App.cancelPayment()">กลับไปแก้ไข</button>
                 <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>ยืนยันการรับเงิน</button>
@@ -1842,15 +1936,31 @@ const App = {
     },
 
     printReceipt: (sale) => {
-        const storeName = DB.getSettings().storeName;
-        const received = sale.received || sale.total; // Fallback for old records
+        const area = document.getElementById('receipt-print-area');
+        const settings = DB.getSettings();
+
+        // Grab Toggle States from Modal (if available, else default to settings)
+        const optsLogo = document.getElementById('pay-print-logo');
+        const optsQr = document.getElementById('pay-print-qr');
+
+        // Use Modal state if present, otherwise fall back to persisted settings
+        const showLogo = optsLogo ? optsLogo.checked : settings.printLogo;
+        const showQr = optsQr ? optsQr.checked : settings.printQr;
+
+        const storeName = settings.storeName;
+        const received = sale.received || sale.total;
         const change = sale.change || 0;
 
         const receiptHtml = `
+            ${showLogo && settings.logo ? `<div class="receipt-logo"><img src="${settings.logo}"></div>` : ''}
+            
             <div class="receipt-header">
                 <h2>${storeName}</h2>
-                <p>ใบเสร็จรับเงินอย่างย่อ</p>
-                <p>${new Date(sale.date).toLocaleString('th-TH')}</p>
+                <div>Tel: ${settings.phone || '-'}</div>
+                <div style="margin-top:5px; font-size:14px;">
+                    TAX#: ${sale.billId}<br>
+                    Date: ${new Date(sale.date).toLocaleString('th-TH')}
+                </div>
             </div>
             <div class="receipt-divider"></div>
             ${sale.items.map(item => `
@@ -1879,13 +1989,26 @@ const App = {
                 <div style="text-align:center; font-size:14px; color:gray; margin-top:2px;">(รับเงินพอดี)</div>
                 ` : ''}
             </div>
+            
+            ${showQr && settings.qrCode ? `
+                <div class="receipt-qr">
+                    <img src="${settings.qrCode}">
+                    <div style="font-size:12px; margin-top:2px;">Scan to Pay</div>
+                </div>
+            ` : ''}
+
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
             </div>
         `;
-        App.elements.receiptArea.innerHTML = receiptHtml;
+        area.innerHTML = receiptHtml;
         window.print();
+
+        // Cleanup
+        setTimeout(() => {
+            area.innerHTML = '';
+        }, 1000);
     },
 
     // --- Price Check ---

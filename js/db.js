@@ -85,7 +85,12 @@ const DB = {
             storeName: 'ร้านชำ (Grocery POS)',
             pin: '0000',
             address: '',
-            phone: ''
+            phone: '',
+            printerWidth: '80mm', // New: 58mm or 80mm
+            printLogo: true,      // New: Toggle Logo
+            printQr: true,        // New: Toggle QR
+            logo: null,           // New: Base64 Image
+            qrCode: null          // New: Base64 Image
         };
         const saved = DB.safeGet(DB.KEYS.SETTINGS, {});
         return { ...defaults, ...saved };
