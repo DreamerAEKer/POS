@@ -1993,7 +1993,7 @@ const App = {
                 <h2>${storeName}</h2>
                 <div>Tel: ${settings.phone || '-'}</div>
                 <div style="margin-top:5px; font-size:14px;">
-                    TAX#: ${sale.billId}<br>
+                Bill ID: ${sale.billId}<br>
                     Date: ${new Date(sale.date).toLocaleString('th-TH')}
                 </div>
             </div>
