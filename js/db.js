@@ -173,6 +173,21 @@ const DB = {
 
     parkCart: (cartItems, note = '', customTimestamp = null) => {
         const parked = DB.getParkedCarts();
+
+        // LIMIT CHECK: Maintain max 5 items
+        // If we have 5 or more, remove the Oldest (index 0 because getParkedCarts sorts ASC)
+        if (parked.length >= 5) {
+            const oldest = parked.shift(); // Remove the oldest
+
+            // Move to Trash (Safety Net)
+            const trash = DB.getParkedTrash();
+            trash.unshift(oldest);
+            if (trash.length > 10) trash.pop();
+            localStorage.setItem('store_parked_trash', JSON.stringify(trash));
+
+            // Note: We don't save parked yet, we'll save after adding the new one
+        }
+
         parked.push({
             id: DB.generateBillId(),
             timestamp: customTimestamp || Date.now(), // Allow persistent queue position
