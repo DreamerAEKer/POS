@@ -2126,7 +2126,6 @@ const App = {
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
-                <div class="force-feed" style="height: 20mm; color: transparent;">.</div>
             </div>
         `;
         area.innerHTML = receiptHtml;
@@ -2146,19 +2145,37 @@ const App = {
             <html>
             <head>
                 <style>
-                    /* Inline Core Print Styles to ensure they load */
+                    /* Core Reset */
                     @page { margin: 0; size: auto; }
                     body { margin: 0; padding: 0; background: white; font-family: 'Sarabun', sans-serif; }
+                    
+                    /* Layout */
                     #receipt-print-area { display: block !important; width: 100%; }
                     
-                    /* Utility classes */
+                    /* Restore "Perfect" Cutter Logic (CSS Pseudo-element) */
+                    #receipt-print-area::after {
+                        content: ".";
+                        display: block;
+                        height: 25mm;  /* Increased to ensure it clears the blade */
+                        color: transparent;
+                        page-break-after: always; /* The trigger */
+                    }
+
+                    /* Receipt Styles */
                     .receipt-header, .receipt-footer { text-align: center; margin-bottom: 10px; }
-                    .receipt-item { display: flex; justify-content: space-between; margin-bottom: 5px; }
-                    .receipt-divider { border-top: 1px dashed black; margin: 10px 0; }
-                    .receipt-total { display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; margin-top: 10px; border-top: 2px solid black; padding-top: 5px; }
+                    .receipt-header h2 { font-size: 24px; font-weight: 900; margin-bottom: 5px; }
+                    .receipt-logo { text-align: center; margin-bottom: 10px; }
+                    .receipt-logo img { max-width: 80%; filter: grayscale(100%) contrast(150%); }
                     
-                    /* Feed Spacer */
-                    .force-feed { page-break-after: always; }
+                    .receipt-divider { border-top: 2px dashed black; margin: 10px 0; }
+                    
+                    .receipt-item { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 18px; font-weight: 900; }
+                    
+                    .receipt-total { display: flex; justify-content: space-between; font-weight: 900; font-size: 22px; margin-top: 15px; border-top: 3px solid black; padding-top: 8px; }
+                    
+                    .receipt-qr { text-align: center; margin: 10px 0; }
+                    .receipt-qr img { width: 150px; height: 150px; image-rendering: pixelated; }
+
                 </style>
             </head>
             <body>
@@ -2174,12 +2191,12 @@ const App = {
             printFrame.contentWindow.print();
             // Cleanup
             setTimeout(() => {
-                area.innerHTML = ''; // Clear generic area if used
+                area.innerHTML = '';
             }, 1000);
         }, 500);
     },
 
-    VERSION: '0.18', // Fix: Inline CSS + Force Feed Spacer
+    VERSION: '0.19', // Fix: Restore CSS Cutter Logic
 
     // --- Price Check ---
     showPriceCheckModal: () => {
