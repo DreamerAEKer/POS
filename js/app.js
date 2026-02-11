@@ -1599,7 +1599,14 @@ const App = {
 
                 const close = (result) => {
                     modal.classList.add('hidden');
-                    overlay.classList.add('hidden');
+
+                    // Check if any OTHER modal is still open (e.g., price-check-modal for parked list)
+                    const otherModals = Array.from(document.querySelectorAll('.modal:not(#confirmation-modal)')).some(m => !m.classList.contains('hidden'));
+
+                    if (!otherModals) {
+                        overlay.classList.add('hidden');
+                    }
+
                     resolve(result);
                 };
 
