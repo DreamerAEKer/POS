@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.15', // Fix UI Printing (Aggressive Hide)
+    VERSION: '0.16', // Fix UI Printing & Cut (Restored)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
