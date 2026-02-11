@@ -10,7 +10,8 @@ const DB = {
         SALES: 'store_sales',
         SUPPLIERS: 'store_suppliers',
         SUPPLIER_PRICES: 'store_suppliers_prices',
-        SETTINGS: 'store_settings'
+        SETTINGS: 'store_settings',
+        GROUP_IMAGES: 'store_group_images'
     },
 
     // Helper for safe parsing
@@ -100,6 +101,23 @@ const DB = {
         const current = DB.getSettings();
         const updated = { ...current, ...newSettings };
         localStorage.setItem(DB.KEYS.SETTINGS, JSON.stringify(updated));
+    },
+
+    // --- Group Images ---
+    getGroupImages: () => {
+        return DB.safeGet(DB.KEYS.GROUP_IMAGES, {});
+    },
+
+    setGroupImage: (groupName, base64) => {
+        const images = DB.getGroupImages();
+        images[groupName] = base64;
+        localStorage.setItem(DB.KEYS.GROUP_IMAGES, JSON.stringify(images));
+    },
+
+    removeGroupImage: (groupName) => {
+        const images = DB.getGroupImages();
+        delete images[groupName];
+        localStorage.setItem(DB.KEYS.GROUP_IMAGES, JSON.stringify(images));
     },
 
     validatePin: (inputPin) => {

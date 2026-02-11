@@ -6,8 +6,12 @@
         /* Let the printer driver decide (58mm or 80mm) */
     }
 
-    /* STRICTLY hide all direct children of body except the receipt area */
-    body>*:not(#receipt-print-area) {
+    /* Safer Hiding Strategy */
+    #app,
+    #mobile-bottom-nav,
+    #btn-mobile-cart,
+    #mobile-cart-overlay,
+    #modal-overlay {
         display: none !important;
     }
 
@@ -18,27 +22,26 @@
         padding: 0 !important;
         height: auto !important;
         overflow: visible !important;
+        background: #fff !important;
     }
 
     /* Force show the receipt area */
     #receipt-print-area {
         display: block !important;
         position: absolute;
-        /* Absolute positioning ensures it starts at top-left */
         left: 0;
         top: 0;
         width: 100%;
-        padding: 0 4px;
-        /* Slightly more padding for 80mm */
+        /* Full width of the paper */
+        max-width: 100%;
+        padding: 0;
         background: white;
         color: black;
         font-family: 'Sarabun', sans-serif;
-        font-size: 20px;
-        /* Larger font for readability (Old: 18px) */
-        /* Huge base size for A4 fallback */
+        font-size: 16px;
+        /* slightly smaller for 58mm safety */
         line-height: 1.3;
-        font-weight: 700;
-        /* Bolder */
+        font-weight: 600;
         z-index: 9999;
     }
 

@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.06', // Fix Printing Regression
+    VERSION: '0.08', // Group Images Feature
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -348,6 +348,43 @@ const App = {
                 </div>
             </div>
             
+            <!-- Group Images Config -->
+            <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); margin-top:20px;">
+                <h3>รูปภาพหมวดหมู่สินค้า</h3>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:15px; margin-top:15px;">
+                    ${(() => {
+                const products = DB.getProducts();
+                const groups = [...new Set(products.map(p => p.group).filter(g => g))]; // Unique Groups
+                const groupImages = DB.getGroupImages();
+
+                if (groups.length === 0) return '<div style="color:#999; grid-column:1/-1;">ยังไม่มีหมวดหมู่สินค้า (สร้างสินค้าและระบุหมวดหมู่ก่อน)</div>';
+
+                return groups.map(g => {
+                    const img = groupImages[g];
+                    return `
+                                <div style="text-align:center; border:1px solid #eee; padding:10px; border-radius:8px;">
+                                    <div style="font-weight:bold; margin-bottom:5px; font-size:14px;">${g}</div>
+                                    <div id="preview-group-${g}" style="width:100px; height:100px; background:#f9f9f9; margin:0 auto; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:4px; border:1px solid #ddd;">
+                                        ${img ? `<img src="${img}" style="width:100%; height:100%; object-fit:cover;">` : '<span class="material-symbols-rounded" style="font-size:32px; color:#ccc;">image</span>'}
+                                    </div>
+                                    <div style="display:flex; justify-content:center; gap:5px; margin-top:10px;">
+                                        <input type="file" id="upload-group-${g}" accept="image/*" style="display:none;" onchange="App.handleGroupImageUpload(this, '${g}')">
+                                        <button class="secondary-btn" onclick="document.getElementById('upload-group-${g}').click()" style="padding:5px 10px; font-size:12px;">
+                                            <span class="material-symbols-rounded" style="font-size:16px;">upload</span>
+                                        </button>
+                                        ${img ? `
+                                            <button class="icon-btn dangerous" onclick="App.removeGroupImage('${g}')" style="width:30px; height:30px; border:1px solid #ffcdd2;">
+                                                <span class="material-symbols-rounded" style="font-size:16px;">delete</span>
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                }).join('');
+            })()}
+                </div>
+            </div>
+
             <!-- Printer Config -->
             <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); margin-top:20px;">
                 <h3>ตั้งค่าใบเสร็จ (80mm / 58mm)</h3>
@@ -474,6 +511,25 @@ const App = {
         }
     },
 
+    handleGroupImageUpload: (input, groupName) => {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64 = e.target.result;
+                DB.setGroupImage(groupName, base64);
+                App.renderView('settings'); // Re-render to show new image
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    },
+
+    removeGroupImage: async (groupName) => {
+        if (await App.confirm(`ลบรูปภาพหมวดหมู่ "${groupName}"?`)) {
+            DB.removeGroupImage(groupName);
+            App.renderView('settings');
+        }
+    },
+
     handleImagePreview: async (input, previewId) => {
         if (input.files && input.files[0]) {
             const base64 = await Utils.fileToBase64(input.files[0]);
@@ -547,16 +603,19 @@ const App = {
         });
 
         // 1. Render Groups (Folders)
+        const groupImages = DB.getGroupImages();
+
         const groupHtml = Object.keys(groups).map(groupName => {
             const items = groups[groupName];
-            // Use the image of the first item as the folder cover
-            const coverImage = items[0].image;
+            // Prioritize Custom Group Image -> First Item Image -> Placeholder
+            const coverImage = groupImages[groupName] || items[0].image;
+
             return `
                 <div class="product-card" onclick="App.openVariantModal('${groupName}')" style="border: 2px solid var(--primary-color);">
                     <div style="height:120px; background:#e0ecff; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative;">
-                        ${coverImage ? `<img src="${coverImage}" style="width:100%; height:100%; object-fit:cover; opacity:0.8;">` : ''}
-                        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.3);">
-                            <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color);">folder</span>
+                        ${coverImage ? `<img src="${coverImage}" style="width:100%; height:100%; object-fit:cover; opacity:0.9;">` : ''}
+                        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.2);">
+                            <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color); text-shadow:0 0 5px white;">folder</span>
                         </div>
                     </div>
                     <div class="p-info" style="background:var(--primary-light);">
