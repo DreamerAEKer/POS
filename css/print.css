@@ -27,23 +27,20 @@
     /* Force show the receipt area */
     #receipt-print-area {
         display: block !important;
-        position: absolute;
-        left: 0;
-        top: 0;
+        position: relative;
+        /* Changed from absolute to relative for RawBT/Android compatibility */
         width: 100%;
-        margin: 0;
-        padding: 0;
+        height: auto !important;
+        overflow: visible !important;
         background: white;
         z-index: 9999;
+
+        /* Font Settings */
         color: black;
         font-family: 'Sarabun', sans-serif;
         font-size: 16px;
         line-height: 1.3;
         font-weight: 600;
-        width: 100%;
-        height: auto !important;
-        min-height: 0 !important;
-        overflow: visible !important;
     }
 
     /* Prevent Page Breaks inside components */
