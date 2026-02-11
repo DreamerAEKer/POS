@@ -2130,74 +2130,11 @@ const App = {
         `;
         area.innerHTML = receiptHtml;
 
-        // Open a new window for printing (Popup Strategy)
-        // This is more reliable for Cutter commands than iframe
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-
-        if (printWindow) {
-            printWindow.document.open();
-            printWindow.document.write(`
-                <html>
-                <head>
-                    <title>Print Receipt</title>
-                    <style>
-                        /* Core Reset */
-                        @page { margin: 0; size: auto; }
-                        body { margin: 0; padding: 0; background: white; font-family: 'Sarabun', sans-serif; }
-                        
-                        /* Layout */
-                        #receipt-print-area { display: block !important; width: 100%; }
-                        
-                        /* Cutter Logic */
-                        #receipt-print-area::after {
-                            content: ".";
-                            display: block;
-                            height: 25mm; 
-                            color: transparent;
-                            page-break-after: always;
-                        }
-
-                        /* Receipt Styles */
-                        .receipt-header, .receipt-footer { text-align: center; margin-bottom: 10px; }
-                        .receipt-header h2 { font-size: 24px; font-weight: 900; margin-bottom: 5px; }
-                        .receipt-logo { text-align: center; margin-bottom: 10px; }
-                        .receipt-logo img { max-width: 80%; filter: grayscale(100%) contrast(150%); }
-                        
-                        .receipt-divider { border-top: 2px dashed black; margin: 10px 0; }
-                        
-                        .receipt-item { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 18px; font-weight: 900; }
-                        
-                        .receipt-total { display: flex; justify-content: space-between; font-weight: 900; font-size: 22px; margin-top: 15px; border-top: 3px solid black; padding-top: 8px; }
-                        
-                        .receipt-qr { text-align: center; margin: 10px 0; }
-                        .receipt-qr img { width: 150px; height: 150px; image-rendering: pixelated; }
-
-                        /* Hide URL/Date headers */
-                        @media print {
-                            body { -webkit-print-color-adjust: exact; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div id="receipt-print-area">${receiptHtml}</div>
-                    <script>
-                        // Auto-print and close
-                        window.onload = function() {
-                            setTimeout(function() {
-                                window.print();
-                                setTimeout(function() {
-                                    window.close();
-                                }, 500);
-                            }, 500);
-                        };
-                    </script>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-        } else {
-            alert('Please allow popups for printing');
-        }
+        // Use standard window.print() (Verified v0.27)
+        // Fixed: Removed Popup which caused crash/hang
+        setTimeout(() => {
+            window.print();
+        }, 500);
 
         // Cleanup local area
         setTimeout(() => {
@@ -2205,7 +2142,7 @@ const App = {
         }, 1000);
     },
 
-    VERSION: '0.20', // Fix: Popup Window for Cutter Reliability
+    VERSION: '0.27', // Fix: Native Print logic restored
 
     // --- Price Check ---
     showPriceCheckModal: () => {
