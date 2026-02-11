@@ -8,23 +8,20 @@
 
     /* Fixed Overlay Strategy - Most Robust for Mobile */
     /* Class-Based Hiding Strategy */
-    /* Explicitly hide all app UI elements */
-    body.is-printing #app,
-    body.is-printing #mobile-bottom-nav,
-    body.is-printing #btn-mobile-cart,
-    body.is-printing #modal-overlay,
-    body.is-printing .modal {
+    /* Explicitly hide all app UI elements - unconditionally in print mode */
+    #app,
+    #mobile-bottom-nav,
+    #btn-mobile-cart,
+    #modal-overlay,
+    .modal {
         display: none !important;
     }
 
-    body.is-printing {
-        visibility: visible !important;
-        /* Restore visibility when printing class is active */
+    body {
         margin: 0 !important;
         padding: 0 !important;
         background: white !important;
         height: auto !important;
-        /* Ensure no forced height */
     }
 
     /* Force show the receipt area */
