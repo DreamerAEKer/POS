@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.11', // Fix Printing V4 (Class Strategy)
+    VERSION: '0.12', // Fix Printing V5 (One Page Logic)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2106,12 +2106,12 @@ const App = {
             ` : ''}
 
             <div class="receipt-footer">
+            <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
+                <div style="height: 15mm;"></div> <!-- CSS Spacer for Cutter -->
+                <div class="cut-feed">.</div> 
             </div>
-            <!-- Feed for Cutter (5 lines ~ 15-20mm) -->
-            <br><br><br><br><br>
-            <div class="cut-feed">.</div> 
         `;
         area.innerHTML = receiptHtml;
 

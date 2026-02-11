@@ -2,8 +2,8 @@
 @media print {
     @page {
         margin: 0;
-        size: auto;
-        /* Let the printer driver decide (58mm or 80mm) */
+        size: 80mm auto;
+        /* User specifically requested 80mm */
     }
 
     /* Fixed Overlay Strategy - Most Robust for Mobile */
@@ -18,6 +18,8 @@
         margin: 0 !important;
         padding: 0 !important;
         background: white !important;
+        height: auto !important;
+        /* Ensure no forced height */
     }
 
     /* Force show the receipt area */
@@ -34,8 +36,7 @@
         top: 0;
         width: 100%;
         margin: 0;
-        padding: 0 5mm;
-        /* Add some padding safely */
+        padding: 0;
         background: white;
         color: black;
         font-family: 'Sarabun', sans-serif;
@@ -43,6 +44,21 @@
         line-height: 1.3;
         font-weight: 600;
         width: 100%;
+        height: auto !important;
+        /* Allow natural height */
+        min-height: 0 !important;
+        /* Remove 100% minimum */
+        overflow: visible !important;
+    }
+
+    /* Prevent Page Breaks inside components */
+    .receipt-header,
+    .receipt-item,
+    .receipt-total,
+    .receipt-qr,
+    .receipt-footer {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     /* Auto-Cut Padding at bottom */
