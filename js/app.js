@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.04', // Fix Parked Bill Name Input
+    VERSION: '0.05', // Fix Parked Bill Name Input (V2)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1690,28 +1690,21 @@ const App = {
                 document.getElementById('confirm-message').textContent = message;
                 document.getElementById('confirm-icon').textContent = '📝';
 
-                const input = document.getElementById('confirm-input');
-                input.value = defaultValue;
-                input.classList.remove('hidden');
-
                 const btnOk = document.getElementById('btn-confirm-ok');
                 const btnCancel = document.getElementById('btn-confirm-cancel');
                 btnCancel.style.display = 'block';
                 btnOk.textContent = 'ตกลง';
                 btnOk.className = 'primary-btn';
 
-                // Clear old listeners on input & Restore
-                const currentInput = document.getElementById('confirm-input');
-                const newInput = currentInput.cloneNode(true);
-                currentInput.parentNode.replaceChild(newInput, currentInput);
-
-                newInput.value = defaultValue;
-                newInput.classList.remove('hidden');
+                // Input handling - DO NOT CLONE INPUT (Fixes mobile state issues)
+                const input = document.getElementById('confirm-input');
+                input.value = defaultValue;
+                input.classList.remove('hidden');
 
                 // Overlay handling helper
                 const close = (result) => {
                     modal.classList.add('hidden');
-                    newInput.classList.add('hidden'); // Use initial reference or re-query if needed, but 'input' var from top is safe if ID matches
+                    input.classList.add('hidden');
 
                     // Check if any OTHER modal is still open
                     const otherModals = Array.from(document.querySelectorAll('.modal:not(#confirmation-modal)')).some(m => !m.classList.contains('hidden'));
@@ -1722,25 +1715,31 @@ const App = {
                     resolve(result);
                 };
 
-                // Bind Events to NEW buttons and input
-                // Clone buttons to remove old listeners
+                // Bind Events to NEW buttons (Clone buttons to clear old listeners)
                 const newBtnOk = btnOk.cloneNode(true);
                 const newBtnCancel = btnCancel.cloneNode(true);
                 btnOk.parentNode.replaceChild(newBtnOk, btnOk);
                 btnCancel.parentNode.replaceChild(newBtnCancel, btnCancel);
 
-                newBtnOk.onclick = () => close(newInput.value); // Use newInput value!
+                newBtnOk.onclick = () => {
+                    const finalValue = document.getElementById('confirm-input').value; // Read fresh from DOM
+                    close(finalValue);
+                };
                 newBtnCancel.onclick = () => close(null);
 
-                newInput.onkeydown = (e) => {
-                    if (e.key === 'Enter') close(newInput.value);
+                // Overwrite onkeydown directly (no need to clone input)
+                input.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        const finalValue = document.getElementById('confirm-input').value;
+                        close(finalValue);
+                    }
                 };
 
                 modal.classList.remove('hidden');
                 overlay.classList.remove('hidden');
 
                 setTimeout(() => {
-                    try { newInput.focus(); } catch (e) { /* ignore */ }
+                    try { input.focus(); } catch (e) { /* ignore */ }
                 }, 100);
             } catch (e) {
                 console.error('Prompt Modal Error:', e);
