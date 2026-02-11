@@ -2130,15 +2130,24 @@ const App = {
         `;
         area.innerHTML = receiptHtml;
 
-        // Use standard window.print() (Verified v0.31)
-        // Fixed: Synchrounous call to preserve User Gesture
-        window.print();
+        // Use explicit "Printing Mode" (Verified v0.36)
+        // This physically changes the screen to show ONLY the receipt,
+        // then prints, then reverts. Best for Android RawBT.
+        document.body.classList.add('printing-mode');
 
-        // No Cleanup: Leave receipt in DOM (it is hidden via CSS) 
-        // to prevent "Blank Page" errors if print dialog is slow.
+        setTimeout(() => {
+            window.print();
+
+            // Restore UI after delay (give Android time to generate preview)
+            setTimeout(() => {
+                document.body.classList.remove('printing-mode');
+                // Optional: Clear area if needed, or leave it for next overwrite
+                area.innerHTML = '';
+            }, 2000);
+        }, 50);
     },
 
-    VERSION: '0.35', // Fix: Opacity Hiding Strategy
+    VERSION: '0.36', // Fix: Explicit Printing Mode Class
 
     // --- Price Check ---
     showPriceCheckModal: () => {
