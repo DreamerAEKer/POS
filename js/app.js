@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.08', // Group Images Feature
+    VERSION: '0.09', // Fix Printing (Overlay Strategy)
 
     // --- Settings View ---
     renderSettingsView: (container) => {

@@ -6,43 +6,38 @@
         /* Let the printer driver decide (58mm or 80mm) */
     }
 
-    /* Safer Hiding Strategy */
-    #app,
-    #mobile-bottom-nav,
-    #btn-mobile-cart,
-    #mobile-cart-overlay,
-    #modal-overlay {
-        display: none !important;
-    }
-
-    /* Reset HTML/Body to prevent overflow */
-    html,
+    /* Fixed Overlay Strategy - Most Robust for Mobile */
     body {
-        margin: 0 !important;
-        padding: 0 !important;
-        height: auto !important;
-        overflow: visible !important;
-        background: #fff !important;
+        visibility: hidden;
+        /* Hide everything by default */
     }
 
-    /* Force show the receipt area */
+    /* Force show the receipt area and make it cover the screen */
     #receipt-print-area {
+        visibility: visible !important;
         display: block !important;
-        position: absolute;
+        position: fixed;
+        /* Fixed to viewport */
         left: 0;
         top: 0;
         width: 100%;
-        /* Full width of the paper */
-        max-width: 100%;
+        height: auto;
+        min-height: 100%;
+        margin: 0;
         padding: 0;
         background: white;
+        /* Opaque white background */
         color: black;
         font-family: 'Sarabun', sans-serif;
         font-size: 16px;
-        /* slightly smaller for 58mm safety */
         line-height: 1.3;
         font-weight: 600;
-        z-index: 9999;
+        z-index: 2147483647;
+        /* Max Z-Index */
+    }
+
+    #receipt-print-area * {
+        visibility: visible !important;
     }
 
     /* Auto-Cut Padding at bottom */
