@@ -2147,7 +2147,7 @@ const App = {
         }, 50);
     },
 
-    VERSION: '0.36', // Fix: Explicit Printing Mode Class
+    VERSION: '0.36', // Fix: Explicit Printing Mode Class Mode Class
 
     // --- Price Check ---
     showPriceCheckModal: () => {
