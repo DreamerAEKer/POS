@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.10', // Fix QR Scan (Size & Contrast)
+    VERSION: '0.11', // Fix Printing V4 (Class Strategy)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2109,8 +2109,14 @@ const App = {
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
             </div>
+            <!-- Feed for Cutter (5 lines ~ 15-20mm) -->
+            <br><br><br><br><br>
+            <div class="cut-feed">.</div> 
         `;
         area.innerHTML = receiptHtml;
+
+        // Add class to body to toggle visibility via CSS
+        document.body.classList.add('is-printing');
 
         // Wait for images to render (base64 is fast, but just in case)
         setTimeout(() => {
@@ -2118,7 +2124,8 @@ const App = {
             // Cleanup after print dialog closes (or 1s delay)
             setTimeout(() => {
                 area.innerHTML = '';
-            }, 10000); // Increased timeout to 10s for mobile safety
+                document.body.classList.remove('is-printing');
+            }, 5000); // 5s is usually enough for dialog interaction
         }, 500); // Added delay before printing
     },
 

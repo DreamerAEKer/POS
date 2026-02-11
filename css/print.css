@@ -7,37 +7,42 @@
     }
 
     /* Fixed Overlay Strategy - Most Robust for Mobile */
-    body {
-        visibility: hidden;
-        /* Hide everything by default */
+    /* Class-Based Hiding Strategy */
+    body.is-printing>*:not(#receipt-print-area) {
+        display: none !important;
     }
 
-    /* Force show the receipt area and make it cover the screen */
-    #receipt-print-area {
+    body.is-printing {
         visibility: visible !important;
+        /* Restore visibility when printing class is active */
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+
+    /* Force show the receipt area */
+    #receipt-print-area {
+        display: none;
+        /* Hide by default */
+    }
+
+    body.is-printing #receipt-print-area {
         display: block !important;
-        position: fixed;
-        /* Fixed to viewport */
+        position: absolute;
+        /* Absolute is safer for print than fixed */
         left: 0;
         top: 0;
         width: 100%;
-        height: auto;
-        min-height: 100%;
         margin: 0;
-        padding: 0;
+        padding: 0 5mm;
+        /* Add some padding safely */
         background: white;
-        /* Opaque white background */
         color: black;
         font-family: 'Sarabun', sans-serif;
         font-size: 16px;
         line-height: 1.3;
         font-weight: 600;
-        z-index: 2147483647;
-        /* Max Z-Index */
-    }
-
-    #receipt-print-area * {
-        visibility: visible !important;
+        width: 100%;
     }
 
     /* Auto-Cut Padding at bottom */
