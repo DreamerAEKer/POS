@@ -2130,17 +2130,15 @@ const App = {
         `;
         area.innerHTML = receiptHtml;
 
-        // Use standard window.print() (Verified v0.30)
+        // Use standard window.print() (Verified v0.31)
         // Fixed: Synchrounous call to preserve User Gesture
         window.print();
 
-        // Cleanup local area
-        setTimeout(() => {
-            area.innerHTML = '';
-        }, 2000);
+        // No Cleanup: Leave receipt in DOM (it is hidden via CSS) 
+        // to prevent "Blank Page" errors if print dialog is slow.
     },
 
-    VERSION: '0.30', // Fix: Sync Print
+    VERSION: '0.31', // Fix: Hidden + Persistent Receipt
 
     // --- Price Check ---
     showPriceCheckModal: () => {

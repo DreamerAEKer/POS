@@ -428,6 +428,11 @@ button {
     max-width: 320px;
 }
 
+/* Print Area - Hidden on Screen by Default */
+#receipt-print-area {
+    display: none;
+}
+
 /* --- RESPONSIVE DESIGN (Dedicated Mobile Nav) --- */
 
 /* Default: Hide Mobile Nav on Desktop */
