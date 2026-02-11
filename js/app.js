@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.16', // Fix UI Printing & Cut (Restored)
+    VERSION: '0.17', // Fix: Iframe Printing (Perfect Isolation)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2130,24 +2130,42 @@ const App = {
         `;
         area.innerHTML = receiptHtml;
 
-        // Add class to body to toggle visibility via CSS
-        document.body.classList.add('is-printing');
+        // Create a hidden iframe for printing
+        let printFrame = document.getElementById('print-frame');
+        if (!printFrame) {
+            printFrame = document.createElement('iframe');
+            printFrame.id = 'print-frame';
+            printFrame.style.display = 'none';
+            document.body.appendChild(printFrame);
+        }
 
-        // Double Ensure Modals are hidden via inline style (Aggressive fallback)
-        const modals = document.querySelectorAll('.modal, #modal-overlay, #mobile-bottom-nav');
-        modals.forEach(el => el.style.display = 'none');
+        const doc = printFrame.contentWindow.document;
+        doc.open();
+        doc.write(`
+            <html>
+            <head>
+                <link rel="stylesheet" href="css/print.css?v=${Date.now()}">
+                <style>
+                    body { margin: 0; padding: 0; background: white; }
+                    #receipt-print-area { display: block !important; }
+                </style>
+            </head>
+            <body>
+                <div id="receipt-print-area">${receiptHtml}</div>
+            </body>
+            </html>
+        `);
+        doc.close();
 
-        // Wait for images to render (base64 is fast, but just in case)
+        // Wait for styles/images to load then print
+        printFrame.contentWindow.focus();
         setTimeout(() => {
-            window.print();
-            // Cleanup after print dialog closes (or 1s delay)
+            printFrame.contentWindow.print();
+            // Cleanup
             setTimeout(() => {
                 area.innerHTML = '';
-                document.body.classList.remove('is-printing');
-                // Restore Modals inline styles
-                modals.forEach(el => el.style.display = '');
-            }, 5000); // 5s is usually enough for dialog interaction
-        }, 500); // Added delay before printing
+            }, 1000);
+        }, 500);
     },
 
     // --- Price Check ---
