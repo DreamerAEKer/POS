@@ -2,8 +2,8 @@
 @media print {
     @page {
         margin: 0;
-        size: 80mm auto;
-        /* User specifically requested 80mm */
+        size: auto;
+        /* allow driver to handle paper size (58mm/80mm) */
     }
 
     /* Fixed Overlay Strategy - Most Robust for Mobile */
