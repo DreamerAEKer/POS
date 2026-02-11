@@ -354,12 +354,17 @@ const App = {
                     <div>
                         <label>โลโก้ร้าน (หัวบิล)</label>
                         <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
-                            <div id="preview-logo" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
-                                ${settings.logo ? `<img src="${settings.logo}" style="width:100%; height:100%; object-fit:contain;">` : '<span style="color:#ccc;">No Logo</span>'}
+                            <div id="preview-logo" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #ddd;">
+                                ${settings.logo ? `<img src="${settings.logo}" style="width:100%; height:100%; object-fit:contain;">` : '<span style="color:#ccc; font-size:12px;">No Logo</span>'}
                             </div>
-                            <div style="flex:1;">
-                                <input type="file" id="set-logo-input" accept="image/*" style="width:100%;">
-                                <button class="secondary-btn small" onclick="App.clearImage('logo')" style="margin-top:5px;">ลบรูป</button>
+                            <div style="flex:1; display:flex; gap:10px; align-items:center;">
+                                <input type="file" id="set-logo-input" accept="image/*" style="display:none;" onchange="App.handleImagePreview(this, 'preview-logo')">
+                                <button class="secondary-btn" onclick="document.getElementById('set-logo-input').click()" style="height:40px; width:40px; padding:0; display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-symbols-rounded">folder_open</span>
+                                </button>
+                                <button class="icon-btn dangerous" onclick="App.clearImage('logo')" style="height:40px; width:40px; display:flex; align-items:center; justify-content:center; border:1px solid #ffcdd2;">
+                                    <span class="material-symbols-rounded">delete</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -368,12 +373,17 @@ const App = {
                     <div>
                         <label>QR Code รับเงิน (ท้ายบิล)</label>
                         <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
-                            <div id="preview-qr" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
-                                ${settings.qrCode ? `<img src="${settings.qrCode}" style="width:100%; height:100%; object-fit:contain;">` : '<span style="color:#ccc;">No QR</span>'}
+                            <div id="preview-qr" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #ddd;">
+                                ${settings.qrCode ? `<img src="${settings.qrCode}" style="width:100%; height:100%; object-fit:contain;">` : '<span style="color:#ccc; font-size:12px;">No QR</span>'}
                             </div>
-                            <div style="flex:1;">
-                                <input type="file" id="set-qr-input" accept="image/*" style="width:100%;">
-                                <button class="secondary-btn small" onclick="App.clearImage('qrCode')" style="margin-top:5px;">ลบรูป</button>
+                            <div style="flex:1; display:flex; gap:10px; align-items:center;">
+                                <input type="file" id="set-qr-input" accept="image/*" style="display:none;" onchange="App.handleImagePreview(this, 'preview-qr')">
+                                <button class="secondary-btn" onclick="document.getElementById('set-qr-input').click()" style="height:40px; width:40px; padding:0; display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-symbols-rounded">folder_open</span>
+                                </button>
+                                <button class="icon-btn dangerous" onclick="App.clearImage('qrCode')" style="height:40px; width:40px; display:flex; align-items:center; justify-content:center; border:1px solid #ffcdd2;">
+                                    <span class="material-symbols-rounded">delete</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -459,6 +469,16 @@ const App = {
             App.renderView('settings');
         } catch (e) {
             await App.alert('เกิดข้อผิดพลาดในการบันทึกภาพ (อาจใหญ่เกินไป): ' + e.message);
+        }
+    },
+
+    handleImagePreview: async (input, previewId) => {
+        if (input.files && input.files[0]) {
+            const base64 = await Utils.fileToBase64(input.files[0]);
+            const preview = document.getElementById(previewId);
+            if (preview) {
+                preview.innerHTML = `<img src="${base64}" style="width:100%; height:100%; object-fit:contain;">`;
+            }
         }
     },
 
