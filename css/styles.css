@@ -414,6 +414,20 @@ button {
     overflow-y: auto;
 }
 
+/* Fix: Confirmation Modal should always be on top and centered, ignoring flex layout of overlay */
+#confirmation-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2200;
+    /* Higher than overlay */
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    /* Strong shadow */
+    width: 90%;
+    max-width: 320px;
+}
+
 /* --- RESPONSIVE DESIGN (Dedicated Mobile Nav) --- */
 
 /* Default: Hide Mobile Nav on Desktop */
