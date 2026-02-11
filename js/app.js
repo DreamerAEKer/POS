@@ -2130,19 +2130,17 @@ const App = {
         `;
         area.innerHTML = receiptHtml;
 
-        // Use standard window.print() (Verified v0.27)
-        // Fixed: Removed Popup which caused crash/hang
-        setTimeout(() => {
-            window.print();
-        }, 500);
+        // Use standard window.print() (Verified v0.30)
+        // Fixed: Synchrounous call to preserve User Gesture
+        window.print();
 
         // Cleanup local area
         setTimeout(() => {
             area.innerHTML = '';
-        }, 1000);
+        }, 2000);
     },
 
-    VERSION: '0.27', // Fix: Native Print logic restored
+    VERSION: '0.30', // Fix: Sync Print
 
     // --- Price Check ---
     showPriceCheckModal: () => {
