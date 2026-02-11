@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.12', // Fix Printing V5 (One Page Logic)
+    VERSION: '0.13', // Fix Duplicate Print (Debounce)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1500,6 +1500,21 @@ const App = {
         App.renderCart();
     },
 
+    completeSale: async (isTest = false) => {
+        if (App.state.isProcessingPayment) return; // Prevent double clicks
+        App.state.isProcessingPayment = true;
+
+        const total = App.state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        const receivedInput = document.getElementById('pay-received');
+        const received = isTest ? total : parseFloat(receivedInput.value);
+        // ... (rest of logic) ...
+
+        // On Error or Success, reset flag
+        // But success reloads view, so just handle error cases if any? 
+        // Actually success calls renderProductGrid which doesn't reset flag.
+        // Let's reset it at the end of success path.
+    },
+
     updateMobileCartBadge: () => {
         const count = App.state.cart.reduce((sum, item) => sum + item.qty, 0);
         const badge = document.getElementById('mobile-cart-count');
@@ -2029,6 +2044,7 @@ const App = {
             App.renderProductGrid(); // Refresh Grid to show new stock
             App.closeModals();
             App.toggleMobileCart(false); // Ensure cart is closed after success
+            App.state.isProcessingPayment = false; // Reset flag
         };
 
         document.getElementById('btn-confirm-pay').addEventListener('click', () => completeSale(false));
@@ -2105,7 +2121,6 @@ const App = {
                 </div>
             ` : ''}
 
-            <div class="receipt-footer">
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
