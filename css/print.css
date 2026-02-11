@@ -71,8 +71,8 @@
     #receipt-print-area::after {
         content: ".";
         display: block;
-        height: 15mm;
-        /* Space for auto-cutter */
+        height: 25mm;
+        /* Increased to 25mm for VOZY G80 Cutter */
         color: transparent;
         page-break-after: always;
         /* Hint to cut paper */
