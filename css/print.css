@@ -70,9 +70,19 @@
     }
 
     .receipt-qr img {
-        width: 120px;
-        /* Standard QR size */
-        height: 120px;
+        width: 160px;
+        /* Increased from 120px */
+        height: 160px;
+        max-width: 80%;
+        /* Ensure it fits on 58mm */
+        object-fit: contain;
+        /* Force sharp edges for QR */
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+
+        /* High contrast to reduce thermal dithering artifacts */
+        filter: contrast(200%) grayscale(100%);
     }
 
     #receipt-print-area * {

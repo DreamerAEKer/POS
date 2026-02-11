@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.09', // Fix Printing (Overlay Strategy)
+    VERSION: '0.10', // Fix QR Scan (Size & Contrast)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
