@@ -26,14 +26,8 @@
 
     /* Force show the receipt area */
     #receipt-print-area {
-        display: none;
-        /* Hide by default */
-    }
-
-    body.is-printing #receipt-print-area {
         display: block !important;
         position: absolute;
-        /* Absolute is safer for print than fixed */
         left: 0;
         top: 0;
         width: 100%;
@@ -48,9 +42,7 @@
         font-weight: 600;
         width: 100%;
         height: auto !important;
-        /* Allow natural height */
         min-height: 0 !important;
-        /* Remove 100% minimum */
         overflow: visible !important;
     }
 
