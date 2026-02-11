@@ -428,17 +428,15 @@ button {
     max-width: 320px;
 }
 
-/* Print Area - Hidden on Screen (Zero Impact method) */
+/* Print Area - Hidden on Screen (Opacity Method - Safest for Android) */
 #receipt-print-area {
-    /* Do NOT use display:none, it kills Android Print */
-    height: 0;
-    width: 0;
-    overflow: hidden;
-    visibility: hidden;
     position: absolute;
     top: 0;
     left: 0;
-    z-index: -1;
+    width: 100%;
+    z-index: -9999;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* --- RESPONSIVE DESIGN (Dedicated Mobile Nav) --- */

@@ -27,15 +27,18 @@
     /* Force show the receipt area */
     #receipt-print-area {
         display: block !important;
-        position: relative;
-        /* Changed from absolute to relative for RawBT/Android compatibility */
-        width: 100%;
+        position: relative !important;
+        /* Force relative flow */
+        width: 100% !important;
         height: auto !important;
         overflow: visible !important;
         visibility: visible !important;
-        /* Ensure it is visible even if hidden on screen */
+        opacity: 1 !important;
+        /* Force visible */
         background: white;
-        z-index: 9999;
+        z-index: 9999 !important;
+        left: 0 !important;
+        top: 0 !important;
 
         /* Font Settings */
         color: black;

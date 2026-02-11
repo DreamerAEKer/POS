@@ -2138,7 +2138,7 @@ const App = {
         // to prevent "Blank Page" errors if print dialog is slow.
     },
 
-    VERSION: '0.34', // Fix: Zero-Height Hiding (Safe Mode)
+    VERSION: '0.35', // Fix: Opacity Hiding Strategy
 
     // --- Price Check ---
     showPriceCheckModal: () => {
