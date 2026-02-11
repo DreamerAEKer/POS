@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.17', // Fix: Iframe Printing (Perfect Isolation)
+    VERSION: '0.17', // Revert to v0.11 Logicct Isolation)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2126,25 +2126,28 @@ const App = {
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
+                <!-- Feed for Cutter (Revert to v0.11 style) -->
+                <br><br><br><br><br>
+                <div class="cut-feed">.</div> 
             </div>
         `;
         area.innerHTML = receiptHtml;
 
-        // Use explicit "Printing Mode" (Verified v0.36)
-        // This physically changes the screen to show ONLY the receipt,
-        // then prints, then reverts. Best for Android RawBT.
-        document.body.classList.add('printing-mode');
+        // Add class to body to toggle visibility via CSS
+        document.body.classList.add('is-printing');
 
+        // Remove the inline style enforcement which might be causing the UI print issue if failed
+        // v0.11 didn't have the explicit inline style hiding loop.
+
+        // Wait for images to render (base64 is fast, but just in case)
         setTimeout(() => {
             window.print();
-
-            // Restore UI after delay (give Android time to generate preview)
+            // Cleanup after print dialog closes (or 1s delay)
             setTimeout(() => {
-                document.body.classList.remove('printing-mode');
-                // Optional: Clear area if needed, or leave it for next overwrite
                 area.innerHTML = '';
-            }, 2000);
-        }, 50);
+                document.body.classList.remove('is-printing');
+            }, 5000); // 5s is usually enough for dialog interaction
+        }, 500); // Added delay before printing    }, 50);
     },
 
     VERSION: '0.36', // Fix: Explicit Printing Mode Class Mode Class
