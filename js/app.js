@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.05', // Fix Parked Bill Name Input (V2)
+    VERSION: '0.06', // Fix Printing Regression
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2059,7 +2059,7 @@ const App = {
             // Cleanup after print dialog closes (or 1s delay)
             setTimeout(() => {
                 area.innerHTML = '';
-            }, 2000); // Increased timeout for cleanup
+            }, 10000); // Increased timeout to 10s for mobile safety
         }, 500); // Added delay before printing
     },
 

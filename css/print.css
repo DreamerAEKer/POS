@@ -2,9 +2,8 @@
 @media print {
     @page {
         margin: 0;
-        size: 80mm auto;
-        /* Default to 80mm as requested, can be overridden */
-        /* Critical for thermal printers */
+        size: auto;
+        /* Let the printer driver decide (58mm or 80mm) */
     }
 
     /* STRICTLY hide all direct children of body except the receipt area */
