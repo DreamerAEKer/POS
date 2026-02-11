@@ -8,7 +8,8 @@ const App = {
         activeBill: null, // Track currently active restored bill
         currentView: 'pos', // 'pos', 'stock', 'suppliers', 'settings'
         products: [],
-        searchQuery: ''
+        searchQuery: '',
+        cartCloseTimer: null // For auto-closing mobile cart
     },
 
     elements: {
@@ -1275,7 +1276,7 @@ const App = {
         const product = DB.getProductByBarcode(barcode);
         if (product) {
             if (App.state.currentView === 'pos') {
-                App.addToCart(product);
+                App.addToCart(product, true); // True = fromScan
             } else if (App.state.currentView === 'stock') {
                 App.openProductModal(product.id);
             }
@@ -1292,7 +1293,7 @@ const App = {
     },
 
     // --- Cart Logic ---
-    addToCart: async (product) => {
+    addToCart: async (product, fromScan = false) => {
         if (product.stock <= 0) {
             await App.alert('สินค้าหมดสต็อก!');
             return;
@@ -1308,6 +1309,16 @@ const App = {
             App.state.cart.push({ ...product, qty: 1 });
         }
         App.renderCart();
+
+        // Auto-Popup Logic (Mobile Only)
+        // If fromScan is TRUE and cart is currently CLOSED -> Open for 2 seconds
+        const cartPanel = document.getElementById('right-panel');
+        const isMobile = window.innerWidth <= 1024;
+        const isClosed = !cartPanel.classList.contains('open');
+
+        if (isMobile && fromScan && isClosed) {
+            App.toggleMobileCart(true, 2000); // Open for 2s then close
+        }
     },
 
     actionParkCart: async () => {
@@ -1434,7 +1445,8 @@ const App = {
 
         if (mobileCartBtn) {
             mobileCartBtn.addEventListener('click', () => {
-                App.toggleMobileCart(true);
+                // Manual open: 5 minutes timeout
+                App.toggleMobileCart(true, 300000);
             });
         }
 
@@ -2065,13 +2077,26 @@ const App = {
         });
     },
 
-    toggleMobileCart: (show) => {
+    toggleMobileCart: (show, duration = null) => {
         const cartPanel = document.getElementById('right-panel');
         const mobileOverlay = document.getElementById('mobile-cart-overlay');
+
+        // Clear existing timer to prevent conflicts
+        if (App.state.cartCloseTimer) {
+            clearTimeout(App.state.cartCloseTimer);
+            App.state.cartCloseTimer = null;
+        }
 
         if (show) {
             cartPanel.classList.add('open');
             if (mobileOverlay) mobileOverlay.style.display = 'block';
+
+            // Set new timer if duration provided
+            if (duration) {
+                App.state.cartCloseTimer = setTimeout(() => {
+                    App.toggleMobileCart(false);
+                }, duration);
+            }
         } else {
             cartPanel.classList.remove('open');
             if (mobileOverlay) mobileOverlay.style.display = 'none';
