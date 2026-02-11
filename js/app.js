@@ -2138,7 +2138,7 @@ const App = {
         // to prevent "Blank Page" errors if print dialog is slow.
     },
 
-    VERSION: '0.31', // Fix: Hidden + Persistent Receipt
+    VERSION: '0.32', // Fix: Off-screen Rendering
 
     // --- Price Check ---
     showPriceCheckModal: () => {
