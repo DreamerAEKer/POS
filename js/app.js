@@ -2138,7 +2138,7 @@ const App = {
 
         // --- Aggressive Hide (Nuclear Option) ---
         // Force hide elements via inline styles to bypass potential CSS specificity issues
-        const uiElements = document.querySelectorAll('#app, #sidebar, #mobile-bottom-nav, #btn-mobile-cart, .modal, #modal-overlay');
+        const uiElements = document.querySelectorAll('#app, #sidebar, #mobile-bottom-nav, #btn-mobile-cart, .modal, #modal-overlay, #mobile-cart-overlay');
         const originalDisplays = new Map();
 
         uiElements.forEach(el => {
