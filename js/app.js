@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.14', // Fix Page Split (Static Pos)
+    VERSION: '0.15', // Fix UI Printing (Aggressive Hide)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2051,12 +2051,14 @@ const App = {
     },
 
     printReceiptFromHistory: (index) => {
-        const sale = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date))[index];
-        // Calculate change (Assuming exact/cash - logic for historical change not stored? 
-        // Actually recordSale doesn't store 'received' and 'change'. 
-        // For reprint, we might just show Total. Or we should update recordSale to store payment details.
-        // For now, let's just print Total. User didn't ask for change tracking on reprint.
-        App.printReceipt(sale);
+        // 1. Close Modals first to ensure the UI is clean
+        App.closeModals();
+
+        // 2. Add small delay to allow modal transition to finish (optional but safe)
+        setTimeout(() => {
+            const sale = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date))[index];
+            App.printReceipt(sale);
+        }, 100);
     },
 
     printReceipt: (sale) => {
@@ -2133,6 +2135,10 @@ const App = {
         // Add class to body to toggle visibility via CSS
         document.body.classList.add('is-printing');
 
+        // Double Ensure Modals are hidden via inline style (Aggressive fallback)
+        const modals = document.querySelectorAll('.modal, #modal-overlay, #mobile-bottom-nav');
+        modals.forEach(el => el.style.display = 'none');
+
         // Wait for images to render (base64 is fast, but just in case)
         setTimeout(() => {
             window.print();
@@ -2140,6 +2146,8 @@ const App = {
             setTimeout(() => {
                 area.innerHTML = '';
                 document.body.classList.remove('is-printing');
+                // Restore Modals inline styles
+                modals.forEach(el => el.style.display = '');
             }, 5000); // 5s is usually enough for dialog interaction
         }, 500); // Added delay before printing
     },
