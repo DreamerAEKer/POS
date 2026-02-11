@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.03', // Refined Trash Logic (Robust FIFO)
+    VERSION: '0.04', // Fix Parked Bill Name Input
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1357,14 +1357,15 @@ const App = {
             if (App.state.activeBill) {
                 // REQUEST: Always ask, but pre-fill old name
                 const oldNote = App.state.activeBill.note || '';
-                note = await App.prompt('ยืนยันชื่อบิลพัก (สามารถแก้ไขได้):', oldNote);
-                if (note === null) return; // User cancelled
+                const result = await App.prompt('ยืนยันชื่อบิลพัก (สามารถแก้ไขได้):', oldNote);
+                if (result === null) return; // User cancelled
+                note = result.trim() || oldNote; // Use new input, or fallback to old note if empty (optional, but good for UX)
                 timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
             } else {
-                note = await App.prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '');
-                if (note === null) return; // User cancelled
+                const result = await App.prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '');
+                if (result === null) return; // User cancelled
+                note = result.trim();
             }
-
             DB.parkCart(App.state.cart, note, timestamp);
 
             // Clear Active State
@@ -1695,40 +1696,45 @@ const App = {
 
                 const btnOk = document.getElementById('btn-confirm-ok');
                 const btnCancel = document.getElementById('btn-confirm-cancel');
-
                 btnCancel.style.display = 'block';
                 btnOk.textContent = 'ตกลง';
                 btnOk.className = 'primary-btn';
 
+                // Clear old listeners on input & Restore
+                const currentInput = document.getElementById('confirm-input');
+                const newInput = currentInput.cloneNode(true);
+                currentInput.parentNode.replaceChild(newInput, currentInput);
+
+                newInput.value = defaultValue;
+                newInput.classList.remove('hidden');
+
+                // Overlay handling helper
                 const close = (result) => {
                     modal.classList.add('hidden');
-                    overlay.classList.add('hidden');
-                    input.classList.add('hidden');
+                    newInput.classList.add('hidden'); // Use initial reference or re-query if needed, but 'input' var from top is safe if ID matches
+
+                    // Check if any OTHER modal is still open
+                    const otherModals = Array.from(document.querySelectorAll('.modal:not(#confirmation-modal)')).some(m => !m.classList.contains('hidden'));
+                    if (!otherModals) {
+                        overlay.classList.add('hidden');
+                    }
+
                     resolve(result);
                 };
 
+                // Bind Events to NEW buttons and input
+                // Clone buttons to remove old listeners
                 const newBtnOk = btnOk.cloneNode(true);
                 const newBtnCancel = btnCancel.cloneNode(true);
                 btnOk.parentNode.replaceChild(newBtnOk, btnOk);
                 btnCancel.parentNode.replaceChild(newBtnCancel, btnCancel);
 
-                // Re-fetch input if it was replaced (unlikely but safe)
-                const currentInput = document.getElementById('confirm-input');
-
-                newBtnOk.onclick = () => close(currentInput.value);
+                newBtnOk.onclick = () => close(newInput.value); // Use newInput value!
                 newBtnCancel.onclick = () => close(null);
 
-                // Clear old listeners on input
-                const newInput = currentInput.cloneNode(true);
-                currentInput.parentNode.replaceChild(newInput, currentInput);
-
-                // Re-bind enter key
                 newInput.onkeydown = (e) => {
                     if (e.key === 'Enter') close(newInput.value);
                 };
-                // Restore value and state
-                newInput.value = defaultValue;
-                newInput.classList.remove('hidden');
 
                 modal.classList.remove('hidden');
                 overlay.classList.remove('hidden');
