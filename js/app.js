@@ -2126,6 +2126,7 @@ const App = {
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
+                <div class="force-feed" style="height: 20mm; color: transparent;">.</div>
             </div>
         `;
         area.innerHTML = receiptHtml;
@@ -2144,10 +2145,20 @@ const App = {
         doc.write(`
             <html>
             <head>
-                <link rel="stylesheet" href="css/print.css?v=${Date.now()}">
                 <style>
-                    body { margin: 0; padding: 0; background: white; }
-                    #receipt-print-area { display: block !important; }
+                    /* Inline Core Print Styles to ensure they load */
+                    @page { margin: 0; size: auto; }
+                    body { margin: 0; padding: 0; background: white; font-family: 'Sarabun', sans-serif; }
+                    #receipt-print-area { display: block !important; width: 100%; }
+                    
+                    /* Utility classes */
+                    .receipt-header, .receipt-footer { text-align: center; margin-bottom: 10px; }
+                    .receipt-item { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                    .receipt-divider { border-top: 1px dashed black; margin: 10px 0; }
+                    .receipt-total { display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; margin-top: 10px; border-top: 2px solid black; padding-top: 5px; }
+                    
+                    /* Feed Spacer */
+                    .force-feed { page-break-after: always; }
                 </style>
             </head>
             <body>
@@ -2163,10 +2174,12 @@ const App = {
             printFrame.contentWindow.print();
             // Cleanup
             setTimeout(() => {
-                area.innerHTML = '';
+                area.innerHTML = ''; // Clear generic area if used
             }, 1000);
         }, 500);
     },
+
+    VERSION: '0.18', // Fix: Inline CSS + Force Feed Spacer
 
     // --- Price Check ---
     showPriceCheckModal: () => {
