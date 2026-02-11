@@ -2126,8 +2126,6 @@ const App = {
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
-                <div style="height: 15mm;"></div> <!-- CSS Spacer for Cutter -->
-                <div class="cut-feed">.</div> 
             </div>
         `;
         area.innerHTML = receiptHtml;
