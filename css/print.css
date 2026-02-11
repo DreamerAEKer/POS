@@ -8,8 +8,23 @@
 
     /* Fixed Overlay Strategy - Most Robust for Mobile */
     /* Class-Based Hiding Strategy */
+    /* Class-Based Hiding Strategy */
     body.is-printing>*:not(#receipt-print-area) {
         display: none !important;
+    }
+
+    /* Nuclear Option: Explicitly hide main app containers */
+    body.is-printing #app,
+    body.is-printing #sidebar,
+    body.is-printing #mobile-bottom-nav,
+    body.is-printing #btn-mobile-cart,
+    body.is-printing .modal,
+    body.is-printing #modal-overlay {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
     }
 
     body.is-printing {

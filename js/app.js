@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.18', // Configurable Feed Linesct Isolation)
+    VERSION: '0.19', // Fix UI Leaking in Print
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2136,8 +2136,15 @@ const App = {
         // Add class to body to toggle visibility via CSS
         document.body.classList.add('is-printing');
 
-        // Remove the inline style enforcement which might be causing the UI print issue if failed
-        // v0.11 didn't have the explicit inline style hiding loop.
+        // --- Aggressive Hide (Nuclear Option) ---
+        // Force hide elements via inline styles to bypass potential CSS specificity issues
+        const uiElements = document.querySelectorAll('#app, #sidebar, #mobile-bottom-nav, #btn-mobile-cart, .modal, #modal-overlay');
+        const originalDisplays = new Map();
+
+        uiElements.forEach(el => {
+            originalDisplays.set(el, el.style.display);
+            el.style.setProperty('display', 'none', 'important');
+        });
 
         // Wait for images to render (base64 is fast, but just in case)
         setTimeout(() => {
@@ -2146,6 +2153,11 @@ const App = {
             setTimeout(() => {
                 area.innerHTML = '';
                 document.body.classList.remove('is-printing');
+
+                // Restore Styles
+                uiElements.forEach(el => {
+                    el.style.display = originalDisplays.get(el);
+                });
             }, 5000); // 5s is usually enough for dialog interaction
         }, 500); // Added delay before printing    }, 50);
     },
