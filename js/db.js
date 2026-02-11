@@ -179,10 +179,11 @@ const DB = {
         if (parked.length >= 5) {
             const oldest = parked.shift(); // Remove the oldest
 
-            // Move to Trash (Safety Net)
-            const trash = DB.getParkedTrash();
-            trash.unshift(oldest);
-            if (trash.length > 10) trash.pop();
+            // Move to Trash (Safety Net) - Robust FIFO
+            let trash = DB.getParkedTrash();
+            trash.push(oldest);
+            trash.sort((a, b) => b.timestamp - a.timestamp); // Newest First
+            if (trash.length > 10) trash = trash.slice(0, 10);
             localStorage.setItem('store_parked_trash', JSON.stringify(trash));
 
             // Note: We don't save parked yet, we'll save after adding the new one
@@ -225,10 +226,11 @@ const DB = {
         const item = parked.find(c => c.id === id);
 
         if (item) {
-            // Add to Trash
-            const trash = DB.getParkedTrash();
-            trash.unshift(item); // Add to top
-            if (trash.length > 10) trash.pop(); // Keep max 10
+            // Add to Trash - Robust FIFO
+            let trash = DB.getParkedTrash();
+            trash.push(item);
+            trash.sort((a, b) => b.timestamp - a.timestamp); // Newest First
+            if (trash.length > 10) trash = trash.slice(0, 10);
             localStorage.setItem('store_parked_trash', JSON.stringify(trash));
 
             // Remove from Active

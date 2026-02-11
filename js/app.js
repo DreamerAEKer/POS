@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.02', // Parked Cart Fixes (Limit + Delete)
+    VERSION: '0.03', // Refined Trash Logic (Robust FIFO)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
