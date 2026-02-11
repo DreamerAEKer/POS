@@ -2138,7 +2138,7 @@ const App = {
         // to prevent "Blank Page" errors if print dialog is slow.
     },
 
-    VERSION: '0.32', // Fix: Off-screen Rendering
+    VERSION: '0.33', // Fix: Display Both (Screen:None, Print:Block)
 
     // --- Price Check ---
     showPriceCheckModal: () => {

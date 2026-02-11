@@ -32,6 +32,8 @@
         width: 100%;
         height: auto !important;
         overflow: visible !important;
+        visibility: visible !important;
+        /* Ensure it is visible even if hidden on screen */
         background: white;
         z-index: 9999;
 

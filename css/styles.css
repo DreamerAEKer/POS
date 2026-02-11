@@ -428,15 +428,9 @@ button {
     max-width: 320px;
 }
 
-/* Print Area - Hidden on Screen (Off-screen method to ensure accessibility for Print Spooler) */
+/* Print Area - Hidden on Screen by Default */
 #receipt-print-area {
-    position: absolute;
-    top: -10000px;
-    left: -10000px;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    visibility: hidden;
+    display: none;
 }
 
 /* --- RESPONSIVE DESIGN (Dedicated Mobile Nav) --- */
