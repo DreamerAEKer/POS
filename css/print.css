@@ -62,11 +62,12 @@
         #receipt-print-area::after {
             content: ".";
             display: block;
-            height: 25mm;
-            /* Increased to 25mm for VOZY G80 Cutter */
+            height: 50mm;
+            /* Aggressive Feed for Cutter */
             color: transparent;
             page-break-after: always;
-            /* Hint to cut paper */
+            /* Force Cut */
+            margin-bottom: 20mm;
         }
 
         .receipt-logo {
