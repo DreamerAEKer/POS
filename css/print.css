@@ -19,20 +19,22 @@
     }
 
     /* Reset Body */
+    html,
     body {
         visibility: visible !important;
         margin: 0 !important;
         padding: 0 !important;
         background: white !important;
         height: auto !important;
+        min-height: 100% !important;
         overflow: visible !important;
     }
 
     /* Force show the receipt area */
     #receipt-print-area {
         display: block !important;
-        position: absolute;
-        /* Revert to Absolute */
+        position: relative !important;
+        /* Fix: Relative to flow */
         left: 0;
         top: 0;
         width: 100%;
