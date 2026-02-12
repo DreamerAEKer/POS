@@ -6,41 +6,30 @@
         /* Revert to auto */
     }
 
-    /* Fixed Overlay Strategy - Most Robust for Mobile */
-    /* Class-Based Hiding Strategy */
-    /* Class-Based Hiding Strategy */
-    body.is-printing>*:not(#receipt-print-area) {
-        display: none !important;
-    }
-
-    /* Nuclear Option: Explicitly hide main app containers */
-    body.is-printing #app,
-    body.is-printing #sidebar,
-    body.is-printing #mobile-bottom-nav,
-    body.is-printing #btn-mobile-cart,
-    body.is-printing .modal,
-    body.is-printing #modal-overlay {
+    /* Global Hide for Print - No JS Dependency */
+    #app,
+    #sidebar,
+    #mobile-bottom-nav,
+    #btn-mobile-cart,
+    .modal,
+    #modal-overlay,
+    #mobile-cart-overlay {
         display: none !important;
         visibility: hidden !important;
-        opacity: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
     }
 
-    body.is-printing {
+    /* Reset Body */
+    body {
         visibility: visible !important;
         margin: 0 !important;
         padding: 0 !important;
         background: white !important;
         height: auto !important;
+        overflow: visible !important;
     }
 
     /* Force show the receipt area */
     #receipt-print-area {
-        display: none;
-    }
-
-    body.is-printing #receipt-print-area {
         display: block !important;
         position: absolute;
         /* Revert to Absolute */
