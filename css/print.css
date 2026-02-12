@@ -62,12 +62,11 @@
         #receipt-print-area::after {
             content: ".";
             display: block;
-            height: 50mm;
-            /* Aggressive Feed for Cutter */
+            height: 25mm;
+            /* Revert to 25mm (v0.38) */
             color: transparent;
             page-break-after: always;
             /* Force Cut */
-            margin-bottom: 20mm;
         }
 
         .receipt-logo {

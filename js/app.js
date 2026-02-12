@@ -307,7 +307,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.39', // Fix: Aggressive Feed for Cutter
+    VERSION: '0.40', // Revert: Stable Print Layout (Manual Cut via Feed)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
