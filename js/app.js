@@ -481,7 +481,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.40', // Revert: Stable Print Layout (Manual Cut via Feed)
+    VERSION: '0.45', // Sales Reports (Filters, Best Sellers, Categories)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
