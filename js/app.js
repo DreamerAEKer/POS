@@ -805,7 +805,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.78', // Hide Uncategorized Group
+    VERSION: '0.79', // Hotfix Syntax Error
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1393,7 +1393,6 @@ const App = {
                 `).join('')}
 
             </div>
-        `;
         `;
     },
 
