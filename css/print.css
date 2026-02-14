@@ -2,8 +2,8 @@
 @media print {
     @page {
         margin: 0;
-        size: auto;
-        /* Revert to auto */
+        size: 80mm auto;
+        /* Target 80mm paper */
     }
 
     /* Global Hide for Print - No JS Dependency */
@@ -34,12 +34,14 @@
     #receipt-print-area {
         display: block !important;
         position: relative !important;
-        /* Fix: Relative to flow */
         left: 0;
         top: 0;
         width: 100%;
-        margin: 0;
-        padding: 0 5mm;
+        /* Will fill the 80mm page */
+        max-width: 80mm;
+        margin: 0 auto;
+        padding: 5px 2mm 0 2mm;
+        /* Minimized padding for max width */
         /* Restore padding */
         background: white;
         color: black;
@@ -59,96 +61,94 @@
         }
 
         /* Auto-Cut Padding at bottom */
-        #receipt-print-area::after {
-            content: ".";
-            display: block;
-            height: 25mm;
-            /* Revert to 25mm (v0.38) */
-            color: transparent;
-            page-break-after: always;
-            /* Force Cut */
-        }
-
-        .receipt-logo {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-
-        .receipt-logo img {
-            max-width: 80%;
-            height: auto;
-            filter: grayscale(100%) contrast(150%);
-            /* Optimize for thermal */
-        }
-
-        .receipt-qr {
-            text-align: center;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
-
-        .receipt-qr img {
-            width: 160px;
-            /* Increased from 120px */
-            height: 160px;
-            max-width: 80%;
-            /* Ensure it fits on 58mm */
-            object-fit: contain;
-            /* Force sharp edges for QR */
-            image-rendering: pixelated;
-            image-rendering: -moz-crisp-edges;
-            image-rendering: crisp-edges;
-
-            /* High contrast to reduce thermal dithering artifacts */
-            filter: contrast(200%) grayscale(100%);
-        }
-
-        #receipt-print-area * {
-            visibility: visible;
-            /* Ensure children are visible */
-        }
-
-        .receipt-header,
-        .receipt-footer {
-            text-align: center;
-            margin-bottom: 12px;
-        }
-
-        .receipt-header h2 {
-            font-size: 24px;
-            /* Massive header */
-            margin-bottom: 5px;
-            font-weight: 900;
-        }
-
-        .receipt-divider {
-            border-top: 2px dashed black;
-            margin: 10px 0;
-        }
-
-        .receipt-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 6px;
-            font-size: 18px;
-            font-weight: 900;
-            /* Extra Bold to match Header */
-        }
-
-        .receipt-total {
-            display: flex;
-            justify-content: space-between;
-            font-weight: 900;
-            font-size: 22px;
-            /* Very large total */
-            margin-top: 15px;
-            border-top: 3px solid black;
-            padding-top: 8px;
-        }
-
-        /* Hide URLs/dates that browsers sometimes add */
-        a[href]:after {
-            content: none !important;
-        }
+        content: ".";
+        display: block;
+        height: 15mm;
+        /* Reduced for auto-cut (driver usually handles better) */
+        color: transparent;
+        page-break-after: always;
     }
+
+    .receipt-logo {
+        text-align: center;
+        margin-bottom: 10px;
+    }
+
+    .receipt-logo img {
+        max-width: 80%;
+        height: auto;
+        filter: grayscale(100%) contrast(150%);
+        /* Optimize for thermal */
+    }
+
+    .receipt-qr {
+        text-align: center;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .receipt-qr img {
+        width: 160px;
+        /* Increased from 120px */
+        height: 160px;
+        max-width: 80%;
+        /* Ensure it fits on 58mm */
+        object-fit: contain;
+        /* Force sharp edges for QR */
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+
+        /* High contrast to reduce thermal dithering artifacts */
+        filter: contrast(200%) grayscale(100%);
+    }
+
+    #receipt-print-area * {
+        visibility: visible;
+        /* Ensure children are visible */
+    }
+
+    .receipt-header,
+    .receipt-footer {
+        text-align: center;
+        margin-bottom: 12px;
+    }
+
+    .receipt-header h2 {
+        font-size: 24px;
+        /* Massive header */
+        margin-bottom: 5px;
+        font-weight: 900;
+    }
+
+    .receipt-divider {
+        border-top: 2px dashed black;
+        margin: 10px 0;
+    }
+
+    .receipt-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 6px;
+        font-size: 18px;
+        font-weight: 900;
+        /* Extra Bold to match Header */
+    }
+
+    .receipt-total {
+        display: flex;
+        justify-content: space-between;
+        font-weight: 900;
+        font-size: 22px;
+        /* Very large total */
+        margin-top: 15px;
+        border-top: 3px solid black;
+        padding-top: 8px;
+    }
+
+    /* Hide URLs/dates that browsers sometimes add */
+    a[href]:after {
+        content: none !important;
+    }
+}

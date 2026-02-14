@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.84', // Fix Missing DB Functions
+    VERSION: '0.85', // Receipt 80mm Layout
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2904,22 +2904,29 @@ const App = {
             
             <div class="receipt-header">
                 <h2>${storeName}</h2>
-                <div>Tel: ${settings.phone || '-'}</div>
+                ${settings.phone && settings.phone !== '-' ? `<div>Tel: ${settings.phone}</div>` : ''}
                 <div style="margin-top:5px; font-size:14px;">
                 Bill ID: ${sale.billId}<br>
                     Date: ${new Date(sale.date).toLocaleString('th-TH')}
                 </div>
             </div>
             <div class="receipt-divider"></div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
             ${sale.items.map(item => `
-                <div class="receipt-item">
-                    <span>${item.name} (${item.qty})</span>
-                    <span>${Utils.formatCurrency(item.price * item.qty)}</span>
+                <div class="receipt-item" style="display:block; margin-bottom:0;">
+                    <div style="font-weight:bold; text-align:left; width:100%; line-height:1.2; word-break:break-word;">
+                        ${item.name}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-weight:normal; font-size:16px;">
+                        <span>${item.qty} x ${Utils.formatCurrency(item.price)}</span>
+                        <span style="font-weight:bold;">${Utils.formatCurrency(item.price * item.qty)}</span>
+                    </div>
                 </div>
             `).join('')}
+            </div>
             <div class="receipt-divider"></div>
             <div class="receipt-total">
-                <span>รวมทั้งสิ้น</span>
+                <span>ยอดรวมสุทธิ</span>
                 <span>${Utils.formatCurrency(sale.total)}</span>
             </div>
             <div style="margin-top:5px; font-size:16px;">
