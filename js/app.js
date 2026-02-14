@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.83', // Trash Management Features
+    VERSION: '0.84', // Fix Missing DB Functions
 
     // --- Settings View ---
     renderSettingsView: (container) => {

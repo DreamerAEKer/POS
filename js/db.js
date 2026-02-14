@@ -277,6 +277,16 @@ const DB = {
         }
     },
 
+    deleteParkedTrashItem: (id) => {
+        let trash = DB.getParkedTrash();
+        trash = trash.filter(c => c.id !== id);
+        localStorage.setItem('store_parked_trash', JSON.stringify(trash));
+    },
+
+    clearParkedTrash: () => {
+        localStorage.removeItem('store_parked_trash');
+    },
+
     // --- Sales ---
     // --- Sales ---
     recordSale: (saleData) => {
