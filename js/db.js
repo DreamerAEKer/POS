@@ -39,6 +39,7 @@ const DB = {
                     barcode: '8850987123456',
                     name: 'ไวไว ปรุงสำเร็จ (60g)',
                     price: 6.00,
+                    cost: 4.50,
                     stock: 48,
                     image: null
                 },
@@ -47,6 +48,7 @@ const DB = {
                     barcode: '8851987123456',
                     name: 'มาม่า หมูสับ (60g)',
                     price: 7.00,
+                    cost: 5.25,
                     stock: 12,
                     image: null
                 },
@@ -55,6 +57,7 @@ const DB = {
                     barcode: '8852987123456',
                     name: 'โค้ก (325ml)',
                     price: 15.00,
+                    cost: 11.00,
                     stock: 24,
                     image: null
                 },
