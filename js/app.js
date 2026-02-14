@@ -181,7 +181,24 @@ const App = {
         const { sales, periodLabel } = App.getFilteredSales();
         const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
         const billCount = sales.length;
-        const averageBill = billCount > 0 ? totalRevenue / billCount : 0;
+
+        // Calculate Max Profit Bill
+        let maxProfitBill = 0;
+        const allProducts = DB.getProducts(); // For cost fallback
+
+        sales.forEach(sale => {
+            let billProfit = 0;
+            sale.items.forEach(item => {
+                // Try to get cost from item (snapshot) -> fallback to current product cost -> 0
+                let cost = item.cost;
+                if (cost === undefined || cost === null) {
+                    const product = allProducts.find(p => p.id === item.id);
+                    cost = product ? (product.cost || 0) : 0;
+                }
+                billProfit += (item.price - cost) * item.qty;
+            });
+            if (billProfit > maxProfitBill) maxProfitBill = billProfit;
+        });
 
         // 2. Render UI
         container.innerHTML = `
@@ -206,16 +223,17 @@ const App = {
                     <div style="font-size:28px; font-weight:bold; color:var(--neutral-900);">${billCount}</div>
                 </div>
                 <div style="background:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm);">
-                    <div style="font-size:14px; color:#666;">เฉลี่ยต่อบิล</div>
-                    <div style="font-size:28px; font-weight:bold; color:var(--neutral-900);">฿${Utils.formatCurrency(averageBill)}</div>
+                    <div style="font-size:14px; color:#666;">กำไรสูงสุด/บิล</div>
+                    <div style="font-size:28px; font-weight:bold; color:var(--success-color);">฿${Utils.formatCurrency(maxProfitBill)}</div>
                 </div>
             </div>
 
             <!-- Tabs -->
-            <div class="segmented-control">
-                <div class="segment-btn ${App.state.salesTab === 'bills' ? 'active' : ''}" onclick="App.setSalesTab('bills')">รายการบิล</div>
-                <div class="segment-btn ${App.state.salesTab === 'top' ? 'active' : ''}" onclick="App.setSalesTab('top')">สินค้าขายดี</div>
-                <div class="segment-btn ${App.state.salesTab === 'categories' ? 'active' : ''}" onclick="App.setSalesTab('categories')">หมวดหมู่</div>
+            <div class="segmented-control" style="overflow-x:auto; padding-bottom:5px;">
+                <div class="segment-btn ${App.state.salesTab === 'bills' ? 'active' : ''}" onclick="App.setSalesTab('bills')">บิล</div>
+                <div class="segment-btn ${App.state.salesTab === 'top' ? 'active' : ''}" onclick="App.setSalesTab('top')">ขายดี (จำนวน)</div>
+                <div class="segment-btn ${App.state.salesTab === 'top_profit' ? 'active' : ''}" onclick="App.setSalesTab('top_profit')">กำไร (สินค้า)</div>
+                <div class="segment-btn ${App.state.salesTab === 'profit_categories' ? 'active' : ''}" onclick="App.setSalesTab('profit_categories')">กำไร (หมวด)</div>
             </div>
 
             <!-- Content Area -->
@@ -276,6 +294,8 @@ const App = {
         switch (App.state.salesTab) {
             case 'bills': return App.renderBillList(sales);
             case 'top': return App.renderBestSellers(sales);
+            case 'top_profit': return App.renderTopProfit(sales);
+            case 'profit_categories': return App.renderProfitByCategory(sales);
             case 'categories': return App.renderCategoryBreakdown(sales);
             default: return App.renderBillList(sales);
         }
@@ -294,10 +314,6 @@ const App = {
                 </thead>
                 <tbody>
                     ${sales.map((sale, index) => {
-            // Find original index in full list for click handler
-            // Note: This is tricky because 'sales' is filtered. 
-            // Simplified: Pass the sale object ID or handle click with explicit data.
-            // Better: Use billId for lookup.
             return `
                         <tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="App.showBillDetailByID('${sale.billId}')">
                             <td style="padding:15px; font-size:14px; color:#666;">
@@ -343,6 +359,7 @@ const App = {
 
         return `
             <div style="padding:20px;">
+                <h3 style="margin-bottom:15px; font-size:16px;">สินค้าขายดี (ตามจำนวนชิ้น)</h3>
                 ${sorted.map((p, i) => `
                     <div class="chart-row">
                         <div class="rank-badge ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</div>
@@ -356,6 +373,103 @@ const App = {
                             </div>
                             <div style="text-align:right; font-size:12px; color:#999; margin-top:2px;">฿${Utils.formatCurrency(p.total)}</div>
                         </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    renderTopProfit: (sales) => {
+        // Aggregate Profit
+        const productStats = {};
+        const allProducts = DB.getProducts();
+
+        sales.forEach(sale => {
+            sale.items.forEach(item => {
+                if (!productStats[item.id]) {
+                    productStats[item.id] = {
+                        name: item.name,
+                        profit: 0
+                    };
+                }
+                // Profit Calculation
+                let cost = item.cost;
+                if (cost === undefined || cost === null) {
+                    const product = allProducts.find(p => p.id === item.id);
+                    cost = product ? (product.cost || 0) : 0;
+                }
+                const profit = (item.price - cost) * item.qty;
+                productStats[item.id].profit += profit;
+            });
+        });
+
+        const sorted = Object.values(productStats).sort((a, b) => b.profit - a.profit);
+        const maxProfit = sorted.length > 0 ? sorted[0].profit : 1;
+
+        return `
+            <div style="padding:20px;">
+                <h3 style="margin-bottom:15px; font-size:16px;">สินค้าทำกำไรสูงสุด</h3>
+                ${sorted.map((p, i) => `
+                    <div class="chart-row">
+                        <div class="rank-badge ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</div>
+                        <div style="flex:1;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span style="font-weight:bold; font-size:14px;">${p.name}</span>
+                                <span style="font-size:14px; color:var(--success-color);">+฿${Utils.formatCurrency(p.profit)}</span>
+                            </div>
+                            <div style="width:100%; background:#f0f0f0; height:8px; border-radius:4px; overflow:hidden;">
+                                <div style="width:${Math.max(0, (p.profit / maxProfit) * 100)}%; background:var(--success-color); height:100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    renderProfitByCategory: (sales) => {
+        const groupStats = {};
+        const allProducts = DB.getProducts();
+
+        sales.forEach(sale => {
+            sale.items.forEach(item => {
+                // Try to find group
+                let group = 'Uncategorized';
+                if (item.group) group = item.group;
+                else {
+                    const fresh = allProducts.find(p => p.id === item.id);
+                    if (fresh && fresh.group) group = fresh.group;
+                }
+
+                // Profit
+                let cost = item.cost;
+                if (cost === undefined || cost === null) {
+                    const product = allProducts.find(p => p.id === item.id);
+                    cost = product ? (product.cost || 0) : 0;
+                }
+                const profit = (item.price - cost) * item.qty;
+
+                if (!groupStats[group]) groupStats[group] = 0;
+                groupStats[group] += profit;
+            });
+        });
+
+        const sorted = Object.entries(groupStats)
+            .map(([name, total]) => ({ name, total }))
+            .sort((a, b) => b.total - a.total);
+
+        const totalProfit = sorted.reduce((sum, g) => sum + g.total, 0);
+
+        return `
+            <div style="padding:20px;">
+                <h3 style="margin-bottom:15px; font-size:16px;">กำไรตามหมวดหมู่</h3>
+                ${sorted.map(g => `
+                    <div class="chart-row">
+                        <div class="chart-label">${g.name}</div>
+                        <div class="chart-bar-container">
+                            <div class="chart-bar-fill" style="width:${Math.max(0, (g.total / totalProfit) * 100)}%; background:var(--success-color);"></div>
+                        </div>
+                        <div class="chart-value" style="color:var(--success-color);">+฿${Utils.formatCurrency(g.total)}</div>
                     </div>
                 `).join('')}
             </div>
@@ -389,6 +503,7 @@ const App = {
 
         return `
             <div style="padding:20px;">
+                <h3 style="margin-bottom:15px; font-size:16px;">ยอดขายตามหมวดหมู่</h3>
                 ${sorted.map(g => `
                     <div class="chart-row">
                         <div class="chart-label">${g.name}</div>
@@ -483,7 +598,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.60', // Stock UI Polish (Icons, Padding)
+    VERSION: '0.65', // Sales Dashboard Enhancements (Max Profit, Profit Tabs)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
