@@ -805,7 +805,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.77', // Fix Report UI & CSV Export (Attempt 2)
+    VERSION: '0.78', // Hide Uncategorized Group
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1392,15 +1392,8 @@ const App = {
                     </div>
                 `).join('')}
 
-                ${noGroup.length > 0 ? `
-                    <div style="background:white; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm);">
-                        <div style="background:#eee; padding:10px 15px; font-weight:bold;">
-                            สินค้าไม่มีหมวดหมู่
-                        </div>
-                         ${App.renderStockTable(noGroup).replace('<table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden;">', '<table style="width:100%; border-collapse:collapse;">')}
-                    </div>
-                ` : ''}
             </div>
+        `;
         `;
     },
 
