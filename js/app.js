@@ -1616,6 +1616,12 @@ const App = {
                                 <span style="font-size:12px; color:#666;">ชิ้น</span>
                             </div>
                         </div>
+
+                        <!-- Location Field (New) -->
+                        <div style="margin-top:10px;">
+                            <label>จุดวางสินค้า (Location)</label>
+                            <input type="text" id="p-location" value="${product ? (product.location || '') : ''}" placeholder="เช่น ชั้น 2, ล็อค A, หลังตู้เย็น" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
+                        </div>
                     </div>
                 
                     <!-- Tags & Image Column -->
@@ -1729,6 +1735,7 @@ const App = {
 
                 // New Fields
                 const cost = parseFloat(document.getElementById('p-cost').value) || 0;
+                const location = document.getElementById('p-location').value.trim(); // Get Location
                 const expiryDate = document.getElementById('p-expiry').value;
                 const tags = Array.from(document.querySelectorAll('input[name="p-tags"]:checked')).map(cb => cb.value);
 
@@ -1780,7 +1787,7 @@ const App = {
 
                 const newProduct = {
                     id, barcode, group, name, price, stock, image: newImage,
-                    cost, expiryDate, tags,
+                    cost, expiryDate, tags, location, // Save Location
                     parentId, packSize,
                     updatedAt: Date.now() // Auto-Timestamp
                 };
@@ -2169,11 +2176,13 @@ const App = {
     handleBarcodeScan: async (barcode) => {
         const product = DB.getProductByBarcode(barcode);
         if (product) {
+            // GLOBAL: Always show Flash Popup (Price & Location)
+            App.showProductFlash(product);
+
             if (App.state.currentView === 'pos') {
                 App.addToCart(product, true); // True = fromScan
-            } else if (App.state.currentView === 'stock') {
-                App.openProductModal(product.id);
             }
+            // In Stock/Other views: Just Flash (as requested), no modal opening
         } else {
             if (await App.confirm(`ไม่พบสินค้า ${barcode}\nต้องการเพิ่มสินค้าใหม่หรือไม่?`)) {
                 // Navigate to stock > Add
@@ -2184,6 +2193,51 @@ const App = {
                 }, 100);
             }
         }
+    },
+
+    // --- Product Flash Popup (Helper) ---
+    showProductFlash: (product) => {
+        // Remove existing flash if any
+        const existing = document.getElementById('product-flash-popup');
+        if (existing) existing.remove();
+
+        const popup = document.createElement('div');
+        popup.id = 'product-flash-popup';
+        popup.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            z-index: 9999;
+            text-align: center;
+            min-width: 300px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            animation: fadeInOut 1.5s ease-in-out forwards;
+            pointer-events: none; /* Let clicks pass through */
+        `;
+
+        popup.innerHTML = `
+            <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #fff;">${product.name}</div>
+            <div style="font-size: 48px; font-weight: bold; color: #4caf50; margin-bottom: 10px;">
+                ฿${Utils.formatCurrency(product.price)}
+            </div>
+            ${product.location ? `
+                <div style="font-size: 20px; color: #ffeb3b; background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; display: inline-block;">
+                    📍 ${product.location}
+                </div>
+            ` : '<div style="font-size: 16px; color: #ccc;">(ไม่ระบุจุดวาง)</div>'}
+        `;
+
+        document.body.appendChild(popup);
+
+        // Auto remove after animation (1s delay + fade out)
+        setTimeout(() => {
+            if (popup.parentNode) popup.parentNode.removeChild(popup);
+        }, 1200);
     },
 
     // --- Cart Logic ---
