@@ -960,17 +960,24 @@ const App = {
     },
 
     saveStoreName: () => {
-        const nameInput = document.getElementById('set-store-name');
-        const name = nameInput.value;
+        const name = document.getElementById('set-store-name').value;
+        const address = document.getElementById('set-address').value;
+        const phone = document.getElementById('set-phone').value;
+
         if (!name) {
             App.alert('กรุณาใส่ชื่อร้าน');
             return;
         }
 
         App.checkPin(async () => {
-            DB.saveSettings({ storeName: name });
-            await App.alert('บันทึกชื่อร้านเรียบร้อยแล้ว!');
-            App.renderView('settings');
+            const settings = DB.getSettings();
+            settings.storeName = name;
+            settings.address = address;
+            settings.phone = phone;
+            DB.saveSettings(settings);
+
+            await App.alert('บันทึกข้อมูลร้านเรียบร้อยแล้ว!');
+            App.renderSettingsView(document.getElementById('view-container'));
         });
     },
 
