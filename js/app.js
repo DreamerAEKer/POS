@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.82', // Fix Supplier Modal Button
+    VERSION: '0.83', // Trash Management Features
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2411,6 +2411,9 @@ const App = {
                         <div style="margin-left:10px;">
                             ${showTrash ? `
                                 <button class="primary-btn" onclick="App.restoreFromTrash('${cart.id}')">กู้คืน</button>
+                                <button class="icon-btn dangerous" onclick="App.deleteParkedTrash('${cart.id}')" title="ลบถาวร" style="margin-left:5px;">
+                                    <span class="material-symbols-rounded">delete</span>
+                                </button>
                             ` : `
                                 <button class="primary-btn" style="padding:5px 10px; font-size:14px;" onclick="App.restoreParked('${cart.id}')">เรียกคืน</button>
                                 <button class="icon-btn dangerous" onclick="App.deleteParked('${cart.id}')">
@@ -2421,6 +2424,13 @@ const App = {
                     </div>
                 `).join('')}
             </div>
+            ${showTrash ? `
+                <div style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">
+                    <button class="secondary-btn dangerous" style="width:100%;" onclick="App.clearParkedTrash()">
+                        <span class="material-symbols-rounded">delete_forever</span> ล้างถังขยะทั้งหมด
+                    </button>
+                </div>
+            ` : ''}
             <button class="secondary-btn" style="width:100%; margin-top:15px;" onclick="App.closeModals()">ปิด</button>
         `;
         overlay.classList.remove('hidden');
@@ -2670,6 +2680,20 @@ const App = {
         DB.restoreParkedFromTrash(id);
         App.showParkedCartsModal();
         App.updateParkedBadge();
+    },
+
+    deleteParkedTrash: async (id) => {
+        if (await App.confirm('ต้องการลบรายการนี้ถาวรใช่หรือไม่?')) {
+            DB.deleteParkedTrashItem(id);
+            App.showParkedCartsModal();
+        }
+    },
+
+    clearParkedTrash: async () => {
+        if (await App.confirm('ต้องการล้างถังขยะทั้งหมดใช่หรือไม่?\nข้อมูลจะไม่สามารถกู้คืนได้')) {
+            DB.clearParkedTrash();
+            App.showParkedCartsModal();
+        }
     },
 
     // --- Payment & Receipt ---
