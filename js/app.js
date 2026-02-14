@@ -314,7 +314,7 @@ const App = {
     renderSalesReport: () => {
         // 1. Date Controls
         const controlHtml = `
-            <div style="padding:15px; border-bottom:1px solid #eee; background:var(--neutral-100);">
+            <div style="position:sticky; top:0; z-index:10; padding:15px; border-bottom:1px solid #eee; background:var(--neutral-100); box-shadow:0 2px 5px rgba(0,0,0,0.05);">
                 <div style="font-weight:bold; margin-bottom:10px; color:var(--primary-color);">รายงานสรุปยอดขาย (รายวัน)</div>
                 <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;">
                     <div>
@@ -332,7 +332,9 @@ const App = {
                     <button class="primary-btn" onclick="App.renderView('sales')" style="padding:8px 20px;">
                         ค้นหา
                     </button>
-                    <!-- Future: Export Button -->
+                    <button class="secondary-btn" onclick="App.exportSalesReport()" style="padding:8px 20px; display:flex; align-items:center; gap:5px;">
+                        <span class="material-symbols-rounded">download</span> CSV
+                    </button>
                 </div>
             </div>
         `;
@@ -421,7 +423,7 @@ const App = {
                     </tbody>
                     <tfoot style="background:#f9f9f9; font-weight:bold;">
                         <tr>
-                            <td colspan="3" style="padding:15px; text-align:right;">รวมทั้งสิ้น</td>
+                            <td colspan="3" style="padding:15px; text-align:right;">รวม (Total)</td>
                             <td style="padding:15px; text-align:right;">${Utils.formatCurrency(grandTotal)}</td>
                             <td style="padding:15px; text-align:right; color:var(--success-color);">+${Utils.formatCurrency(grandProfit)}</td>
                         </tr>
@@ -431,6 +433,79 @@ const App = {
         `;
 
         return controlHtml + tableHtml;
+    },
+
+    exportSalesReport: () => {
+        // Re-calculate data (or store it in global temp, but re-calc is safer for now)
+        const start = new Date(App.state.salesReport.startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(App.state.salesReport.endDate);
+        end.setHours(23, 59, 59, 999);
+
+        const allSales = DB.getSales().sort((a, b) => new Date(a.date) - new Date(b.date));
+        const rangeSales = allSales.filter(s => {
+            const d = new Date(s.date);
+            return d >= start && d <= end;
+        });
+
+        if (rangeSales.length === 0) {
+            App.alert('ไม่พบข้อมูลที่จะ Export');
+            return;
+        }
+
+        const allProducts = DB.getProducts();
+        const reportRows = [];
+
+        rangeSales.forEach(sale => {
+            const dateStr = new Date(sale.date).toLocaleDateString('th-TH');
+            sale.items.forEach(item => {
+                let row = reportRows.find(r => r.dateStr === dateStr && r.productId === item.id);
+                let cost = item.cost;
+                if (cost === undefined || cost === null) {
+                    const product = allProducts.find(p => p.id === item.id);
+                    cost = product ? (product.cost || 0) : 0;
+                }
+                const profit = (item.price - cost) * item.qty;
+
+                if (!row) {
+                    row = {
+                        dateStr,
+                        productId: item.id,
+                        productName: item.name,
+                        qty: 0,
+                        total: 0,
+                        profit: 0
+                    };
+                    reportRows.push(row);
+                }
+                row.qty += item.qty;
+                row.total += (item.price * item.qty);
+                row.profit += profit;
+            });
+        });
+
+        // Generate CSV
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // Add BOM for Thai support
+        csvContent += "วันที่,สินค้า,จำนวน,ยอดขาย,กำไร\n";
+
+        reportRows.forEach(row => {
+            // Escape commas in product name
+            const safeName = `"${row.productName.replace(/"/g, '""')}"`;
+            csvContent += `${row.dateStr},${safeName},${row.qty},${row.total.toFixed(2)},${row.profit.toFixed(2)}\n`;
+        });
+
+        // Summary Row
+        const grandTotal = reportRows.reduce((sum, r) => sum + r.total, 0);
+        const grandProfit = reportRows.reduce((sum, r) => sum + r.profit, 0);
+        csvContent += `,,รวม (Total),${grandTotal.toFixed(2)},${grandProfit.toFixed(2)}\n`;
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `sales_report_${App.state.salesReport.startDate}_${App.state.salesReport.endDate}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     },
 
     renderBillList: (sales) => {
@@ -730,7 +805,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.76', // Fix Report UI & CSV Export
+    VERSION: '0.77', // Fix Report UI & CSV Export (Attempt 2)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
