@@ -2145,12 +2145,15 @@ const App = {
     // --- Search & Scan Logic ---
     setupGlobalInput: () => {
         const input = App.elements.globalSearch;
+
+        // 1. Standard Search Box Input
         let timeout = null;
         input.addEventListener('input', (e) => {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
                 const val = e.target.value;
                 App.state.searchQuery = val;
+                // If pasted or typed manually fully
                 if (/^\d{8,14}$/.test(val)) {
                     App.handleBarcodeScan(val);
                     input.value = '';
@@ -2161,12 +2164,40 @@ const App = {
             }, 300);
         });
 
+        // 2. Global Keydown Listener (The "Invisible" Scanner Handler)
+        // Scanners act like keyboards. We capture keystrokes when focus is NOT on an input.
+        let scanBuffer = '';
+        let scanTimer = null;
+
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !document.querySelector('.modal:not(.hidden)')) {
-                input.focus();
+            // Ignore if user is typing in a real input field
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
+                return;
+            }
+
+            // Reset buffer if typing is too slow (human speed)
+            // Scanners usually send one char every 5-20ms.
+            if (scanTimer) clearTimeout(scanTimer);
+            scanTimer = setTimeout(() => {
+                scanBuffer = '';
+            }, 200); // 200ms gap = reset
+
+            if (e.key === 'Enter') {
+                // End of scan sequence
+                if (scanBuffer.length >= 8 && /^\d+$/.test(scanBuffer)) {
+                    e.preventDefault();
+                    console.log('Global Scan Captured:', scanBuffer);
+                    App.handleBarcodeScan(scanBuffer);
+                }
+                scanBuffer = '';
+            } else if (e.key.length === 1) {
+                // Append printable chars
+                scanBuffer += e.key;
             }
         });
 
+        // 3. Manual Trigger Button
         document.getElementById('btn-scan-trigger').addEventListener('click', async () => {
             input.focus();
             await App.alert('ใช้เครื่องสแกน ยิงบาร์โค้ดได้เลย\n(Focus on search box)');
