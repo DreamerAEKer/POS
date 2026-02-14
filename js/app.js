@@ -188,6 +188,7 @@ const App = {
 
         // Calculate Max Profit Bill
         let maxProfitBill = 0;
+        let maxProfitBillId = null;
         const allProducts = DB.getProducts(); // For cost fallback
 
         sales.forEach(sale => {
@@ -201,7 +202,10 @@ const App = {
                 }
                 billProfit += (item.price - cost) * item.qty;
             });
-            if (billProfit > maxProfitBill) maxProfitBill = billProfit;
+            if (billProfit > maxProfitBill) {
+                maxProfitBill = billProfit;
+                maxProfitBillId = sale.billId;
+            }
         });
 
         // 2. Render UI
@@ -226,7 +230,7 @@ const App = {
                     <div style="font-size:14px; color:#666;">จำนวนบิล</div>
                     <div style="font-size:28px; font-weight:bold; color:var(--neutral-900);">${billCount}</div>
                 </div>
-                <div style="background:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm);">
+                <div onclick="${maxProfitBillId ? `App.showBillDetailByID('${maxProfitBillId}')` : ''}" style="background:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm); cursor:${maxProfitBillId ? 'pointer' : 'default'};">
                     <div style="font-size:14px; color:#666;">กำไรสูงสุด/บิล</div>
                     <div style="font-size:28px; font-weight:bold; color:var(--success-color);">฿${Utils.formatCurrency(maxProfitBill)}</div>
                 </div>
@@ -725,7 +729,8 @@ const App = {
     },
 
     showBillDetailByID: (billId) => {
-        const index = DB.getSales().findIndex(s => s.billId === billId);
+        const allSales = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date));
+        const index = allSales.findIndex(s => s.billId === billId);
         if (index >= 0) App.showBillDetail(index);
     },
 
@@ -805,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.79', // Hotfix Syntax Error
+    VERSION: '0.80', // Interactive Max Profit Card
 
     // --- Settings View ---
     renderSettingsView: (container) => {
