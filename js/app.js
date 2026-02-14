@@ -2164,38 +2164,57 @@ const App = {
             }, 300);
         });
 
-        // 2. Global Keydown Listener (The "Invisible" Scanner Handler)
-        // Scanners act like keyboards. We capture keystrokes when focus is NOT on an input.
+        // 2. Global Keydown Listener (Robust Speed-Based)
+        // Works even if input is focused (e.g. on-screen keyboard involved)
         let scanBuffer = '';
-        let scanTimer = null;
+        let lastKeyTime = 0;
+        let isScanning = false;
 
         document.addEventListener('keydown', (e) => {
-            // Ignore if user is typing in a real input field
-            const tag = e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
-                return;
+            const now = Date.now();
+            const timeDiff = now - lastKeyTime;
+            lastKeyTime = now;
+
+            // Scanners send keys very fast (usually < 50ms)
+            // Humans usually type > 100ms
+            if (!isScanning && timeDiff > 200) {
+                scanBuffer = ''; // Reset if too slow (likely human start)
+                isScanning = false;
             }
 
-            // Reset buffer if typing is too slow (human speed)
-            // Scanners usually send one char every 5-20ms.
-            if (scanTimer) clearTimeout(scanTimer);
-            scanTimer = setTimeout(() => {
-                scanBuffer = '';
-            }, 200); // 200ms gap = reset
-
             if (e.key === 'Enter') {
-                // End of scan sequence
+                // Check if buffer looks like a barcode
                 if (scanBuffer.length >= 8 && /^\d+$/.test(scanBuffer)) {
                     e.preventDefault();
+                    e.stopPropagation();
                     console.log('Global Scan Captured:', scanBuffer);
+
+                    // Clear any focused input to prevent double entry (optional but good)
+                    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                        document.activeElement.value = '';
+                        document.activeElement.blur(); // Close keyboard? Maybe better to keep focus? 
+                        // Let's just blur to be safe and hide keyboard if possible
+                        document.activeElement.blur();
+                    }
+
                     App.handleBarcodeScan(scanBuffer);
                 }
                 scanBuffer = '';
-            } else if (e.key.length === 1) {
-                // Append printable chars
+                isScanning = false;
+                return;
+            }
+
+            // Printable chars
+            if (e.key.length === 1) {
+                // If fast typing detected, assume scanning
+                if (timeDiff < 60) {
+                    isScanning = true;
+                }
+
+                // Allow buffer to grow even if slow initially (first char)
                 scanBuffer += e.key;
             }
-        });
+        }, true); // Capture phase to intervene early
 
         // 3. Manual Trigger Button
         document.getElementById('btn-scan-trigger').addEventListener('click', async () => {
