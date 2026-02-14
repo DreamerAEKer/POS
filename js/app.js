@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.80', // Interactive Max Profit Card
+    VERSION: '0.81', // Supplier Price Features
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1506,6 +1506,11 @@ const App = {
         // Initial Groups for Autocomplete
         const existingGroups = [...new Set(App.state.products.map(p => p.group).filter(g => g))];
 
+        // Supplier Prices for Comparison
+        const supplierPrices = product ? DB.getPricesByProduct(product.id) : [];
+        supplierPrices.sort((a, b) => a.cost - b.cost); // Best price first
+        const suppliers = DB.getSuppliers();
+
         modal.innerHTML = `
             <h2>${product ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h2>
             <form id="product-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
@@ -1636,6 +1641,38 @@ const App = {
                 </div>
 
 
+
+                <!-- Supplier Comparison -->
+                ${supplierPrices.length > 0 ? `
+                    <div style="margin-top:15px; border-top:1px solid #eee; padding-top:15px;">
+                        <div style="font-size:12px; font-weight:bold; color:#666; margin-bottom:5px;">เปรียบเทียบราคาร้านส่ง</div>
+                        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                            <thead style="background:#f9f9f9;">
+                                <tr style="color:#666;">
+                                    <th style="padding:5px; text-align:left;">ร้านค้า</th>
+                                    <th style="padding:5px; text-align:right;">ทุน/ชิ้น</th>
+                                    <th style="padding:5px; text-align:right;">หน่วยซื้อ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${supplierPrices.map((p, i) => {
+                const s = suppliers.find(x => x.id === p.supplierId);
+                return `
+                                        <tr style="border-bottom:1px solid #eee; ${i === 0 ? 'background:#ecfdf5;' : ''}">
+                                            <td style="padding:5px;">${s ? s.name : '-'} ${i === 0 ? '⭐' : ''}</td>
+                                            <td style="padding:5px; text-align:right; font-weight:bold; color:${i === 0 ? 'var(--success-color)' : 'inherit'};">
+                                                ฿${Utils.formatCurrency(p.cost)}
+                                            </td>
+                                            <td style="padding:5px; text-align:right; color:#666;">
+                                                ${p.buyUnit === 'piece' ? 'ชิ้น' : (p.buyUnit === 'pack' ? 'แพ็ค' : 'ลัง') + ` (${p.packSize})`}
+                                            </td>
+                                        </tr>
+                                    `;
+            }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : ''}
 
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <button type="button" class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
@@ -1918,10 +1955,16 @@ const App = {
         modal.innerHTML = `
             <h2>เพิ่มสินค้าให้ร้านค้า</h2>
             <form id="link-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
-                <label>เลือกสินค้าในร้าน</label>
-                <select id="l-product" style="width:100%;">
-                    ${allProducts.map(p => `<option value="${p.id}">${p.name} (ขาย: ${p.price})</option>`).join('')}
-                </select>
+                <label>ค้นหาสินค้า (พิมพ์ชื่อหรือบาร์โค้ด)</label>
+                <div style="position:relative;">
+                     <input type="text" id="l-product-search" placeholder="พิมพ์เพื่อค้นหา..." 
+                        style="width:100%; padding:10px;" 
+                        onkeyup="App.searchLinkProduct(this.value)" autocomplete="off">
+                     <input type="hidden" id="l-product">
+                     <div id="l-search-results" class="hidden" 
+                        style="position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #ddd; border-top:none; max-height:200px; overflow-y:auto; z-index:100; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                     </div>
+                </div>
                 <div style="background:var(--neutral-100); padding:10px; border-radius:8px; border:1px solid var(--neutral-300);">
                     <label>หน่วยการซื้อ</label>
                     <select id="l-unit" style="width:100%; padding:8px; margin-bottom:10px;" onchange="App.togglePackInput()">
@@ -1977,6 +2020,10 @@ const App = {
         document.getElementById('link-form').addEventListener('submit', (e) => {
             e.preventDefault();
             const productId = document.getElementById('l-product').value;
+            if (!productId) {
+                App.alert('กรุณาเลือกสินค้าจากรายการค้นหา');
+                return;
+            }
             const buyUnit = document.getElementById('l-unit').value;
             const packSize = parseFloat(document.getElementById('l-pack-size').value) || 1;
             const buyPrice = parseFloat(document.getElementById('l-buy-price').value) || 0;
@@ -1988,6 +2035,46 @@ const App = {
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+    },
+
+    searchLinkProduct: (keyword) => {
+        const resultsDiv = document.getElementById('l-search-results');
+        if (!keyword || keyword.length < 1) {
+            resultsDiv.classList.add('hidden');
+            return;
+        }
+
+        const lower = keyword.toLowerCase();
+        const matches = App.state.products.filter(p =>
+            p.name.toLowerCase().includes(lower) ||
+            p.barcode.includes(lower)
+        ).slice(0, 10); // Limit to 10 results
+
+        if (matches.length === 0) {
+            resultsDiv.innerHTML = '<div style="padding:10px; color:#999; text-align:center;">ไม่พบสินค้า</div>';
+        } else {
+            resultsDiv.innerHTML = matches.map(p => `
+                <div style="padding:10px; border-bottom:1px solid #eee; cursor:pointer;" 
+                     onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='white'"
+                     onclick="App.selectLinkProduct('${p.id}', '${p.name.replace(/'/g, "\\'")}', ${p.cost || 0})">
+                    <div style="font-weight:bold;">${p.name}</div>
+                    <div style="font-size:12px; color:#666;">${p.barcode} | ขาย: ${p.price}</div>
+                </div>
+            `).join('');
+        }
+        resultsDiv.classList.remove('hidden');
+    },
+
+    selectLinkProduct: (id, name, cost) => {
+        document.getElementById('l-product').value = id;
+        document.getElementById('l-product-search').value = name;
+        document.getElementById('l-search-results').classList.add('hidden');
+
+        // Auto-fill cost if available (as a hint)
+        if (cost) {
+            document.getElementById('l-buy-price').value = cost;
+            App.calcUnitCost();
+        }
     },
 
     // --- Variant Modal (Groups) ---
