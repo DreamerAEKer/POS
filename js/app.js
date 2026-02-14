@@ -12,7 +12,8 @@ const App = {
         cartCloseTimer: null, // For auto-closing mobile cart
         salesFilter: 'today', // 'today', '7days', '30days', 'all'
         salesTab: 'bills', // 'bills', 'top', 'categories'
-        stockTab: 'all' // 'all', 'low', 'new', 'groups'
+        stockTab: 'all', // 'all', 'low', 'new', 'groups'
+        stockSort: { column: 'name', direction: 'asc' } // New Sorting State
     },
 
     elements: {
@@ -482,7 +483,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.50', // Stock Management (Filters, Suppliers, Cost Fix)
+    VERSION: '0.55', // Stock: Sorting & Sales Value
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -845,12 +846,12 @@ const App = {
 
     // --- Stock View ---
     renderStockView: (container) => {
-        const { products, summary } = App.getFilteredStock();
+        const { products } = App.getFilteredStock();
 
-        // Calculate Total Value (Global, not just filtered, for dashboard consistency? Or Filtered? Usually Global is better for top cards)
-        // Let's use Global for the big cards, and Filtered for the table.
+        // Calculate Totals (Global)
         const allProducts = App.state.products;
-        const totalValue = allProducts.reduce((sum, p) => sum + (p.stock * (p.cost || 0)), 0);
+        const totalCostValue = allProducts.reduce((sum, p) => sum + (p.stock * (p.cost || 0)), 0);
+        const totalSalesValue = allProducts.reduce((sum, p) => sum + (p.stock * p.price), 0);
         const totalItems = allProducts.reduce((sum, p) => sum + p.stock, 0);
         const lowStockCount = allProducts.filter(p => p.stock <= 5).length;
 
@@ -862,18 +863,22 @@ const App = {
                 </div>
             </div>
             
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:15px; margin-top:15px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:15px;">
                  <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm);">
                     <div style="font-size:12px; color:#666;">จำนวนชิ้นรวม</div>
-                    <div style="font-weight:bold; font-size:20px;">${totalItems}</div>
-                 </div>
-                 <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm);">
-                    <div style="font-size:12px; color:#666;">มูลค่าสต็อก (Cost)</div>
-                    <div style="font-weight:bold; font-size:20px; color:var(--primary-color);">฿${Utils.formatCurrency(totalValue)}</div>
+                    <div style="font-weight:bold; font-size:18px;">${totalItems}</div>
                  </div>
                  <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm);">
                     <div style="font-size:12px; color:#666;">สินค้าใกล้หมด</div>
-                    <div style="font-weight:bold; font-size:20px; color:${lowStockCount > 0 ? 'var(--danger-color)' : 'black'};">${lowStockCount} รายการ</div>
+                    <div style="font-weight:bold; font-size:18px; color:${lowStockCount > 0 ? 'var(--danger-color)' : 'black'};">${lowStockCount}</div>
+                 </div>
+                 <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                    <div style="font-size:12px; color:#666;">ทุนรวม (Cost)</div>
+                    <div style="font-weight:bold; font-size:18px; color:var(--neutral-900);">฿${Utils.formatCurrency(totalCostValue)}</div>
+                 </div>
+                 <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm); border:1px solid var(--primary-color);">
+                    <div style="font-size:12px; color:var(--primary-color);">มูลค่าขาย (Sales)</div>
+                    <div style="font-weight:bold; font-size:18px; color:var(--primary-color);">฿${Utils.formatCurrency(totalSalesValue)}</div>
                  </div>
             </div>
 
@@ -896,18 +901,49 @@ const App = {
         App.renderView('stock');
     },
 
+    toggleStockSort: (column) => {
+        if (App.state.stockSort.column === column) {
+            // Toggle direction
+            App.state.stockSort.direction = App.state.stockSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            // New column, default to desc for numbers, asc for text
+            App.state.stockSort.column = column;
+            App.state.stockSort.direction = (column === 'price' || column === 'stock') ? 'desc' : 'asc';
+        }
+        App.renderView('stock');
+    },
+
     getFilteredStock: () => {
         let products = [...App.state.products];
 
+        // 1. Filter
         switch (App.state.stockTab) {
             case 'low':
                 products = products.filter(p => p.stock <= 5);
                 break;
             case 'new':
-                products = products.reverse().slice(0, 20); // Last 20 added
+                products = products.slice().reverse().slice(0, 20); // Last 20 added
                 break;
             // 'all' and 'groups' use full list
         }
+
+        // 2. Sort
+        const { column, direction } = App.state.stockSort;
+        products.sort((a, b) => {
+            let valA = a[column];
+            let valB = b[column];
+
+            // Handle virtual columns or specific logic
+            if (column === 'name') {
+                valA = (valA || '').toLowerCase();
+                valB = (valB || '').toLowerCase();
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
         return { products };
     },
 
@@ -915,16 +951,28 @@ const App = {
         if (products.length === 0) return '<div style="text-align:center; padding:40px; color:#999;">ไม่พบสินค้า</div>';
 
         const suppliers = DB.getSuppliers();
+        const sortIcon = (col) => {
+            if (App.state.stockSort.column !== col) return '<span style="color:#ddd; font-size:16px;">unfold_more</span>';
+            return App.state.stockSort.direction === 'asc' ? '<span style="font-size:16px;">arrow_upward</span>' : '<span style="font-size:16px;">arrow_downward</span>';
+        };
+
+        const thStyle = "padding:12px; cursor:pointer; user-select:none; white-space:nowrap;";
 
         return `
             <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden;">
                 <thead>
-                    <tr style="background:var(--neutral-100); text-align:left; font-size:14px; color:#666;">
-                        <th style="padding:15px;">สินค้า</th>
-                        <th style="padding:15px;">ราคา/ต้นทุน</th>
-                        <th style="padding:15px;">สต็อก</th>
-                        <th style="padding:15px;">ร้านส่ง (Supplier)</th>
-                        <th style="padding:15px; text-align:right;">จัดการ</th>
+                    <tr style="background:var(--neutral-100); text-align:left; font-size:13px; color:#666;">
+                        <th style="${thStyle}" onclick="App.toggleStockSort('name')">
+                            <div style="display:flex; align-items:center; gap:4px;">สินค้า ${sortIcon('name')}</div>
+                        </th>
+                        <th style="${thStyle}" onclick="App.toggleStockSort('price')">
+                            <div style="display:flex; align-items:center; gap:4px;">ราคา/ทุน ${sortIcon('price')}</div>
+                        </th>
+                        <th style="${thStyle}" onclick="App.toggleStockSort('stock')">
+                            <div style="display:flex; align-items:center; gap:4px;">สต็อก ${sortIcon('stock')}</div>
+                        </th>
+                        <th style="padding:12px;">ร้านส่ง (Supplier)</th>
+                        <th style="padding:12px; text-align:right;">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -952,34 +1000,34 @@ const App = {
                             <tr style="border-bottom:1px solid #eee;">
                                 <td style="padding:10px;">
                                     <div style="display:flex; align-items:center; gap:10px;">
-                                        <div style="width:40px; height:40px; background:#eee; border-radius:4px; overflow:hidden; flex-shrink:0;">
+                                        <div style="width:36px; height:36px; background:#eee; border-radius:4px; overflow:hidden; flex-shrink:0;">
                                             ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : ''}
                                         </div>
-                                        <div>
-                                            <div style="font-weight:bold; font-size:14px;">${p.name}</div>
-                                            <div style="font-size:12px; color:#888;">${p.barcode}</div>
+                                        <div style="min-width:0;">
+                                            <div style="font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
+                                            <div style="font-size:11px; color:#888;">${p.barcode}</div>
                                             ${statusHtml}
                                         </div>
                                     </div>
                                 </td>
-                                <td style="padding:10px; font-size:14px;">
+                                <td style="padding:10px; font-size:13px;">
                                     <div>ขาย: ${Utils.formatCurrency(p.price)}</div>
-                                    <div style="font-size:12px; color:#888; ${costAlert}">ทุน: ${p.cost ? Utils.formatCurrency(p.cost) : '0.00 (?)'}</div>
+                                    <div style="font-size:11px; color:#888; ${costAlert}">ทุน: ${p.cost ? Utils.formatCurrency(p.cost) : '0.00 (?)'}</div>
                                 </td>
                                 <td style="padding:10px;">
                                     <span style="color:${p.stock <= 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock <= 5 ? 'bold' : 'normal'};">
                                         ${p.stock}
                                     </span>
                                 </td>
-                                <td style="padding:10px; font-size:14px;">
+                                <td style="padding:10px; font-size:13px;">
                                     ${supplierName}
                                 </td>
                                 <td style="padding:10px; text-align:right;">
-                                    <button class="icon-btn" onclick="App.openProductModal('${p.id}')">
-                                        <span class="material-symbols-rounded">edit</span>
+                                    <button class="icon-btn" onclick="App.openProductModal('${p.id}')" style="padding:5px;">
+                                        <span class="material-symbols-rounded" style="font-size:18px;">edit</span>
                                     </button>
-                                    <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')">
-                                        <span class="material-symbols-rounded">delete</span>
+                                    <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')" style="padding:5px;">
+                                        <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
                                     </button>
                                 </td>
                             </tr>
