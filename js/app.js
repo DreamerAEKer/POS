@@ -9,7 +9,9 @@ const App = {
         currentView: 'pos', // 'pos', 'stock', 'suppliers', 'settings'
         products: [],
         searchQuery: '',
-        cartCloseTimer: null // For auto-closing mobile cart
+        cartCloseTimer: null, // For auto-closing mobile cart
+        salesFilter: 'today', // 'today', '7days', '30days', 'all'
+        salesTab: 'bills' // 'bills', 'top', 'categories'
     },
 
     elements: {
@@ -173,62 +175,234 @@ const App = {
 
     // --- Sales History View ---
     renderSalesView: (container) => {
-        const allSales = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date)); // Newest first
+        // 1. Get Filtered Data
+        const { sales, periodLabel } = App.getFilteredSales();
+        const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
+        const billCount = sales.length;
+        const averageBill = billCount > 0 ? totalRevenue / billCount : 0;
 
-        // Filter for Today (Simple logic for now, can be expanded to date picker later)
-        const today = new Date().toDateString();
-        const todaysSales = allSales.filter(s => new Date(s.date).toDateString() === today);
-        const todayTotal = todaysSales.reduce((sum, s) => sum + s.total, 0);
-
+        // 2. Render UI
         container.innerHTML = `
-            <h2>ยอดขาย</h2>
+            <h2>ยอดขาย <small style="font-size:14px; color:#666; font-weight:normal;">(${periodLabel})</small></h2>
             
+            <!-- Filters -->
+            <div class="filter-bar">
+                <button class="filter-btn ${App.state.salesFilter === 'today' ? 'active' : ''}" onclick="App.setSalesFilter('today')">วันนี้</button>
+                <button class="filter-btn ${App.state.salesFilter === '7days' ? 'active' : ''}" onclick="App.setSalesFilter('7days')">7 วันล่าสุด</button>
+                <button class="filter-btn ${App.state.salesFilter === '30days' ? 'active' : ''}" onclick="App.setSalesFilter('30days')">30 วันล่าสุด</button>
+                <button class="filter-btn ${App.state.salesFilter === 'all' ? 'active' : ''}" onclick="App.setSalesFilter('all')">ทั้งหมด</button>
+            </div>
+
             <!-- Dashboard -->
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:20px;">
                 <div style="background:var(--primary-color); color:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-md);">
-                    <div style="font-size:14px; opacity:0.8;">ยอดขายวันนี้ (Today)</div>
-                    <div style="font-size:36px; font-weight:bold;">฿${Utils.formatCurrency(todayTotal)}</div>
+                    <div style="font-size:14px; opacity:0.9;">ยอดขายรวม</div>
+                    <div style="font-size:28px; font-weight:bold;">฿${Utils.formatCurrency(totalRevenue)}</div>
                 </div>
-                <div style="background:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:center;">
-                    <div style="font-size:14px; color:#666;">จำนวนบิลวันนี้</div>
-                    <div style="font-size:36px; font-weight:bold; color:var(--neutral-900);">${todaysSales.length}</div>
+                <div style="background:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm);">
+                    <div style="font-size:14px; color:#666;">จำนวนบิล</div>
+                    <div style="font-size:28px; font-weight:bold; color:var(--neutral-900);">${billCount}</div>
+                </div>
+                <div style="background:white; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm);">
+                    <div style="font-size:14px; color:#666;">เฉลี่ยต่อบิล</div>
+                    <div style="font-size:28px; font-weight:bold; color:var(--neutral-900);">฿${Utils.formatCurrency(averageBill)}</div>
                 </div>
             </div>
 
-            <!-- Transaction List -->
-            <div style="margin-top:20px; background:white; border-radius:12px; overflow:hidden; box-shadow:var(--shadow-sm);">
-                <table style="width:100%; border-collapse:collapse;">
-                    <thead style="background:var(--neutral-100);">
-                        <tr style="text-align:left; color:#666; font-size:14px;">
-                            <th style="padding:15px;">เวลา</th>
-                            <th style="padding:15px;">สินค้า</th>
-                            <th style="padding:15px; text-align:right;">ยอดเงิน</th>
-                            <th style="padding:15px; width:50px;"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${allSales.map((sale, index) => `
-                            <tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="App.showBillDetail(${index})">
-                                <td style="padding:15px; font-size:14px; color:#666;">
-                                    ${new Date(sale.date).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
-                                </td>
-                                <td style="padding:15px;">
-                                    ${sale.items.length} รายการ
-                                    <div style="font-size:12px; color:#999;">${sale.items[0].name} ${sale.items.length > 1 ? `และอีก ${sale.items.length - 1} รายการ` : ''}</div>
-                                </td>
-                                <td style="padding:15px; text-align:right; font-weight:bold; color:var(--primary-color);">
-                                    ฿${Utils.formatCurrency(sale.total)}
-                                </td>
-                                <td style="padding:15px; text-align:center; color:#ccc;">
-                                    <span class="material-symbols-rounded">chevron_right</span>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                ${allSales.length === 0 ? '<div style="padding:40px; text-align:center; color:#999;">ยังไม่มีรายการขาย</div>' : ''}
+            <!-- Tabs -->
+            <div class="segmented-control">
+                <div class="segment-btn ${App.state.salesTab === 'bills' ? 'active' : ''}" onclick="App.setSalesTab('bills')">รายการบิล</div>
+                <div class="segment-btn ${App.state.salesTab === 'top' ? 'active' : ''}" onclick="App.setSalesTab('top')">สินค้าขายดี</div>
+                <div class="segment-btn ${App.state.salesTab === 'categories' ? 'active' : ''}" onclick="App.setSalesTab('categories')">หมวดหมู่</div>
+            </div>
+
+            <!-- Content Area -->
+            <div id="sales-content-area" style="background:white; border-radius:12px; overflow:hidden; box-shadow:var(--shadow-sm); min-height:300px;">
+                ${App.renderSalesContent(sales)}
             </div>
         `;
+    },
+
+    setSalesFilter: (filter) => {
+        App.state.salesFilter = filter;
+        App.renderView('sales');
+    },
+
+    setSalesTab: (tab) => {
+        App.state.salesTab = tab;
+        App.renderView('sales');
+    },
+
+    getFilteredSales: () => {
+        const allSales = DB.getSales().sort((a, b) => new Date(b.date) - new Date(a.date));
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+        let filtered = [];
+        let label = '';
+
+        switch (App.state.salesFilter) {
+            case 'today':
+                filtered = allSales.filter(s => new Date(s.date).getTime() >= todayStart);
+                label = 'Today';
+                break;
+            case '7days':
+                const sevenDaysAgo = todayStart - (6 * 24 * 60 * 60 * 1000);
+                filtered = allSales.filter(s => new Date(s.date).getTime() >= sevenDaysAgo);
+                label = 'Last 7 Days';
+                break;
+            case '30days':
+                const thirtyDaysAgo = todayStart - (29 * 24 * 60 * 60 * 1000);
+                filtered = allSales.filter(s => new Date(s.date).getTime() >= thirtyDaysAgo);
+                label = 'Last 30 Days';
+                break;
+            case 'all':
+                filtered = allSales;
+                label = 'All Time';
+                break;
+            default: // fallback to today
+                filtered = allSales.filter(s => new Date(s.date).getTime() >= todayStart);
+                label = 'Today';
+        }
+
+        return { sales: filtered, periodLabel: label };
+    },
+
+    renderSalesContent: (sales) => {
+        if (sales.length === 0) return '<div style="padding:40px; text-align:center; color:#999;">ไม่มีข้อมูลในช่วงเวลานี้</div>';
+
+        switch (App.state.salesTab) {
+            case 'bills': return App.renderBillList(sales);
+            case 'top': return App.renderBestSellers(sales);
+            case 'categories': return App.renderCategoryBreakdown(sales);
+            default: return App.renderBillList(sales);
+        }
+    },
+
+    renderBillList: (sales) => {
+        return `
+            <table style="width:100%; border-collapse:collapse;">
+                <thead style="background:var(--neutral-100);">
+                    <tr style="text-align:left; color:#666; font-size:14px;">
+                        <th style="padding:15px;">เวลา</th>
+                        <th style="padding:15px;">สินค้า</th>
+                        <th style="padding:15px; text-align:right;">ยอดเงิน</th>
+                        <th style="padding:15px; width:50px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sales.map((sale, index) => {
+            // Find original index in full list for click handler
+            // Note: This is tricky because 'sales' is filtered. 
+            // Simplified: Pass the sale object ID or handle click with explicit data.
+            // Better: Use billId for lookup.
+            return `
+                        <tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="App.showBillDetailByID('${sale.billId}')">
+                            <td style="padding:15px; font-size:14px; color:#666;">
+                                ${new Date(sale.date).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                            </td>
+                            <td style="padding:15px;">
+                                ${sale.items.length} รายการ
+                                <div style="font-size:12px; color:#999;">${sale.items[0].name} ${sale.items.length > 1 ? `และอีก ${sale.items.length - 1} รายการ` : ''}</div>
+                            </td>
+                            <td style="padding:15px; text-align:right; font-weight:bold; color:var(--primary-color);">
+                                ฿${Utils.formatCurrency(sale.total)}
+                            </td>
+                            <td style="padding:15px; text-align:center; color:#ccc;">
+                                <span class="material-symbols-rounded">chevron_right</span>
+                            </td>
+                        </tr>
+                    `}).join('')}
+                </tbody>
+            </table>
+        `;
+    },
+
+    renderBestSellers: (sales) => {
+        // Aggregate
+        const productStats = {};
+        sales.forEach(sale => {
+            sale.items.forEach(item => {
+                if (!productStats[item.id]) {
+                    productStats[item.id] = {
+                        name: item.name,
+                        qty: 0,
+                        total: 0,
+                        id: item.id
+                    };
+                }
+                productStats[item.id].qty += item.qty;
+                productStats[item.id].total += (item.price * item.qty);
+            });
+        });
+
+        const sorted = Object.values(productStats).sort((a, b) => b.qty - a.qty);
+        const maxQty = sorted.length > 0 ? sorted[0].qty : 1;
+
+        return `
+            <div style="padding:20px;">
+                ${sorted.map((p, i) => `
+                    <div class="chart-row">
+                        <div class="rank-badge ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</div>
+                        <div style="flex:1;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span style="font-weight:bold; font-size:14px;">${p.name}</span>
+                                <span style="font-size:14px; color:#666;">${p.qty} ชิ้น</span>
+                            </div>
+                            <div style="width:100%; background:#f0f0f0; height:8px; border-radius:4px; overflow:hidden;">
+                                <div style="width:${(p.qty / maxQty) * 100}%; background:var(--primary-color); height:100%;"></div>
+                            </div>
+                            <div style="text-align:right; font-size:12px; color:#999; margin-top:2px;">฿${Utils.formatCurrency(p.total)}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    renderCategoryBreakdown: (sales) => {
+        const groupStats = {};
+        const allProducts = DB.getProducts(); // Need to lookup group if not in item
+
+        sales.forEach(sale => {
+            sale.items.forEach(item => {
+                // Try to find group
+                let group = 'Uncategorized';
+                if (item.group) group = item.group;
+                else {
+                    const fresh = allProducts.find(p => p.id === item.id);
+                    if (fresh && fresh.group) group = fresh.group;
+                }
+
+                if (!groupStats[group]) groupStats[group] = 0;
+                groupStats[group] += (item.price * item.qty);
+            });
+        });
+
+        const sorted = Object.entries(groupStats)
+            .map(([name, total]) => ({ name, total }))
+            .sort((a, b) => b.total - a.total);
+
+        const totalSales = sorted.reduce((sum, g) => sum + g.total, 0);
+
+        return `
+            <div style="padding:20px;">
+                ${sorted.map(g => `
+                    <div class="chart-row">
+                        <div class="chart-label">${g.name}</div>
+                        <div class="chart-bar-container">
+                            <div class="chart-bar-fill" style="width:${(g.total / totalSales) * 100}%;"></div>
+                        </div>
+                        <div class="chart-value">฿${Utils.formatCurrency(g.total)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    showBillDetailByID: (billId) => {
+        const index = DB.getSales().findIndex(s => s.billId === billId);
+        if (index >= 0) App.showBillDetail(index);
     },
 
     showBillDetail: (index) => {

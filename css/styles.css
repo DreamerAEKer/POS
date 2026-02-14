@@ -762,3 +762,137 @@ button {
     transform: translateY(2px);
     box-shadow: none;
 }
+
+/* --- Sales View Specifics --- */
+.filter-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+    /* Scrollbar space */
+}
+
+.filter-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: #e0e0e0;
+    color: #555;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.filter-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.segmented-control {
+    display: flex;
+    background: #e0e0e0;
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 20px;
+}
+
+.segment-btn {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    border-radius: 6px;
+    color: #666;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.segment-btn.active {
+    background: white;
+    color: var(--primary-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-weight: 600;
+}
+
+/* Chart Bars */
+.chart-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 10px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.chart-row:hover {
+    background-color: #f9f9f9;
+}
+
+.chart-label {
+    width: 140px;
+    font-size: 14px;
+    color: #444;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chart-bar-container {
+    flex: 1;
+    background: #f0f0f0;
+    height: 12px;
+    border-radius: 6px;
+    margin: 0 10px;
+    overflow: hidden;
+}
+
+.chart-bar-fill {
+    height: 100%;
+    background: var(--primary-color);
+    border-radius: 6px;
+    min-width: 2px;
+}
+
+.chart-value {
+    width: 80px;
+    text-align: right;
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.rank-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #eee;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.rank-badge.top-1 {
+    background: #FFD700;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.rank-badge.top-2 {
+    background: #C0C0C0;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.rank-badge.top-3 {
+    background: #CD7F32;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
