@@ -1186,11 +1186,11 @@ const App = {
             </div>
             
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:15px;">
-                 <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                 <div onclick="App.setStockTab('all')" style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm); cursor:pointer;">
                     <div style="font-size:12px; color:#666;">จำนวนชิ้นรวม</div>
                     <div style="font-weight:bold; font-size:18px;">${totalItems}</div>
                  </div>
-                 <div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                 <div onclick="App.setStockTab('low')" style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm); cursor:pointer;">
                     <div style="font-size:12px; color:#666;">สินค้าใกล้หมด</div>
                     <div style="font-weight:bold; font-size:18px; color:${lowStockCount > 0 ? 'var(--danger-color)' : 'black'};">${lowStockCount}</div>
                  </div>
