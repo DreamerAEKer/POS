@@ -50,14 +50,16 @@
         line-height: 1.3;
         font-weight: 600;
 
-        /* Prevent Page Breaks inside components */
+        /* Prevent Page Breaks - REMOVE break-inside: avoid as it causes issues on some WebViews */
         .receipt-header,
         .receipt-item,
         .receipt-total,
         .receipt-qr,
         .receipt-footer {
-            break-inside: avoid;
-            page-break-inside: avoid;
+            /* break-inside: avoid;  <-- CAUSES DISAPPEARING CONTENT */
+            /* page-break-inside: avoid; */
+            color: #000 !important;
+            /* Force Black */
         }
 
         /* Auto-Cut Padding at bottom */
