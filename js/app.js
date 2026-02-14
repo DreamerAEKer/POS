@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.85', // Receipt 80mm Layout
+    VERSION: '0.86', // Settings & Print Options
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -824,7 +824,14 @@ const App = {
                     <p style="color:#666; font-size:14px; margin-bottom:15px;">ชื่อนี้จะปรากฏบนใบเสร็จ (ไม่มีผลกับบิลเก่า)</p>
                     <label>ชื่อร้าน</label>
                     <input type="text" id="set-store-name" value="${settings.storeName}" style="width:100%; padding:10px; font-size:18px; margin-bottom:10px;">
-                    <button class="primary-btn" onclick="App.saveStoreName()">บันทึกชื่อร้าน</button>
+                    
+                    <label>ที่อยู่ร้าน (บรรทัดที่ 1)</label>
+                    <input type="text" id="set-address" value="${settings.address || ''}" placeholder="บ้านเลขที่, ถนน, แขวง/ตำบล" style="width:100%; padding:10px; font-size:16px; margin-bottom:10px;">
+                    
+                    <label>เบอร์โทรศัพท์</label>
+                    <input type="tel" id="set-phone" value="${settings.phone || ''}" placeholder="08x-xxx-xxxx" style="width:100%; padding:10px; font-size:16px; margin-bottom:10px;">
+
+                    <button class="primary-btn" onclick="App.saveStoreName()">บันทึกข้อมูลร้าน</button>
                 </div>
                 <!-- Security Config -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm);">
@@ -891,9 +898,10 @@ const App = {
             <!-- Printer Config -->
             <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); margin-top:20px;">
                 <h3>ตั้งค่าใบเสร็จ (80mm / 58mm)</h3>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:15px;">
+                <!-- Responsive Grid: Stacks on mobile, Side-by-side on desktop -->
+                <div style="display:flex; flex-wrap:wrap; gap:20px; margin-top:15px;">
                     <!-- Logo Upload -->
-                    <div>
+                    <div style="flex:1; min-width:300px;">
                         <label>โลโก้ร้าน (หัวบิล)</label>
                         <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
                             <div id="preview-logo" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #ddd;">
@@ -901,8 +909,8 @@ const App = {
                             </div>
                             <div style="flex:1; display:flex; gap:10px; align-items:center;">
                                 <input type="file" id="set-logo-input" accept="image/*" style="display:none;" onchange="App.handleImagePreview(this, 'preview-logo')">
-                                <button class="secondary-btn" onclick="document.getElementById('set-logo-input').click()" style="height:40px; width:40px; padding:0; display:flex; align-items:center; justify-content:center;">
-                                    <span class="material-symbols-rounded">folder_open</span>
+                                <button class="secondary-btn" onclick="document.getElementById('set-logo-input').click()" style="height:40px; min-width:40px; padding:0 15px; display:flex; align-items:center; justify-content:center; gap:5px;">
+                                    <span class="material-symbols-rounded">folder_open</span> เลือกรูป
                                 </button>
                                 <button class="icon-btn dangerous" onclick="App.clearImage('logo')" style="height:40px; width:40px; display:flex; align-items:center; justify-content:center; border:1px solid #ffcdd2;">
                                     <span class="material-symbols-rounded">delete</span>
@@ -912,7 +920,7 @@ const App = {
                     </div>
                     
                     <!-- QR Upload -->
-                    <div>
+                    <div style="flex:1; min-width:300px;">
                         <label>QR Code รับเงิน (ท้ายบิล)</label>
                         <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
                             <div id="preview-qr" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #ddd;">
@@ -920,8 +928,8 @@ const App = {
                             </div>
                             <div style="flex:1; display:flex; gap:10px; align-items:center;">
                                 <input type="file" id="set-qr-input" accept="image/*" style="display:none;" onchange="App.handleImagePreview(this, 'preview-qr')">
-                                <button class="secondary-btn" onclick="document.getElementById('set-qr-input').click()" style="height:40px; width:40px; padding:0; display:flex; align-items:center; justify-content:center;">
-                                    <span class="material-symbols-rounded">folder_open</span>
+                                <button class="secondary-btn" onclick="document.getElementById('set-qr-input').click()" style="height:40px; min-width:40px; padding:0 15px; display:flex; align-items:center; justify-content:center; gap:5px;">
+                                    <span class="material-symbols-rounded">folder_open</span> เลือกรูป
                                 </button>
                                 <button class="icon-btn dangerous" onclick="App.clearImage('qrCode')" style="height:40px; width:40px; display:flex; align-items:center; justify-content:center; border:1px solid #ffcdd2;">
                                     <span class="material-symbols-rounded">delete</span>
@@ -2757,14 +2765,22 @@ const App = {
             </div>
 
             <!-- Print Options Toggles -->
-            <div style="display:flex; gap:15px; margin-top:15px; justify-content:center;">
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์โลโก้บนหัวใบเสร็จ">
+            <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; justify-content:center; background:#f9f9f9; padding:10px; border-radius:8px;">
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์โลโก้">
                     <input type="checkbox" id="pay-print-logo" ${DB.getSettings().printLogo ? 'checked' : ''}>
-                    <span>Logo</span>
+                    <span style="font-size:14px;">Logo</span>
                 </label>
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ QR Code ท้ายใบเสร็จ">
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ชื่อร้าน">
+                    <input type="checkbox" id="pay-print-name" checked>
+                    <span style="font-size:14px;">ชื่อร้าน</span>
+                </label>
+                 <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ที่อยู่/เบอร์โทร">
+                    <input type="checkbox" id="pay-print-contact" ${DB.getSettings().phone ? 'checked' : ''}>
+                    <span style="font-size:14px;">ที่อยู่/โทร</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ QR Code">
                     <input type="checkbox" id="pay-print-qr" ${DB.getSettings().printQr ? 'checked' : ''}>
-                    <span>QR Code</span>
+                    <span style="font-size:14px;">QR Code</span>
                 </label>
             </div>
 
@@ -2888,11 +2904,16 @@ const App = {
         const settings = DB.getSettings();
 
         // Grab Toggle States from Modal (if available, else default to settings)
+        // Grab Toggle States from Modal (if available, else default to settings)
         const optsLogo = document.getElementById('pay-print-logo');
+        const optsName = document.getElementById('pay-print-name');
+        const optsContact = document.getElementById('pay-print-contact');
         const optsQr = document.getElementById('pay-print-qr');
 
         // Use Modal state if present, otherwise fall back to persisted settings
         const showLogo = optsLogo ? optsLogo.checked : settings.printLogo;
+        const showName = optsName ? optsName.checked : true; // Default true
+        const showContact = optsContact ? optsContact.checked : true; // Default true
         const showQr = optsQr ? optsQr.checked : settings.printQr;
 
         const storeName = settings.storeName;
@@ -2903,8 +2924,10 @@ const App = {
             ${showLogo && settings.logo ? `<div class="receipt-logo"><img src="${settings.logo}"></div>` : ''}
             
             <div class="receipt-header">
-                <h2>${storeName}</h2>
-                ${settings.phone && settings.phone !== '-' ? `<div>Tel: ${settings.phone}</div>` : ''}
+                ${showName ? `<h2>${storeName}</h2>` : ''}
+                ${showContact && settings.address ? `<div style="font-size:14px; margin-bottom:2px;">${settings.address}</div>` : ''}
+                ${showContact && settings.phone ? `<div>Tel: ${settings.phone}</div>` : ''}
+                
                 <div style="margin-top:5px; font-size:14px;">
                 Bill ID: ${sale.billId}<br>
                     Date: ${new Date(sale.date).toLocaleString('th-TH')}
