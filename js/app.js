@@ -13,7 +13,11 @@ const App = {
         salesFilter: 'today', // 'today', '7days', '30days', 'all'
         salesTab: 'bills', // 'bills', 'top', 'categories'
         stockTab: 'all', // 'all', 'low', 'new', 'groups'
-        stockSort: { column: 'name', direction: 'asc' } // New Sorting State
+        stockSort: { column: 'name', direction: 'asc' }, // New Sorting State
+        salesReport: {
+            startDate: new Date().toISOString().split('T')[0], // Default Today
+            endDate: new Date().toISOString().split('T')[0]
+        }
     },
 
     elements: {
@@ -234,6 +238,7 @@ const App = {
                 <div class="segment-btn ${App.state.salesTab === 'top' ? 'active' : ''}" onclick="App.setSalesTab('top')">ขายดี (จำนวน)</div>
                 <div class="segment-btn ${App.state.salesTab === 'top_profit' ? 'active' : ''}" onclick="App.setSalesTab('top_profit')">กำไร (สินค้า)</div>
                 <div class="segment-btn ${App.state.salesTab === 'profit_categories' ? 'active' : ''}" onclick="App.setSalesTab('profit_categories')">กำไร (หมวด)</div>
+                <div class="segment-btn ${App.state.salesTab === 'report' ? 'active' : ''}" onclick="App.setSalesTab('report')">รายงาน</div>
             </div>
 
             <!-- Content Area -->
@@ -289,6 +294,11 @@ const App = {
     },
 
     renderSalesContent: (sales) => {
+        // Special Case: Report Tab doesn't use the main 'sales' filter in the same way, 
+        // it uses its own Date Range. BUT to keep it consistent, if user selects 'report',
+        // we show the report UI.
+        if (App.state.salesTab === 'report') return App.renderSalesReport();
+
         if (sales.length === 0) return '<div style="padding:40px; text-align:center; color:#999;">ไม่มีข้อมูลในช่วงเวลานี้</div>';
 
         switch (App.state.salesTab) {
@@ -299,6 +309,128 @@ const App = {
             case 'categories': return App.renderCategoryBreakdown(sales);
             default: return App.renderBillList(sales);
         }
+    },
+
+    renderSalesReport: () => {
+        // 1. Date Controls
+        const controlHtml = `
+            <div style="padding:15px; border-bottom:1px solid #eee; background:var(--neutral-100);">
+                <div style="font-weight:bold; margin-bottom:10px; color:var(--primary-color);">รายงานสรุปยอดขาย (รายวัน)</div>
+                <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;">
+                    <div>
+                        <label style="font-size:12px; display:block;">จากวันที่</label>
+                        <input type="date" id="report-start" value="${App.state.salesReport.startDate}" 
+                            onchange="App.state.salesReport.startDate = this.value"
+                            style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; display:block;">ถึงวันที่</label>
+                        <input type="date" id="report-end" value="${App.state.salesReport.endDate}" 
+                            onchange="App.state.salesReport.endDate = this.value"
+                            style="padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+                    <button class="primary-btn" onclick="App.renderView('sales')" style="padding:8px 20px;">
+                        ค้นหา
+                    </button>
+                    <!-- Future: Export Button -->
+                </div>
+            </div>
+        `;
+
+        // 2. Filter Data by Range
+        const start = new Date(App.state.salesReport.startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(App.state.salesReport.endDate);
+        end.setHours(23, 59, 59, 999);
+
+        const allSales = DB.getSales().sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort ASC by Date
+        const rangeSales = allSales.filter(s => {
+            const d = new Date(s.date);
+            return d >= start && d <= end;
+        });
+
+        if (rangeSales.length === 0) {
+            return controlHtml + '<div style="padding:40px; text-align:center; color:#999;">ไม่พบข้อมูลในช่วงวันที่เลือก</div>';
+        }
+
+        // 3. Aggregate Data (Date -> Product)
+        const allProducts = DB.getProducts();
+        const reportRows = [];
+        // Structure: { dateStr, productId, productName, qty, total, profit }
+
+        rangeSales.forEach(sale => {
+            const dateStr = new Date(sale.date).toLocaleDateString('th-TH');
+
+            sale.items.forEach(item => {
+                // Find existing row
+                let row = reportRows.find(r => r.dateStr === dateStr && r.productId === item.id);
+
+                // Profit Calc
+                let cost = item.cost;
+                if (cost === undefined || cost === null) {
+                    const product = allProducts.find(p => p.id === item.id);
+                    cost = product ? (product.cost || 0) : 0;
+                }
+                const profit = (item.price - cost) * item.qty;
+
+                if (!row) {
+                    row = {
+                        dateStr,
+                        productId: item.id,
+                        productName: item.name,
+                        qty: 0,
+                        total: 0,
+                        profit: 0
+                    };
+                    reportRows.push(row);
+                }
+
+                row.qty += item.qty;
+                row.total += (item.price * item.qty);
+                row.profit += profit;
+            });
+        });
+
+        // 4. Summaries
+        const grandTotal = reportRows.reduce((sum, r) => sum + r.total, 0);
+        const grandProfit = reportRows.reduce((sum, r) => sum + r.profit, 0);
+
+        // 5. Render Table
+        const tableHtml = `
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; min-width:600px;">
+                    <thead style="background:var(--neutral-100); color:#666; font-size:13px;">
+                        <tr>
+                            <th style="padding:10px; text-align:left;">วันที่</th>
+                            <th style="padding:10px; text-align:left;">สินค้า</th>
+                            <th style="padding:10px; text-align:center;">จำนวน</th>
+                            <th style="padding:10px; text-align:right;">ยอดขาย</th>
+                            <th style="padding:10px; text-align:right;">กำไร</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${reportRows.map(row => `
+                            <tr style="border-bottom:1px solid #eee; font-size:13px;">
+                                <td style="padding:10px;">${row.dateStr}</td>
+                                <td style="padding:10px;">${row.productName}</td>
+                                <td style="padding:10px; text-align:center;">${row.qty}</td>
+                                <td style="padding:10px; text-align:right;">${Utils.formatCurrency(row.total)}</td>
+                                <td style="padding:10px; text-align:right; color:var(--success-color);">+${Utils.formatCurrency(row.profit)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                    <tfoot style="background:#f9f9f9; font-weight:bold;">
+                        <tr>
+                            <td colspan="3" style="padding:15px; text-align:right;">รวมทั้งสิ้น</td>
+                            <td style="padding:15px; text-align:right;">${Utils.formatCurrency(grandTotal)}</td>
+                            <td style="padding:15px; text-align:right; color:var(--success-color);">+${Utils.formatCurrency(grandProfit)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `;
+
+        return controlHtml + tableHtml;
     },
 
     renderBillList: (sales) => {
@@ -598,7 +730,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.65', // Sales Dashboard Enhancements (Max Profit, Profit Tabs)
+    VERSION: '0.75', // Export Report to CSV Support
 
     // --- Settings View ---
     renderSettingsView: (container) => {
