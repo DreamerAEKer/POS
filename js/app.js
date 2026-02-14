@@ -730,7 +730,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.75', // Export Report to CSV Support
+    VERSION: '0.76', // Fix Report UI & CSV Export
 
     // --- Settings View ---
     renderSettingsView: (container) => {
