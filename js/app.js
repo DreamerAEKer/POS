@@ -483,7 +483,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.55', // Stock: Sorting & Sales Value
+    VERSION: '0.60', // Stock UI Polish (Icons, Padding)
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -952,36 +952,40 @@ const App = {
 
         const suppliers = DB.getSuppliers();
         const sortIcon = (col) => {
-            if (App.state.stockSort.column !== col) return '<span style="color:#ddd; font-size:16px;">unfold_more</span>';
-            return App.state.stockSort.direction === 'asc' ? '<span style="font-size:16px;">arrow_upward</span>' : '<span style="font-size:16px;">arrow_downward</span>';
+            const iconClass = "material-symbols-rounded";
+            if (App.state.stockSort.column !== col) return `<span class="${iconClass}" style="color:#ddd; font-size:16px; vertical-align:middle;">unfold_more</span>`;
+            return App.state.stockSort.direction === 'asc'
+                ? `<span class="${iconClass}" style="font-size:16px; vertical-align:middle;">arrow_upward</span>`
+                : `<span class="${iconClass}" style="font-size:16px; vertical-align:middle;">arrow_downward</span>`;
         };
 
-        const thStyle = "padding:12px; cursor:pointer; user-select:none; white-space:nowrap;";
+        const thStyle = "padding:12px; cursor:pointer; user-select:none; white-space:nowrap; vertical-align:middle;";
 
         return `
-            <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden;">
-                <thead>
-                    <tr style="background:var(--neutral-100); text-align:left; font-size:13px; color:#666;">
-                        <th style="${thStyle}" onclick="App.toggleStockSort('name')">
-                            <div style="display:flex; align-items:center; gap:4px;">สินค้า ${sortIcon('name')}</div>
-                        </th>
-                        <th style="${thStyle}" onclick="App.toggleStockSort('price')">
-                            <div style="display:flex; align-items:center; gap:4px;">ราคา/ทุน ${sortIcon('price')}</div>
-                        </th>
-                        <th style="${thStyle}" onclick="App.toggleStockSort('stock')">
-                            <div style="display:flex; align-items:center; gap:4px;">สต็อก ${sortIcon('stock')}</div>
-                        </th>
-                        <th style="padding:12px;">ร้านส่ง (Supplier)</th>
-                        <th style="padding:12px; text-align:right;">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${products.map(p => {
+            <div style="padding-bottom:80px;"> <!-- Added padding for bottom nav -->
+                <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden;">
+                    <thead>
+                        <tr style="background:var(--neutral-100); text-align:left; font-size:13px; color:#666;">
+                            <th style="${thStyle}" onclick="App.toggleStockSort('name')">
+                                <div style="display:flex; align-items:center; gap:4px;">สินค้า ${sortIcon('name')}</div>
+                            </th>
+                            <th style="${thStyle}" onclick="App.toggleStockSort('price')">
+                                <div style="display:flex; align-items:center; gap:4px;">ราคา/ทุน ${sortIcon('price')}</div>
+                            </th>
+                            <th style="${thStyle}" onclick="App.toggleStockSort('stock')">
+                                <div style="display:flex; align-items:center; gap:4px;">สต็อก ${sortIcon('stock')}</div>
+                            </th>
+                            <th style="padding:12px;">ร้านส่ง (Supplier)</th>
+                            <th style="padding:12px; text-align:right;">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${products.map(p => {
             let statusHtml = '';
             if (p.expiryDate) {
                 const daysLeft = Math.ceil((new Date(p.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-                if (daysLeft <= 0) statusHtml = '<div style="font-size:10px; color:white; background:red; padding:2px 4px; border-radius:4px; display:inline-block;">Exp</div>';
-                else if (daysLeft <= 7) statusHtml = `<div style="font-size:10px; color:white; background:orange; padding:2px 4px; border-radius:4px; display:inline-block;">${daysLeft}d</div>`;
+                if (daysLeft <= 0) statusHtml = '<div style="font-size:10px; color:white; background:red; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:2px;">Exp</div>';
+                else if (daysLeft <= 7) statusHtml = `<div style="font-size:10px; color:white; background:orange; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:2px;">${daysLeft}d</div>`;
             }
 
             // Determine Supplier
@@ -997,43 +1001,44 @@ const App = {
             const costAlert = !p.cost ? 'color:orange;' : '';
 
             return `
-                            <tr style="border-bottom:1px solid #eee;">
-                                <td style="padding:10px;">
-                                    <div style="display:flex; align-items:center; gap:10px;">
-                                        <div style="width:36px; height:36px; background:#eee; border-radius:4px; overflow:hidden; flex-shrink:0;">
-                                            ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                                <tr style="border-bottom:1px solid #eee;">
+                                    <td style="padding:10px;">
+                                        <div style="display:flex; align-items:center; gap:10px;">
+                                            <div style="width:36px; height:36px; background:#eee; border-radius:4px; overflow:hidden; flex-shrink:0;">
+                                                ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : ''}
+                                            </div>
+                                            <div style="min-width:0;">
+                                                <div style="font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
+                                                <div style="font-size:11px; color:#888;">${p.barcode}</div>
+                                                ${statusHtml}
+                                            </div>
                                         </div>
-                                        <div style="min-width:0;">
-                                            <div style="font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
-                                            <div style="font-size:11px; color:#888;">${p.barcode}</div>
-                                            ${statusHtml}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td style="padding:10px; font-size:13px;">
-                                    <div>ขาย: ${Utils.formatCurrency(p.price)}</div>
-                                    <div style="font-size:11px; color:#888; ${costAlert}">ทุน: ${p.cost ? Utils.formatCurrency(p.cost) : '0.00 (?)'}</div>
-                                </td>
-                                <td style="padding:10px;">
-                                    <span style="color:${p.stock <= 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock <= 5 ? 'bold' : 'normal'};">
-                                        ${p.stock}
-                                    </span>
-                                </td>
-                                <td style="padding:10px; font-size:13px;">
-                                    ${supplierName}
-                                </td>
-                                <td style="padding:10px; text-align:right;">
-                                    <button class="icon-btn" onclick="App.openProductModal('${p.id}')" style="padding:5px;">
-                                        <span class="material-symbols-rounded" style="font-size:18px;">edit</span>
-                                    </button>
-                                    <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')" style="padding:5px;">
-                                        <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
-                                    </button>
-                                </td>
-                            </tr>
-                        `}).join('')}
-                </tbody>
-            </table>
+                                    </td>
+                                    <td style="padding:10px; font-size:13px;">
+                                        <div>ขาย: ${Utils.formatCurrency(p.price)}</div>
+                                        <div style="font-size:11px; color:#888; ${costAlert}">ทุน: ${p.cost ? Utils.formatCurrency(p.cost) : '0.00 (?)'}</div>
+                                    </td>
+                                    <td style="padding:10px;">
+                                        <span style="color:${p.stock <= 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock <= 5 ? 'bold' : 'normal'};">
+                                            ${p.stock}
+                                        </span>
+                                    </td>
+                                    <td style="padding:10px; font-size:13px;">
+                                        ${supplierName}
+                                    </td>
+                                    <td style="padding:10px; text-align:right;">
+                                        <button class="icon-btn" onclick="App.openProductModal('${p.id}')" style="padding:5px;">
+                                            <span class="material-symbols-rounded" style="font-size:18px;">edit</span>
+                                        </button>
+                                        <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')" style="padding:5px;">
+                                            <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `}).join('')}
+                    </tbody>
+                </table>
+            </div>
         `;
     },
 
