@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.81', // Supplier Price Features
+    VERSION: '0.82', // Fix Supplier Modal Button
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1916,7 +1916,10 @@ const App = {
                 <div><strong>โทรศัพท์:</strong> ${supplier.phone || '-'}</div>
             </div>
             
-            <h3 style="margin-top:20px; font-size:16px;">สินค้าที่ส่ง (${suppliedProducts.length})</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
+                <h3 style="font-size:16px; margin:0;">สินค้าที่ส่ง (${suppliedProducts.length})</h3>
+                <button class="primary-btn small" onclick="App.openLinkProductModal('${supplier.id}')">+ เพิ่มสินค้า</button>
+            </div>
             <div style="max-height:300px; overflow-y:auto; margin-top:10px; border:1px solid #eee; border-radius:8px;">
                 <table style="width:100%; border-collapse:collapse;">
                     <tbody>
@@ -1932,7 +1935,14 @@ const App = {
                                 </tr>
                             `;
         }).join('')}
-                        ${suppliedProducts.length === 0 ? '<tr><td colspan="2" style="padding:20px; text-align:center; color:#999;">ไม่มีสินค้าที่ผูกไว้</td></tr>' : ''}
+                        ${suppliedProducts.length === 0 ? `
+                            <tr>
+                                <td colspan="2" style="padding:30px; text-align:center; color:#999; cursor:pointer;" onclick="App.openLinkProductModal('${supplier.id}')">
+                                    <span class="material-symbols-rounded" style="font-size:32px; display:block; margin-bottom:5px;">add_circle</span>
+                                    ไม่มีสินค้าที่ผูกไว้ (กดเพื่อเพิ่ม)
+                                </td>
+                            </tr>
+                        ` : ''}
                     </tbody>
                 </table>
             </div>
