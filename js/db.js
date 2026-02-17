@@ -398,6 +398,15 @@ const DB = {
 
     // --- Data Backup & Restore ---
     exportData: () => {
+        // Collect all Counter Keys (Bill IDs)
+        const counters = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('counter_')) {
+                counters[key] = localStorage.getItem(key);
+            }
+        }
+
         const data = {
             settings: DB.getSettings(), // Include Settings
             products: DB.getProducts(),
@@ -405,9 +414,11 @@ const DB = {
             supplierPrices: DB.getSupplierPrices(),
             parkedCarts: DB.getParkedCarts(),
             sales: DB.safeGet(DB.KEYS.SALES, []),
+            groupImages: DB.getGroupImages(), // Include Group Images
+            counters: counters, // Include Bill Counters
             meta: {
                 exportDate: new Date().toISOString(),
-                version: '1.0'
+                version: '1.1' // Bump internal data version
             }
         };
         return JSON.stringify(data, null, 2);
@@ -425,6 +436,18 @@ const DB = {
             // Restore Settings if available (Optional for backward compatibility)
             if (data.settings) {
                 localStorage.setItem(DB.KEYS.SETTINGS, JSON.stringify(data.settings));
+            }
+
+            // Restore Group Images if available
+            if (data.groupImages) {
+                localStorage.setItem(DB.KEYS.GROUP_IMAGES, JSON.stringify(data.groupImages));
+            }
+
+            // Restore Counters if available
+            if (data.counters) {
+                Object.keys(data.counters).forEach(key => {
+                    localStorage.setItem(key, data.counters[key]);
+                });
             }
 
             // Save to LocalStorage
