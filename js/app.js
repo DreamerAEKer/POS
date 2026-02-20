@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.1', // Update Version
+    VERSION: '0.89.2', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2188,7 +2188,12 @@ const App = {
 
         modal.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h2>${groupName}</h2>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <h2>${groupName}</h2>
+                    <button class="icon-btn" onclick="App.renameCategory('${groupName}')" style="color:var(--primary-color);">
+                        <span class="material-symbols-rounded" style="font-size:18px;">edit</span>
+                    </button>
+                </div>
                 <button class="icon-btn" onclick="App.closeModals()"><span class="material-symbols-rounded">close</span></button>
             </div>
             <div class="variant-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:15px;">
@@ -2210,6 +2215,38 @@ const App = {
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+    },
+
+    renameCategory: (oldName) => {
+        App.checkPin(async () => {
+            const newName = prompt('ตั้งชื่อหมวดหมู่ใหม่:', oldName);
+            if (!newName || newName === oldName) return;
+
+            // Update Products
+            const products = App.state.products;
+            let count = 0;
+            products.forEach(p => {
+                if (p.group === oldName) {
+                    p.group = newName;
+                    count++;
+                }
+            });
+
+            if (count > 0) {
+                // Update Group Image Key if exists
+                const settings = DB.getSettings();
+                if (settings.groupImages && settings.groupImages[oldName]) {
+                    settings.groupImages[newName] = settings.groupImages[oldName];
+                    delete settings.groupImages[oldName];
+                    DB.saveSettings(settings);
+                }
+
+                DB.saveProducts(products);
+                await App.alert(`เปลี่ยนชื่อหมวดหมู่เรียบร้อย (${count} รายการ)`);
+                App.closeModals();
+                App.renderView('pos'); // Refresh Grid
+            }
+        });
     },
 
     // --- Search & Scan Logic ---
