@@ -529,7 +529,8 @@ body.printing-mode #receipt-print-area {
         width: 100%;
         height: auto;
         flex: 1;
-        overflow-y: auto;
+        overflow-y: hidden;
+        /* Fix: Prevent double scrollbar, let view-container handle it */
         /* Scroll within content */
     }
 

@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.87', // Safe Backup Update
+    VERSION: '0.89', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1372,6 +1372,9 @@ const App = {
                                         <button class="icon-btn" onclick="App.openProductModal('${p.id}')" style="padding:5px;">
                                             <span class="material-symbols-rounded" style="font-size:18px;">edit</span>
                                         </button>
+                                        <button class="icon-btn" onclick="App.editProductCategory('${p.id}')" style="padding:5px; color:var(--primary-color);">
+                                            <span class="material-symbols-rounded" style="font-size:18px;">folder_open</span>
+                                        </button>
                                         <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')" style="padding:5px;">
                                             <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
                                         </button>
@@ -1414,6 +1417,64 @@ const App = {
 
             </div>
         `;
+    },
+
+    // --- Category Edit Logic ---
+    editProductCategory: (productId) => {
+        App.checkPin(() => {
+            const product = App.state.products.find(p => p.id === productId);
+            if (!product) return;
+
+            const existingGroups = [...new Set(App.state.products.map(p => p.group).filter(g => g))].sort();
+            const modal = document.getElementById('price-check-modal'); // Reuse generic modal
+            const overlay = document.getElementById('modal-overlay');
+
+            modal.innerHTML = `
+                <h3>แก้ไขหมวดหมู่</h3>
+                <p style="color:#666; margin-bottom:15px;">สินค้า: <strong>${product.name}</strong></p>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:12px;">หมวดหมู่ปัจจุบัน</label>
+                    <div style="font-size:18px; font-weight:bold;">${product.group || 'ไม่มีหมวดหมู่'}</div>
+                </div>
+                
+                <label style="font-size:12px;">เลือกหมวดหมู่ใหม่ หรือ พิมพ์ใหม่</label>
+                <input type="text" id="new-cat-input" list="cat-list" value="${product.group || ''}" 
+                    style="width:100%; padding:10px; font-size:18px; margin-top:5px; border:1px solid #ddd; border-radius:4px;"
+                    placeholder="พิมพ์ชื่อหมวดหมู่..." onfocus="this.select()">
+                
+                <datalist id="cat-list">
+                    ${existingGroups.map(g => `<option value="${g}">`).join('')}
+                </datalist>
+
+                <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; max-height:150px; overflow-y:auto;">
+                    ${existingGroups.map(g => `
+                        <button class="filter-btn" onclick="document.getElementById('new-cat-input').value = '${g}'">${g}</button>
+                    `).join('')}
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
+                    <button class="primary-btn" style="flex:1;" onclick="App.saveCategory('${productId}')">บันทึก</button>
+                </div>
+            `;
+
+            overlay.classList.remove('hidden');
+            modal.classList.remove('hidden');
+            setTimeout(() => document.getElementById('new-cat-input').focus(), 100);
+        });
+    },
+
+    saveCategory: (productId) => {
+        const newGroup = document.getElementById('new-cat-input').value.trim();
+        const product = App.state.products.find(p => p.id === productId);
+
+        if (product) {
+            product.group = newGroup;
+            DB.saveProducts(App.state.products); // Save to DB
+            App.closeModals();
+            App.renderView('stock'); // Refresh View
+            App.alert(`เปลี่ยนหมวดหมู่เป็น "${newGroup || 'ไม่มี'}" เรียบร้อย`);
+        }
     },
 
     // --- Supplier View ---
