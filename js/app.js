@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89', // Update Version
+    VERSION: '0.89.1', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1307,8 +1307,14 @@ const App = {
         const thStyle = "padding:12px; cursor:pointer; user-select:none; white-space:nowrap; vertical-align:middle;";
 
         return `
-            <div style="padding-bottom:80px;"> <!-- Added padding for bottom nav -->
-                <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden;">
+            <div style="padding-bottom:20px;">
+                <!-- Scroll Hint -->
+                <div style="font-size:10px; color:#999; text-align:right; margin-bottom:5px; display:flex; align-items:center; justify-content:flex-end; gap:4px;">
+                    <span class="material-symbols-rounded" style="font-size:12px;">arrow_forward</span> เลื่อนขวาเพื่อจัดการ
+                </div>
+                
+                <div style="overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:8px; border:1px solid #eee; background:white;">
+                    <table style="width:100%; min-width:600px; border-collapse:collapse; overflow:hidden;">
                     <thead>
                         <tr style="background:var(--neutral-100); text-align:left; font-size:13px; color:#666;">
                             <th style="${thStyle}" onclick="App.toggleStockSort('name')">
