@@ -954,7 +954,10 @@ const App = {
             </div>
             <div style="margin-top:40px; text-align:center;">
                  <p style="color:#999; font-size:12px;">Grocery POS v${App.VERSION}</p>
-                 <p style="color:#ccc; font-size:10px;">ID: ${new Date().getTime().toString().slice(-6)} - Clear Cache if not visible</p>
+                 <p style="color:#ccc; font-size:10px;">ID: ${new Date().getTime().toString().slice(-6)}</p>
+                 <button onclick="window.location.reload(true)" style="margin-top:10px; background:none; border:1px solid #eee; padding:5px 10px; border-radius:4px; color:#999; font-size:10px;">
+                    Force Update / Refresh
+                 </button>
             </div>
         `;
     },
