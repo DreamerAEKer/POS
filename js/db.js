@@ -11,7 +11,8 @@ const DB = {
         SUPPLIERS: 'store_suppliers',
         SUPPLIER_PRICES: 'store_suppliers_prices',
         SETTINGS: 'store_settings',
-        GROUP_IMAGES: 'store_group_images'
+        GROUP_IMAGES: 'store_group_images',
+        PAYMENT_PREFS: 'store_payment_prefs'
     },
 
     // Helper for safe parsing
@@ -104,6 +105,31 @@ const DB = {
         const current = DB.getSettings();
         const updated = { ...current, ...newSettings };
         localStorage.setItem(DB.KEYS.SETTINGS, JSON.stringify(updated));
+    },
+
+    // --- Payment Preferences ---
+    getPaymentPrefs: () => {
+        const defaults = {
+            printLogo: true,
+            printName: true,
+            printContact: true,
+            printQr: true
+        };
+        const saved = DB.safeGet(DB.KEYS.PAYMENT_PREFS, {});
+        // Fallback to global settings if prefs are empty (first time)
+        if (Object.keys(saved).length === 0) {
+            const settings = DB.getSettings();
+            saved.printLogo = settings.printLogo;
+            saved.printContact = !!settings.phone || !!settings.address;
+            saved.printQr = settings.printQr;
+        }
+        return { ...defaults, ...saved };
+    },
+
+    savePaymentPrefs: (newPrefs) => {
+        const current = DB.getPaymentPrefs();
+        const updated = { ...current, ...newPrefs };
+        localStorage.setItem(DB.KEYS.PAYMENT_PREFS, JSON.stringify(updated));
     },
 
     // --- Group Images ---

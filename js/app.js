@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.9', // Update Version
+    VERSION: '0.89.10', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3042,6 +3042,7 @@ const App = {
         const total = parseFloat(App.elements.cartTotal.textContent.replace(/,/g, ''));
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('payment-modal');
+        const prefs = DB.getPaymentPrefs(); // Load saved preferences
 
         modal.innerHTML = `
             <h2 style="text-align:center;">สรุปยอดชำระ</h2>
@@ -3083,19 +3084,19 @@ const App = {
             <!-- Print Options Toggles -->
             <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; justify-content:center; background:#f9f9f9; padding:10px; border-radius:8px;">
                 <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์โลโก้">
-                    <input type="checkbox" id="pay-print-logo" ${DB.getSettings().printLogo ? 'checked' : ''}>
+                    <input type="checkbox" id="pay-print-logo" ${prefs.printLogo ? 'checked' : ''}>
                     <span style="font-size:14px;">Logo</span>
                 </label>
                 <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ชื่อร้าน">
-                    <input type="checkbox" id="pay-print-name" checked>
+                    <input type="checkbox" id="pay-print-name" ${prefs.printName ? 'checked' : ''}>
                     <span style="font-size:14px;">ชื่อร้าน</span>
                 </label>
                  <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ที่อยู่/เบอร์โทร">
-                    <input type="checkbox" id="pay-print-contact" ${DB.getSettings().phone ? 'checked' : ''}>
+                    <input type="checkbox" id="pay-print-contact" ${prefs.printContact ? 'checked' : ''}>
                     <span style="font-size:14px;">ที่อยู่/โทร</span>
                 </label>
                 <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ QR Code">
-                    <input type="checkbox" id="pay-print-qr" ${DB.getSettings().printQr ? 'checked' : ''}>
+                    <input type="checkbox" id="pay-print-qr" ${prefs.printQr ? 'checked' : ''}>
                     <span style="font-size:14px;">QR Code</span>
                 </label>
             </div>
@@ -3167,6 +3168,14 @@ const App = {
             const received = parseFloat(App.currentPayInput);
             const change = received - total;
 
+            // --- Persist Print Preferences before closing ---
+            DB.savePaymentPrefs({
+                printLogo: document.getElementById('pay-print-logo').checked,
+                printName: document.getElementById('pay-print-name').checked,
+                printContact: document.getElementById('pay-print-contact').checked,
+                printQr: document.getElementById('pay-print-qr').checked
+            });
+
             // Deduct Stock & Record
             App.state.cart.forEach(item => {
                 if (item.parentId && item.packSize) {
@@ -3218,19 +3227,19 @@ const App = {
     printReceipt: (sale) => {
         const area = document.getElementById('receipt-print-area');
         const settings = DB.getSettings();
+        const prefs = DB.getPaymentPrefs(); // Load saved preferences
 
-        // Grab Toggle States from Modal (if available, else default to settings)
-        // Grab Toggle States from Modal (if available, else default to settings)
+        // Grab Toggle States from Modal (if available, else default to saved prefs)
         const optsLogo = document.getElementById('pay-print-logo');
         const optsName = document.getElementById('pay-print-name');
         const optsContact = document.getElementById('pay-print-contact');
         const optsQr = document.getElementById('pay-print-qr');
 
-        // Use Modal state if present, otherwise fall back to persisted settings
-        const showLogo = optsLogo ? optsLogo.checked : settings.printLogo;
-        const showName = optsName ? optsName.checked : true; // Default true
-        const showContact = optsContact ? optsContact.checked : true; // Default true
-        const showQr = optsQr ? optsQr.checked : settings.printQr;
+        // Use Modal state if present, otherwise fall back to persisted prefs
+        const showLogo = optsLogo ? optsLogo.checked : prefs.printLogo;
+        const showName = optsName ? optsName.checked : prefs.printName;
+        const showContact = optsContact ? optsContact.checked : prefs.printContact;
+        const showQr = optsQr ? optsQr.checked : prefs.printQr;
 
         const storeName = settings.storeName;
         const received = sale.received || sale.total;
