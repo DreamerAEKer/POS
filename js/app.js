@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.6', // Update Version
+    VERSION: '0.89.7', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1326,6 +1326,9 @@ const App = {
                             <th style="${thStyle}" onclick="App.toggleStockSort('stock')">
                                 <div style="display:flex; align-items:center; gap:4px;">สต็อก ${sortIcon('stock')}</div>
                             </th>
+                            <th style="${thStyle}" onclick="App.toggleStockSort('entryDate')">
+                                <div style="display:flex; align-items:center; gap:4px;">วันที่ลง ${sortIcon('entryDate')}</div>
+                            </th>
                             <th style="padding:12px;">ร้านส่ง (Supplier)</th>
                             <th style="padding:12px; text-align:right;">จัดการ</th>
                         </tr>
@@ -1373,6 +1376,9 @@ const App = {
                                         <span style="color:${p.stock <= 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock <= 5 ? 'bold' : 'normal'};">
                                             ${p.stock}
                                         </span>
+                                    </td>
+                                    <td style="padding:10px; font-size:13px; color:#666;">
+                                        ${p.entryDate ? new Date(p.entryDate).toLocaleDateString('th-TH') : '-'}
                                     </td>
                                     <td style="padding:10px; font-size:13px;">
                                         ${supplierName}
@@ -1498,12 +1504,47 @@ const App = {
                 <h2>ร้านส่ง / Supplier</h2>
                 <button class="primary-btn" onclick="App.openSupplierModal()">+ เพิ่มร้านค้า</button>
             </div>
-            <div class="supplier-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px; margin-top:20px;">
+
+            <!-- Consolidated Schedule Table -->
+            <div style="margin-top:20px; background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                <h3 style="margin-bottom:10px; display:flex; align-items:center; gap:5px;">
+                    <span class="material-symbols-rounded" style="color:var(--primary-color);">calendar_month</span> 
+                    ตารางนัดลงของ (ประจำสัปดาห์/เดือน)
+                </h3>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; min-width:500px; border-collapse:collapse; font-size:14px;">
+                        <thead>
+                            <tr style="background:var(--neutral-100); text-align:left; color:#666;">
+                                <th style="padding:10px; border-bottom:2px solid #ddd;">วันนัดหมาย</th>
+                                <th style="padding:10px; border-bottom:2px solid #ddd;">เวลา</th>
+                                <th style="padding:10px; border-bottom:2px solid #ddd;">ร้านส่ง</th>
+                                <th style="padding:10px; border-bottom:2px solid #ddd;">หมายเหตุ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${suppliers.filter(s => s.scheduleDay).length > 0 ?
+                suppliers.filter(s => s.scheduleDay).sort((a, b) => (a.scheduleDay || '').localeCompare(b.scheduleDay || '')).map(s => `
+                                    <tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="App.renderSupplierDetail('${s.id}')">
+                                        <td style="padding:10px; font-weight:bold; color:var(--primary-color);">${s.scheduleDay}</td>
+                                        <td style="padding:10px;">${s.scheduleTime || '-'}</td>
+                                        <td style="padding:10px;">${s.name}</td>
+                                        <td style="padding:10px; color:#666;">${s.scheduleNote || '-'}</td>
+                                    </tr>
+                                `).join('')
+                : '<tr><td colspan="4" style="padding:20px; text-align:center; color:#999;">ยังไม่มีข้อมูลตารางนัดหมาย</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h3 style="margin-top:25px; margin-bottom:10px;">รายชื่อร้านส่งทั้งหมด</h3>
+            <div class="supplier-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px;">
                 ${suppliers.map(s => `
                     <div class="supplier-card" style="background:white; padding:20px; border-radius:var(--radius-md); box-shadow:var(--shadow-sm); cursor:pointer;" onclick="App.renderSupplierDetail('${s.id}')">
                         <div style="font-weight:bold; font-size:18px;">${s.name}</div>
                         <div style="color:#666; margin-top:5px;">${s.contact}</div>
                         <div style="color:var(--primary-color); margin-top:5px;">📞 ${s.phone}</div>
+                        ${s.scheduleDay ? `<div style="margin-top:10px; font-size:12px; display:inline-block; padding:3px 8px; background:#e0ecff; color:var(--primary-color); border-radius:12px;">🗓️ ${s.scheduleDay} ${s.scheduleTime || ''}</div>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -1531,6 +1572,13 @@ const App = {
                     </div>
                 </div>
                 <p>ผู้ติดต่อ: ${supplier.contact} | โทร: ${supplier.phone}</p>
+                ${supplier.scheduleDay ? `
+                    <div style="margin-top:15px; padding:10px; background:#f8fafe; border-left:4px solid var(--primary-color); border-radius:4px;">
+                        <div style="font-weight:bold; color:var(--primary-color); margin-bottom:5px;">📅 ตารางลงของ</div>
+                        <div><strong>วัน:</strong> ${supplier.scheduleDay} ${supplier.scheduleTime ? `| <strong>เวลา:</strong> ${supplier.scheduleTime}` : ''}</div>
+                        ${supplier.scheduleNote ? `<div style="margin-top:5px; color:#555;"><strong>หมายเหตุ:</strong> ${supplier.scheduleNote}</div>` : ''}
+                    </div>
+                ` : ''}
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1696,6 +1744,10 @@ const App = {
                             <label>จุดวางสินค้า (Location)</label>
                             <input type="text" id="p-location" value="${product ? (product.location || '') : ''}" placeholder="เช่น ชั้น 2, ล็อค A, หลังตู้เย็น" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
                         </div>
+                        <div style="margin-top:10px;">
+                            <label>วันที่ลงสต็อค (Entry Date)</label>
+                            <input type="date" id="p-entry-date" value="${product ? (product.entryDate || '') : new Date().toISOString().split('T')[0]}" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
+                        </div>
                     </div>
                 
                     <!-- Tags & Image Column -->
@@ -1810,6 +1862,7 @@ const App = {
                 // New Fields
                 const cost = parseFloat(document.getElementById('p-cost').value) || 0;
                 const location = document.getElementById('p-location').value.trim(); // Get Location
+                const entryDate = document.getElementById('p-entry-date').value; // Get Entry Date
                 const expiryDate = document.getElementById('p-expiry').value;
                 const tags = Array.from(document.querySelectorAll('input[name="p-tags"]:checked')).map(cb => cb.value);
 
@@ -1861,7 +1914,7 @@ const App = {
 
                 const newProduct = {
                     id, barcode, group, name, price, stock, image: newImage,
-                    cost, expiryDate, tags, location, // Save Location
+                    cost, expiryDate, tags, location, entryDate, // Save Location & Entry Date
                     parentId, packSize,
                     updatedAt: Date.now() // Auto-Timestamp
                 };
@@ -1946,13 +1999,41 @@ const App = {
 
         modal.innerHTML = `
             <h2>${s ? 'แก้ไขร้านค้า' : 'เพิ่มร้านค้าใหม่'}</h2>
-            <form id="supplier-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+            <form id="supplier-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px; max-height:70vh; overflow-y:auto; padding-right:5px;">
                 <label>ชื่อร้านค้า</label>
                 <input type="text" id="s-name" value="${s ? s.name : ''}" required style="padding:10px;">
                 <label>ผู้ติดต่อ</label>
                 <input type="text" id="s-contact" value="${s ? s.contact : ''}" style="padding:10px;">
                 <label>เบอร์โทร</label>
                 <input type="tel" id="s-phone" value="${s ? s.phone : ''}" required style="padding:10px;">
+                
+                <div style="margin-top:10px; padding:10px; background:#f8fafe; border-radius:8px; border:1px solid #e0ecff;">
+                    <h3 style="margin-bottom:10px; font-size:14px; color:var(--primary-color);">📅 ตารางนัดหมายลงของ</h3>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                        <div style="flex:1; min-width:120px;">
+                            <label style="font-size:12px;">วันนัดหมาย</label>
+                            <select id="s-schedule-day" style="width:100%; padding:8px;">
+                                <option value="">- ไม่ระบุ -</option>
+                                <option value="จันทร์" ${s && s.scheduleDay === 'จันทร์' ? 'selected' : ''}>จันทร์</option>
+                                <option value="อังคาร" ${s && s.scheduleDay === 'อังคาร' ? 'selected' : ''}>อังคาร</option>
+                                <option value="พุธ" ${s && s.scheduleDay === 'พุธ' ? 'selected' : ''}>พุธ</option>
+                                <option value="พฤหัสบดี" ${s && s.scheduleDay === 'พฤหัสบดี' ? 'selected' : ''}>พฤหัสบดี</option>
+                                <option value="ศุกร์" ${s && s.scheduleDay === 'ศุกร์' ? 'selected' : ''}>ศุกร์</option>
+                                <option value="เสาร์" ${s && s.scheduleDay === 'เสาร์' ? 'selected' : ''}>เสาร์</option>
+                                <option value="อาทิตย์" ${s && s.scheduleDay === 'อาทิตย์' ? 'selected' : ''}>อาทิตย์</option>
+                            </select>
+                        </div>
+                        <div style="flex:1; min-width:100px;">
+                            <label style="font-size:12px;">เวลา (โดยประมาณ)</label>
+                            <input type="time" id="s-schedule-time" value="${s ? (s.scheduleTime || '') : ''}" style="width:100%; padding:8px;">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;">หมายเหตุ / ความถี่ (เช่น ทุกสัปดาห์, เดือนละครั้ง)</label>
+                        <input type="text" id="s-schedule-note" value="${s ? (s.scheduleNote || '') : ''}" placeholder="เช่น ของลงทุกต้นเดือน" style="width:100%; padding:8px;">
+                    </div>
+                </div>
+
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <button type="button" class="secondary-btn" onclick="App.closeModals()" style="flex:1;">ยกเลิก</button>
                     <button type="submit" class="primary-btn" style="flex:1;">บันทึก</button>
@@ -1966,13 +2047,16 @@ const App = {
             const name = document.getElementById('s-name').value;
             const contact = document.getElementById('s-contact').value;
             const phone = document.getElementById('s-phone').value.trim();
+            const scheduleDay = document.getElementById('s-schedule-day').value;
+            const scheduleTime = document.getElementById('s-schedule-time').value;
+            const scheduleNote = document.getElementById('s-schedule-note').value;
 
             if (!/^0\d{8,9}$/.test(phone)) {
                 await App.alert('เบอร์โทรศัพท์ไม่ถูกต้อง!\n- ต้องขึ้นต้นด้วย 0\n- มีความยาว 9 หรือ 10 หลัก\n- เป็นตัวเลขเท่านั้น');
                 return;
             }
 
-            DB.saveSupplier({ id, name, contact, phone });
+            DB.saveSupplier({ id, name, contact, phone, scheduleDay, scheduleTime, scheduleNote });
             App.closeModals();
             App.renderView('suppliers');
         });
