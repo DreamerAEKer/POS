@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.8', // Update Version
+    VERSION: '0.89.9', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1502,7 +1502,7 @@ const App = {
         container.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2>ร้านส่ง / Supplier</h2>
-                <button class="primary-btn" onclick="App.openSupplierModal()">+ เพิ่มร้านค้า</button>
+                <button class="primary-btn" onclick="App.checkPin(() => App.openSupplierModal())">+ เพิ่มร้านค้า</button>
             </div>
 
             <!-- Consolidated Schedule Table -->
@@ -1540,8 +1540,14 @@ const App = {
             <h3 style="margin-top:25px; margin-bottom:10px;">รายชื่อร้านส่งทั้งหมด</h3>
             <div class="supplier-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px;">
                 ${suppliers.map(s => `
-                    <div class="supplier-card" style="background:white; padding:20px; border-radius:var(--radius-md); box-shadow:var(--shadow-sm); cursor:pointer;" onclick="App.renderSupplierDetail('${s.id}')">
-                        <div style="font-weight:bold; font-size:18px;">${s.name}</div>
+                    <div class="supplier-card" style="background:white; padding:20px; border-radius:var(--radius-md); box-shadow:var(--shadow-sm); cursor:pointer; position:relative;" onclick="App.renderSupplierDetail('${s.id}')">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                            <div style="font-weight:bold; font-size:18px;">${s.name}</div>
+                            <div style="display:flex; gap:5px;" onclick="event.stopPropagation()">
+                                <button class="icon-btn" onclick="App.checkPin(() => App.openSupplierModal('${s.id}'))" style="padding:4px;" title="แก้ไขร้านส่ง"><span class="material-symbols-rounded" style="font-size:18px;">edit</span></button>
+                                <button class="icon-btn dangerous" onclick="App.checkPin(() => App.deleteSupplier('${s.id}'))" style="padding:4px;" title="ลบร้านส่ง"><span class="material-symbols-rounded" style="font-size:18px;">delete</span></button>
+                            </div>
+                        </div>
                         <div style="color:#666; margin-top:5px;">${s.contact}</div>
                         <div style="color:var(--primary-color); margin-top:5px;">📞 ${s.phone}</div>
                         ${s.scheduleDay ? `<div style="margin-top:10px; font-size:12px; display:inline-block; padding:3px 8px; background:#e0ecff; color:var(--primary-color); border-radius:12px;">🗓️ ${s.scheduleDay} ${s.scheduleTime || ''}</div>` : ''}
@@ -1567,8 +1573,8 @@ const App = {
                 <div style="display:flex; justify-content:space-between;">
                     <h2>${supplier.name}</h2>
                     <div>
-                         <button class="icon-btn" onclick="App.openSupplierModal('${supplier.id}')"><span class="material-symbols-rounded">edit</span></button>
-                         <button class="icon-btn dangerous" onclick="App.deleteSupplier('${supplier.id}')"><span class="material-symbols-rounded">delete</span></button>
+                         <button class="icon-btn" onclick="App.checkPin(() => App.openSupplierModal('${supplier.id}'))"><span class="material-symbols-rounded">edit</span></button>
+                         <button class="icon-btn dangerous" onclick="App.checkPin(() => App.deleteSupplier('${supplier.id}'))"><span class="material-symbols-rounded">delete</span></button>
                     </div>
                 </div>
                 <p>ผู้ติดต่อ: ${supplier.contact} | โทร: ${supplier.phone}</p>
