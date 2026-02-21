@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.3', // Update Version
+    VERSION: '0.89.4', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1449,7 +1449,8 @@ const App = {
                 <label style="font-size:12px;">เลือกหมวดหมู่ใหม่ หรือ พิมพ์ใหม่</label>
                 <input type="text" id="new-cat-input" list="cat-list" value="${product.group || ''}" 
                     style="width:100%; padding:10px; font-size:18px; margin-top:5px; border:1px solid #ddd; border-radius:4px;"
-                    placeholder="พิมพ์ชื่อหมวดหมู่..." onfocus="this.select()">
+                    placeholder="พิมพ์ชื่อหมวดหมู่..." onfocus="this.select()"
+                    onkeydown="if(event.key === 'Enter') App.saveCategory('${productId}')">
                 
                 <datalist id="cat-list">
                     ${existingGroups.map(g => `<option value="${g}">`).join('')}
@@ -2219,7 +2220,9 @@ const App = {
 
     renameCategory: (oldName) => {
         App.checkPin(async () => {
-            const newName = await App.prompt('ตั้งชื่อหมวดหมู่ใหม่:', oldName);
+            const result = await App.prompt('ตั้งชื่อหมวดหมู่ใหม่:', oldName);
+            if (result === null) return;
+            const newName = result.trim();
             if (!newName || newName === oldName) return;
 
             // Update Products
@@ -2242,9 +2245,12 @@ const App = {
                 }
 
                 DB.saveProducts(products);
-                await App.alert(`เปลี่ยนชื่อหมวดหมู่เรียบร้อย (${count} รายการ)`);
-                App.closeModals();
+                App.closeModals(); // Hide Variant Modal first
                 App.renderView('pos'); // Refresh Grid
+
+                setTimeout(async () => {
+                    await App.alert(`เปลี่ยนชื่อหมวดหมู่เรียบร้อย (${count} รายการ)`);
+                }, 100);
             }
         });
     },
