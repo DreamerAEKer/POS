@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.7', // Update Version
+    VERSION: '0.89.8', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2010,18 +2010,16 @@ const App = {
                 <div style="margin-top:10px; padding:10px; background:#f8fafe; border-radius:8px; border:1px solid #e0ecff;">
                     <h3 style="margin-bottom:10px; font-size:14px; color:var(--primary-color);">📅 ตารางนัดหมายลงของ</h3>
                     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-                        <div style="flex:1; min-width:120px;">
-                            <label style="font-size:12px;">วันนัดหมาย</label>
-                            <select id="s-schedule-day" style="width:100%; padding:8px;">
-                                <option value="">- ไม่ระบุ -</option>
-                                <option value="จันทร์" ${s && s.scheduleDay === 'จันทร์' ? 'selected' : ''}>จันทร์</option>
-                                <option value="อังคาร" ${s && s.scheduleDay === 'อังคาร' ? 'selected' : ''}>อังคาร</option>
-                                <option value="พุธ" ${s && s.scheduleDay === 'พุธ' ? 'selected' : ''}>พุธ</option>
-                                <option value="พฤหัสบดี" ${s && s.scheduleDay === 'พฤหัสบดี' ? 'selected' : ''}>พฤหัสบดี</option>
-                                <option value="ศุกร์" ${s && s.scheduleDay === 'ศุกร์' ? 'selected' : ''}>ศุกร์</option>
-                                <option value="เสาร์" ${s && s.scheduleDay === 'เสาร์' ? 'selected' : ''}>เสาร์</option>
-                                <option value="อาทิตย์" ${s && s.scheduleDay === 'อาทิตย์' ? 'selected' : ''}>อาทิตย์</option>
-                            </select>
+                        <div style="flex:1; min-width:200px;">
+                            <label style="font-size:12px;">วันนัดหมาย (เลือกได้หลายวัน)</label>
+                            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:5px; font-size:13px;">
+                                ${['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'].map(day => `
+                                    <label style="display:flex; align-items:center; gap:3px; cursor:pointer; background:white; padding:4px 8px; border-radius:4px; border:1px solid #ddd;">
+                                        <input type="checkbox" name="s-schedule-day-chk" value="${day}" ${s && s.scheduleDay && s.scheduleDay.includes(day) ? 'checked' : ''}>
+                                        ${day}
+                                    </label>
+                                `).join('')}
+                            </div>
                         </div>
                         <div style="flex:1; min-width:100px;">
                             <label style="font-size:12px;">เวลา (โดยประมาณ)</label>
@@ -2047,7 +2045,8 @@ const App = {
             const name = document.getElementById('s-name').value;
             const contact = document.getElementById('s-contact').value;
             const phone = document.getElementById('s-phone').value.trim();
-            const scheduleDay = document.getElementById('s-schedule-day').value;
+            const checkedDays = Array.from(document.querySelectorAll('input[name="s-schedule-day-chk"]:checked')).map(cb => cb.value);
+            const scheduleDay = checkedDays.join(', ');
             const scheduleTime = document.getElementById('s-schedule-time').value;
             const scheduleNote = document.getElementById('s-schedule-note').value;
 
