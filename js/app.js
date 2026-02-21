@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.2', // Update Version
+    VERSION: '0.89.3', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2219,7 +2219,7 @@ const App = {
 
     renameCategory: (oldName) => {
         App.checkPin(async () => {
-            const newName = prompt('ตั้งชื่อหมวดหมู่ใหม่:', oldName);
+            const newName = await App.prompt('ตั้งชื่อหมวดหมู่ใหม่:', oldName);
             if (!newName || newName === oldName) return;
 
             // Update Products
