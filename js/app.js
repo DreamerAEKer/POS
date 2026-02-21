@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.4', // Update Version
+    VERSION: '0.89.5', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1474,7 +1474,7 @@ const App = {
         });
     },
 
-    saveCategory: (productId) => {
+    saveCategory: async (productId) => {
         const newGroup = document.getElementById('new-cat-input').value.trim();
         const product = App.state.products.find(p => p.id === productId);
 
@@ -1483,7 +1483,10 @@ const App = {
             DB.saveProducts(App.state.products); // Save to DB
             App.closeModals();
             App.renderView('stock'); // Refresh View
-            App.alert(`เปลี่ยนหมวดหมู่เป็น "${newGroup || 'ไม่มี'}" เรียบร้อย`);
+
+            setTimeout(async () => {
+                await App.alert(`เปลี่ยนหมวดหมู่เป็น "${newGroup || 'ไม่มี'}" เรียบร้อย`);
+            }, 100);
         }
     },
 
