@@ -145,6 +145,10 @@ const DB = {
         localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(products));
     },
 
+    saveProducts: (productsArray) => {
+        localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(productsArray));
+    },
+
     deleteProduct: (id) => {
         let products = DB.getProducts();
         products = products.filter(p => p.id !== id);
