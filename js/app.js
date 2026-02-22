@@ -2590,17 +2590,23 @@ const App = {
             await App.alert('สินค้าหมดสต็อก!');
             return;
         }
-        const existing = App.state.cart.find(item => item.id === product.id);
-        if (existing) {
+        const existingIndex = App.state.cart.findIndex(item => item.id === product.id);
+        if (existingIndex > -1) {
+            const existing = App.state.cart[existingIndex];
             if (existing.qty + 1 > product.stock) {
                 await App.alert('จำนวนสินค้าเกินสต็อกที่มี');
                 return;
             }
             existing.qty++;
+            // Move updated item to the top of the cart for better visibility
+            App.state.cart.splice(existingIndex, 1);
+            App.state.cart.unshift(existing);
+
             await App.checkWholesalePrompt(existing);
         } else {
             const newItem = { ...product, qty: 1 };
-            App.state.cart.push(newItem);
+            // Add new item to the top of the cart
+            App.state.cart.unshift(newItem);
             await App.checkWholesalePrompt(newItem);
         }
         App.renderCart();
@@ -2672,18 +2678,18 @@ const App = {
                     <!-- Qty Controls -->
                     <div style="display:flex; align-items:center; background:#f0f0f0; border-radius:20px; padding:2px;">
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, -1)" style="width:28px; height:28px;">-</button>
-                        <input type="number" value="${item.qty}" min="1" max="${product.stock}" onchange="App.setCartQty(${index}, this.value)" style="width:40px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold; height:28px; background:white; margin:0 2px;">
+                        <input type="number" class="hide-arrows" value="${item.qty}" min="1" max="${product.stock}" onchange="App.setCartQty(${index}, this.value)" style="width:45px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold; height:28px; background:white; margin:0 2px; font-size:16px;">
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, 1)" style="width:28px; height:28px;">+</button>
                     </div>
 
                     <!-- Line Total -->
-                    <div style="font-weight:bold; width:50px; text-align:right; font-size:14px;">
+                    <div style="font-weight:bold; width:60px; text-align:right; font-size:14px;">
                         ${Utils.formatCurrency(App.calcItemTotal(item))}
                     </div>
                     
                     <!-- Delete Button -->
-                    <button class="icon-btn dangerous" onclick="App.removeCartItem(${index})" title="ลบรายการนี้">
-                        <span class="material-symbols-rounded" style="font-size:20px;">delete</span>
+                    <button class="icon-btn dangerous" onclick="App.removeCartItem(${index})" title="ลบรายการนี้" style="padding:4px;">
+                        <span class="material-symbols-rounded" style="font-size:22px;">delete</span>
                     </button>
                 </div>
             </div>
