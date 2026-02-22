@@ -200,7 +200,7 @@ const App = {
                     const product = allProducts.find(p => p.id === item.id);
                     cost = product ? (product.cost || 0) : 0;
                 }
-                billProfit += (item.price - cost) * item.qty;
+                billProfit += App.getLineTotal(item) - (cost * item.qty);
             });
             if (billProfit > maxProfitBill) {
                 maxProfitBill = billProfit;
@@ -377,7 +377,7 @@ const App = {
                     const product = allProducts.find(p => p.id === item.id);
                     cost = product ? (product.cost || 0) : 0;
                 }
-                const profit = (item.price - cost) * item.qty;
+                const profit = App.getLineTotal(item) - (cost * item.qty);
 
                 if (!row) {
                     row = {
@@ -392,7 +392,7 @@ const App = {
                 }
 
                 row.qty += item.qty;
-                row.total += (item.price * item.qty);
+                row.total += App.getLineTotal(item);
                 row.profit += profit;
             });
         });
@@ -469,7 +469,7 @@ const App = {
                     const product = allProducts.find(p => p.id === item.id);
                     cost = product ? (product.cost || 0) : 0;
                 }
-                const profit = (item.price - cost) * item.qty;
+                const profit = App.getLineTotal(item) - (cost * item.qty);
 
                 if (!row) {
                     row = {
@@ -483,7 +483,7 @@ const App = {
                     reportRows.push(row);
                 }
                 row.qty += item.qty;
-                row.total += (item.price * item.qty);
+                row.total += App.getLineTotal(item);
                 row.profit += profit;
             });
         });
@@ -561,7 +561,7 @@ const App = {
                     };
                 }
                 productStats[item.id].qty += item.qty;
-                productStats[item.id].total += (item.price * item.qty);
+                productStats[item.id].total += App.getLineTotal(item);
             });
         });
 
@@ -609,7 +609,7 @@ const App = {
                     const product = allProducts.find(p => p.id === item.id);
                     cost = product ? (product.cost || 0) : 0;
                 }
-                const profit = (item.price - cost) * item.qty;
+                const profit = App.getLineTotal(item) - (cost * item.qty);
                 productStats[item.id].profit += profit;
             });
         });
@@ -658,7 +658,7 @@ const App = {
                     const product = allProducts.find(p => p.id === item.id);
                     cost = product ? (product.cost || 0) : 0;
                 }
-                const profit = (item.price - cost) * item.qty;
+                const profit = App.getLineTotal(item) - (cost * item.qty);
 
                 if (!groupStats[group]) groupStats[group] = 0;
                 groupStats[group] += profit;
@@ -702,7 +702,7 @@ const App = {
                 }
 
                 if (!groupStats[group]) groupStats[group] = 0;
-                groupStats[group] += (item.price * item.qty);
+                groupStats[group] += App.getLineTotal(item);
             });
         });
 
@@ -752,7 +752,7 @@ const App = {
                     ${sale.items.map(item => `
                         <tr>
                             <td style="padding:5px 0;">${item.name} <span style="font-size:12px; color:#999;">x${item.qty}</span></td>
-                            <td style="text-align:right;">${Utils.formatCurrency(item.price * item.qty)}</td>
+                            <td style="text-align:right;">${Utils.formatCurrency(App.getLineTotal(item))}</td>
                         </tr>
                     `).join('')}
                 </table>
@@ -1703,6 +1703,18 @@ const App = {
                             </label>
                         </div>
 
+                        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; background:#f5faff; padding:10px; border-radius:8px; border:1px solid #cce5ff;">
+                            <div style="width:100%; font-size:12px; font-weight:bold; color:var(--primary-color);">ตั้งค่าราคาขายส่ง (ต่อแพ็ค/ลัง)</div>
+                            <div style="flex: 1 1 120px;">
+                                <label style="font-size:12px;">ครบกี่ชิ้น=1แพ็ค</label>
+                                <input type="number" id="p-wholesale-qty" value="${product ? (product.wholesaleQty || '') : ''}" placeholder="เช่น 12" style="width:100%;">
+                            </div>
+                            <div style="flex: 1 1 120px;">
+                                <label style="font-size:12px;">ราคา/แพ็ค (บาท)</label>
+                                <input type="number" step="0.5" id="p-wholesale-price" value="${product ? (product.wholesalePrice || '') : ''}" placeholder="ระบุหรือไม่ระบุก็ได้" style="width:100%;">
+                            </div>
+                        </div>
+
                         <!-- Normal Stock Input -->
                         <div id="stock-input-group">
                             <div style="display:flex; gap:5px;">
@@ -1918,10 +1930,14 @@ const App = {
                     packSize = parseInt(document.getElementById('p-pack-size').value) || 1;
                 }
 
+                // Wholesale Logic
+                const wholesaleQty = parseInt(document.getElementById('p-wholesale-qty').value) || 0;
+                const wholesalePrice = parseFloat(document.getElementById('p-wholesale-price').value) || 0;
+
                 const newProduct = {
                     id, barcode, group, name, price, stock, image: newImage,
                     cost, expiryDate, tags, location, entryDate, // Save Location & Entry Date
-                    parentId, packSize,
+                    parentId, packSize, wholesaleQty, wholesalePrice,
                     updatedAt: Date.now() // Auto-Timestamp
                 };
 
@@ -2495,6 +2511,44 @@ const App = {
         }, 1200);
     },
 
+    // --- Cart & Wholesale Logic Helpers ---
+    calcItemTotal: (item) => {
+        if (item.wholesaleQty > 0 && item.wholesalePrice > 0) {
+            const packs = Math.floor(item.qty / item.wholesaleQty);
+            const remainder = item.qty % item.wholesaleQty;
+            return (packs * item.wholesalePrice) + (remainder * item.price);
+        }
+        return item.price * item.qty;
+    },
+
+    getLineTotal: (item) => {
+        return item.finalLineTotal !== undefined ? item.finalLineTotal : (item.price * item.qty);
+    },
+
+    checkWholesalePrompt: async (item) => {
+        if (item.wholesaleQty > 0 && (!item.wholesalePrice || item.wholesalePrice <= 0)) {
+            if (item.qty >= item.wholesaleQty) {
+                if (item._askedWholesale) return;
+                item._askedWholesale = true;
+
+                const priceStr = await App.prompt(`สินค้า "${item.name}" ซื้อถึง ${item.wholesaleQty} ชิ้น (ราคาส่ง)\nกรุณาระบุราคาขายส่งต่อแพ็ค/ลัง (ถ้าไม่มีให้ปล่อยว่างหรือใส่ 0):`);
+                if (priceStr) {
+                    const price = parseFloat(priceStr);
+                    if (price > 0) {
+                        item.wholesalePrice = price;
+                        const products = DB.getProducts();
+                        const pIndex = products.findIndex(p => p.id === item.id);
+                        if (pIndex >= 0) {
+                            products[pIndex].wholesalePrice = price;
+                            DB.saveProducts(products);
+                            App.state.products = DB.getProducts();
+                        }
+                    }
+                }
+            }
+        }
+    },
+
     // --- Cart Logic ---
     addToCart: async (product, fromScan = false) => {
         if (product.stock <= 0) {
@@ -2508,8 +2562,11 @@ const App = {
                 return;
             }
             existing.qty++;
+            await App.checkWholesalePrompt(existing);
         } else {
-            App.state.cart.push({ ...product, qty: 1 });
+            const newItem = { ...product, qty: 1 };
+            App.state.cart.push(newItem);
+            await App.checkWholesalePrompt(newItem);
         }
         App.renderCart();
 
@@ -2565,24 +2622,28 @@ const App = {
     },
 
     renderCart: () => {
-        App.elements.cartItemsContainer.innerHTML = App.state.cart.map((item, index) => `
+        App.elements.cartItemsContainer.innerHTML = App.state.cart.map((item, index) => {
+            const product = App.state.products.find(p => p.id === item.id) || item;
+            const stockWarning = product.stock <= 10 ? `<div style="font-size:11px; color:#e65100; margin-top:2px; font-weight:normal;">⚠️ เหลือสต็อก ${product.stock} ชิ้น</div>` : '';
+            return `
             <div class="cart-item">
                 <div style="flex:1;">
                     <div style="font-weight:bold;">${item.name}</div>
-                    <div style="font-size:14px; color:#666;">@${Utils.formatCurrency(item.price)}</div>
+                    <div style="font-size:14px; color:#666;">@${Utils.formatCurrency(item.price)} ${item.wholesaleQty > 0 && item.wholesalePrice > 0 ? `<span style="font-size:10px;color:var(--primary-color);">(${item.wholesaleQty}ชิ้น=${item.wholesalePrice}฿)</span>` : ''}</div>
+                    ${stockWarning}
                 </div>
                 
                 <div style="display:flex; align-items:center; gap:5px;">
                     <!-- Qty Controls -->
                     <div style="display:flex; align-items:center; background:#f0f0f0; border-radius:20px; padding:2px;">
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, -1)" style="width:28px; height:28px;">-</button>
-                        <span style="font-weight:bold; min-width:24px; text-align:center;">${item.qty}</span>
+                        <input type="number" value="${item.qty}" min="1" max="${product.stock}" onchange="App.setCartQty(${index}, this.value)" style="width:40px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold; height:28px; background:white; margin:0 2px;">
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, 1)" style="width:28px; height:28px;">+</button>
                     </div>
 
                     <!-- Line Total -->
                     <div style="font-weight:bold; width:50px; text-align:right; font-size:14px;">
-                        ${Utils.formatCurrency(item.price * item.qty)}
+                        ${Utils.formatCurrency(App.calcItemTotal(item))}
                     </div>
                     
                     <!-- Delete Button -->
@@ -2591,9 +2652,9 @@ const App = {
                     </button>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
 
-        const total = App.state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
         App.elements.cartTotal.textContent = Utils.formatCurrency(total);
         App.updateMobileCartBadge();
     },
@@ -2606,6 +2667,26 @@ const App = {
         }
     },
 
+    setCartQty: async (index, newQtyStr) => {
+        const item = App.state.cart[index];
+        let newQty = parseInt(newQtyStr);
+        if (isNaN(newQty) || newQty <= 0) {
+            newQty = 1;
+        }
+
+        const product = DB.getProducts().find(p => p.id === item.id);
+        if (product && newQty > product.stock) {
+            await App.alert('จำนวนสินค้าเกินสต็อกที่มี');
+            newQty = product.stock;
+        }
+
+        if (newQty !== item.qty) {
+            item.qty = newQty;
+            await App.checkWholesalePrompt(item);
+        }
+        App.renderCart();
+    },
+
     updateCartQty: async (index, change) => {
         const item = App.state.cart[index];
         const newQty = item.qty + change;
@@ -2613,11 +2694,12 @@ const App = {
             App.state.cart.splice(index, 1);
         } else {
             const product = DB.getProducts().find(p => p.id === item.id);
-            if (newQty > product.stock) {
+            if (product && newQty > product.stock) {
                 await App.alert('เกินจำนวนสต็อก');
                 return;
             }
             item.qty = newQty;
+            await App.checkWholesalePrompt(item);
         }
         App.renderCart();
     },
@@ -3190,7 +3272,7 @@ const App = {
             DB.recordSale({
                 billId: App.state.editingBillId || null, // Preserve ID if editing
                 date: App.state.editingSaleDate || new Date(), // Preserve Date if editing
-                items: App.state.cart,
+                items: App.state.cart.map(item => ({ ...item, finalLineTotal: App.calcItemTotal(item) })),
                 total: total,
                 received: received,
                 change: change
@@ -3267,7 +3349,7 @@ const App = {
                     </div>
                     <div style="display:flex; justify-content:space-between; font-weight:normal; font-size:16px;">
                         <span>${item.qty} x ${Utils.formatCurrency(item.price)}</span>
-                        <span style="font-weight:bold;">${Utils.formatCurrency(item.price * item.qty)}</span>
+                        <span style="font-weight:bold;">${Utils.formatCurrency(App.getLineTotal(item))}</span>
                     </div>
                 </div>
             `).join('')}
