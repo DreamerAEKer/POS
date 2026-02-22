@@ -779,6 +779,11 @@ const App = {
     },
 
     editHistoricalBill: async (billId) => {
+        if (App.state.cart.length > 0) {
+            await App.alert('⚠️ ดำเนินการไม่ได้:\nคุณมีสินค้าค้างอยู่ในตะกร้า\nกรุณา "พักบิล" หรือลบตะกร้าทิ้งก่อนทำการแก้ไขบิลเก่าครับ');
+            return;
+        }
+
         App.closeModals(); // REQUEST: Hide detail modal before confirmation
         if (!await App.confirm('⚠️ คำเตือน: การแก้ไขบิลจะทำการ:\n1. คืนสต็อกสินค้าเดิมกลับเข้าระบบ\n2. นำรายการสินค้าเข้าตะกร้าเพื่อให้แก้ไข\n\nคุณต้องการดำเนินการต่อหรือไม่?')) return;
 
@@ -810,7 +815,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.12', // Update Version
+    VERSION: '0.89.13', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
