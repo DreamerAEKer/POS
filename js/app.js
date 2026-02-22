@@ -2778,7 +2778,11 @@ const App = {
         const item = App.state.cart[index];
         const newQty = item.qty + change;
         if (newQty <= 0) {
-            App.state.cart.splice(index, 1);
+            if (await App.confirm(`ต้องการลบ "${item.name}" ออกจากตะกร้าหรือไม่?`)) {
+                App.state.cart.splice(index, 1);
+            } else {
+                return; // User cancelled the deletion
+            }
         } else {
             const product = DB.getProducts().find(p => p.id === item.id);
             if (product && newQty > product.stock) {
