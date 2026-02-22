@@ -278,6 +278,20 @@ button.nav-action-item {
     justify-content: space-between;
     padding: var(--space-sm) 0;
     border-bottom: 1px solid var(--neutral-200);
+    transition: background-color 0.2s;
+    /* Smooth visual feedback */
+}
+
+/* Drag and Drop visual feedback */
+.cart-item.dragging {
+    opacity: 0.5;
+    background-color: var(--neutral-200);
+}
+
+.cart-item.drag-over {
+    border-top: 2px dashed var(--primary-color);
+    background-color: rgba(76, 175, 80, 0.05);
+    /* Very light primary color tint */
 }
 
 .cart-item-info h4 {

@@ -2598,15 +2598,10 @@ const App = {
                 return;
             }
             existing.qty++;
-            // Move updated item to the top of the cart for better visibility
-            App.state.cart.splice(existingIndex, 1);
-            App.state.cart.unshift(existing);
-
             await App.checkWholesalePrompt(existing);
         } else {
             const newItem = { ...product, qty: 1 };
-            // Add new item to the top of the cart
-            App.state.cart.unshift(newItem);
+            App.state.cart.push(newItem);
             await App.checkWholesalePrompt(newItem);
         }
         App.renderCart();
@@ -2667,7 +2662,10 @@ const App = {
             const product = App.state.products.find(p => p.id === item.id) || item;
             const stockWarning = product.stock <= 10 ? `<div style="font-size:11px; color:#e65100; margin-top:2px; font-weight:normal;">⚠️ เหลือสต็อก ${product.stock} ชิ้น</div>` : '';
             return `
-            <div class="cart-item">
+            <div class="cart-item" draggable="true" ondragstart="App.cartDragStart(event, ${index})" ondragover="App.cartDragOver(event)" ondrop="App.cartDrop(event, ${index})" ondragend="App.cartDragEnd(event)">
+                <div style="cursor:grab; margin-right:5px; color:#ccc; display:flex; align-items:center;">
+                    <span class="material-symbols-rounded" style="font-size:20px;">drag_indicator</span>
+                </div>
                 <div style="flex:1;">
                     <div style="font-weight:bold;">${item.name}</div>
                     <div style="font-size:14px; color:#666;">@${Utils.formatCurrency(item.price)} ${item.wholesaleQty > 0 && item.wholesalePrice > 0 ? `<span style="font-size:10px;color:var(--primary-color);">(${item.wholesaleQty}ชิ้น=${item.wholesalePrice}฿)</span>` : ''}</div>
@@ -2706,6 +2704,49 @@ const App = {
             App.state.cart.splice(index, 1);
             App.renderCart();
         }
+    },
+
+    // --- Drag and Drop Cart Reordering ---
+    cartDragStart: (e, index) => {
+        App.state.draggedCartIndex = index;
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        // Required for Firefox
+        e.dataTransfer.setData('text/plain', index);
+    },
+
+    cartDragOver: (e) => {
+        e.preventDefault(); // Necessary to allow dropping
+        e.dataTransfer.dropEffect = 'move';
+
+        // Find the closest cart-item
+        const item = e.target.closest('.cart-item');
+        if (item) {
+            item.classList.add('drag-over');
+        }
+    },
+
+    cartDrop: (e, dropIndex) => {
+        e.preventDefault();
+        const dragIndex = App.state.draggedCartIndex;
+
+        if (dragIndex !== undefined && dragIndex !== dropIndex) {
+            // Reorder array
+            const draggedItem = App.state.cart[dragIndex];
+            App.state.cart.splice(dragIndex, 1);
+            App.state.cart.splice(dropIndex, 0, draggedItem);
+
+            App.renderCart();
+        }
+
+        // Cleanup visuals
+        document.querySelectorAll('.cart-item').forEach(el => el.classList.remove('drag-over', 'dragging'));
+        App.state.draggedCartIndex = null;
+    },
+
+    cartDragEnd: (e) => {
+        document.querySelectorAll('.cart-item').forEach(el => el.classList.remove('drag-over', 'dragging'));
+        App.state.draggedCartIndex = null;
     },
 
     setCartQty: async (index, newQtyStr) => {
