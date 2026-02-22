@@ -183,7 +183,14 @@ const DB = {
 
     getProductByBarcode: (barcode) => {
         const products = DB.getProducts();
-        return products.find(p => p.barcode === barcode);
+        // Return object indicating if it matched the main barcode or the pack barcode
+        const mainMatch = products.find(p => p.barcode === barcode);
+        if (mainMatch) return { product: mainMatch, isPack: false };
+
+        const packMatch = products.find(p => p.packBarcode === barcode);
+        if (packMatch) return { product: packMatch, isPack: true };
+
+        return null;
     },
 
     updateStock: (id, quantityChange) => {

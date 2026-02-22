@@ -810,7 +810,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.10', // Update Version
+    VERSION: '0.89.12', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1103,10 +1103,12 @@ const App = {
 
         let displayProducts = App.state.products;
         if (App.state.searchQuery) {
+            const query = App.state.searchQuery.toLowerCase();
             displayProducts = displayProducts.filter(p =>
-                p.name.includes(App.state.searchQuery) ||
-                p.barcode.includes(App.state.searchQuery) ||
-                (p.group && p.group.includes(App.state.searchQuery))
+                (p.name && p.name.toLowerCase().includes(query)) ||
+                (p.barcode && p.barcode.includes(query)) ||
+                (p.packBarcode && p.packBarcode.includes(query)) ||
+                (p.group && p.group.toLowerCase().includes(query))
             );
         }
 
@@ -1180,7 +1182,12 @@ const App = {
                 <div class="p-info">
                     <div class="p-name">${p.name}</div>
                     <div class="p-price">฿${Utils.formatCurrency(p.price)}</div>
-                    <div class="p-stock">${displayStock} items</div>
+                    <div class="p-stock">${displayStock} ชิ้น</div>
+                    ${p.wholesaleQty > 0 ? `
+                    <div style="font-size:10px; color:#888; text-align:center; margin-top:2px;">
+                        (${Math.floor(displayStock / p.wholesaleQty)} ลัง ${displayStock % p.wholesaleQty} ชิ้น)
+                    </div>
+                    ` : ''}
                 </div>
             </div>
             `;
@@ -1374,8 +1381,13 @@ const App = {
                                     </td>
                                     <td style="padding:10px;">
                                         <span style="color:${p.stock <= 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock <= 5 ? 'bold' : 'normal'};">
-                                            ${p.stock}
+                                            ${p.stock} ชิ้น
                                         </span>
+                                        ${p.wholesaleQty > 0 ? `
+                                        <div style="font-size:11px; color:#888; margin-top:3px;">
+                                            (${Math.floor(p.stock / p.wholesaleQty)} ลัง ${p.stock % p.wholesaleQty} ชิ้น)
+                                        </div>
+                                        ` : ''}
                                     </td>
                                     <td style="padding:10px; font-size:13px; color:#666;">
                                         ${p.entryDate ? new Date(p.entryDate).toLocaleDateString('th-TH') : '-'}
@@ -1713,6 +1725,10 @@ const App = {
                                 <label style="font-size:12px;">ราคา/แพ็ค (บาท)</label>
                                 <input type="number" step="0.5" id="p-wholesale-price" value="${product ? (product.wholesalePrice || '') : ''}" placeholder="ระบุหรือไม่ระบุก็ได้" style="width:100%;">
                             </div>
+                            <div style="flex: 1 1 100%;">
+                                <label style="font-size:12px;">บาร์โค้ดลัง/แพ็ค (ทางเลือก)</label>
+                                <input type="text" id="p-pack-barcode" value="${product ? (product.packBarcode || '') : ''}" placeholder="สแกนบาร์โค้ดลังที่นี่" style="width:100%;">
+                            </div>
                         </div>
 
                         <!-- Normal Stock Input -->
@@ -1933,11 +1949,12 @@ const App = {
                 // Wholesale Logic
                 const wholesaleQty = parseInt(document.getElementById('p-wholesale-qty').value) || 0;
                 const wholesalePrice = parseFloat(document.getElementById('p-wholesale-price').value) || 0;
+                const packBarcode = document.getElementById('p-pack-barcode').value.trim(); // Get Pack Barcode
 
                 const newProduct = {
                     id, barcode, group, name, price, stock, image: newImage,
                     cost, expiryDate, tags, location, entryDate, // Save Location & Entry Date
-                    parentId, packSize, wholesaleQty, wholesalePrice,
+                    parentId, packSize, wholesaleQty, wholesalePrice, packBarcode,
                     updatedAt: Date.now() // Auto-Timestamp
                 };
 
@@ -2445,13 +2462,28 @@ const App = {
     },
 
     handleBarcodeScan: async (barcode) => {
-        const product = DB.getProductByBarcode(barcode);
-        if (product) {
+        const match = DB.getProductByBarcode(barcode);
+
+        if (match) {
+            const product = match.product;
+            const isPack = match.isPack;
+
             // GLOBAL: Always show Flash Popup (Price & Location)
             App.showProductFlash(product);
 
             if (App.state.currentView === 'pos') {
-                App.addToCart(product, true); // True = fromScan
+                if (isPack) {
+                    // Safe UX: Prompt before adding massive amounts
+                    const packQty = product.wholesaleQty || 1;
+                    if (await App.confirm(`🛒 คุณสแกนบาร์โค้ดลัง:\n\nต้องการเพิ่ม "${product.name}"\nจำนวน 1 ลัง (${packQty} ชิ้น) ลงตะกร้าใช่หรือไม่?`)) {
+                        for (let i = 0; i < packQty; i++) {
+                            App.addToCart(product, true);
+                        }
+                    }
+                } else {
+                    // Normal piece scan
+                    App.addToCart(product, true); // True = fromScan
+                }
             }
             // In Stock/Other views: Just Flash (as requested), no modal opening
         } else {
@@ -3455,7 +3487,9 @@ const App = {
                 const val = e.target.value;
                 if (!val) { result.innerHTML = ''; return; }
 
-                const product = DB.getProductByBarcode(val) || App.state.products.find(p => p.name.includes(val));
+                const match = DB.getProductByBarcode(val);
+                const product = match ? match.product : App.state.products.find(p => p.name.includes(val));
+
                 if (product) {
                     result.innerHTML = `
                          <div style="font-size:24px; font-weight:bold;">${product.name}</div>
