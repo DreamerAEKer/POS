@@ -77,7 +77,12 @@
                         <span class="material-symbols-rounded">qr_code_scanner</span>
                     </button>
                 </div>
-                <div class="status-indicators">
+                <div class="status-indicators" style="display:flex; align-items:center; gap:10px;">
+                    <!-- Version Indicator Moved Here -->
+                    <div
+                        style="background:rgba(0,0,0,0.05); color:var(--primary-color); padding:4px 8px; border-radius:12px; font-size:11px; font-weight:bold;">
+                        v0.89.12
+                    </div>
                     <div class="date-time" id="clock">12:00</div>
                 </div>
             </header>
@@ -203,11 +208,6 @@
         <div class="nav-item" data-view="settings">
             <span class="material-symbols-rounded">settings</span>
             <span>ตั้งค่า</span>
-        </div>
-        <!-- Version Indicator -->
-        <div
-            style="position:absolute; top:-18px; right:5px; color:rgba(0,0,0,0.3); font-size:11px; font-weight:bold; pointer-events:none; background:rgba(255,255,255,0.7); padding:2px 8px; border-radius:10px;">
-            v0.89.12
         </div>
     </nav>
 
