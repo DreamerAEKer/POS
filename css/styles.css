@@ -216,6 +216,7 @@ button.nav-action-item {
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -532,6 +533,11 @@ body.printing-mode #receipt-print-area {
         overflow-y: hidden;
         /* Fix: Prevent double scrollbar, let view-container handle it */
         /* Scroll within content */
+    }
+
+    #view-container {
+        padding-bottom: 120px;
+        /* Space for the floating cart button */
     }
 
     .top-bar {

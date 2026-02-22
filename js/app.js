@@ -816,7 +816,10 @@ const App = {
     renderSettingsView: (container) => {
         const settings = DB.getSettings();
         container.innerHTML = `
-            <h2>ตั้งค่าระบบ</h2>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                <h2>ตั้งค่าระบบ</h2>
+                <div style="font-size:14px; color:#888; margin-bottom:5px;">เวอร์ชัน ${App.VERSION}</div>
+            </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
                 <!-- Store Config -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm);">
