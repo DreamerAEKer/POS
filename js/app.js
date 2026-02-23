@@ -1896,14 +1896,14 @@ const App = {
                     preview.dataset.base64 = base64;
                 }
             });
-            document.getElementById('product-form').addEventListener('submit', (e) => {
+            document.getElementById('product-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const id = document.getElementById('p-id').value || Utils.generateId();
                 const barcode = document.getElementById('p-barcode').value;
                 const group = document.getElementById('p-group').value.trim();
                 const name = document.getElementById('p-name').value;
                 const price = parseFloat(document.getElementById('p-price').value);
-                const stock = parseInt(document.getElementById('p-stock').value) || 0;
+                let stock = parseInt(document.getElementById('p-stock').value) || 0;
 
                 // New Fields
                 const cost = parseFloat(document.getElementById('p-cost').value) || 0;
@@ -1913,36 +1913,48 @@ const App = {
                 const tags = Array.from(document.querySelectorAll('input[name="p-tags"]:checked')).map(cb => cb.value);
 
                 // --- Duplicate Barcode Check ---
-                const existingProduct = App.state.products.find(p => p.barcode === barcode && p.id !== id);
+                const existingProduct = App.state.products.find(p => p.barcode === barcode && p.id !== id && barcode.trim() !== '');
 
                 if (existingProduct) {
-                    const warningHtml = `
-                        <div id="dup-warning-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center;">
-                            <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
-                                <div style="font-size:48px; margin-bottom:10px;">⚠️</div>
-                                <h3 style="margin-bottom:10px;">บาร์โค้ดนี้มีอยู่แล้ว!</h3>
-                                <div style="background:#f0f0f0; padding:10px; border-radius:5px; margin-bottom:15px; text-align:left; font-size:14px;">
-                                    <div><strong>สินค้า:</strong> ${existingProduct.name}</div>
-                                    <div><strong>ราคา:</strong> ฿${Utils.formatCurrency(existingProduct.price)}</div>
-                                    <div><strong>สต็อกเดิม:</strong> ${existingProduct.stock}</div>
-                                </div>
-                                <p style="margin-bottom:15px; font-size:14px;">คุณต้องการทำรายการอย่างไร?</p>
-                                <div style="display:flex; flex-direction:column; gap:8px;">
-                                    <button class="primary-btn" onclick="App.combineStock('${existingProduct.id}', ${stock})">
-                                        📥 รวมสต็อก (เพิ่ม +${stock})
-                                    </button>
-                                    <button class="secondary-btn" onclick="App.switchToEdit('${existingProduct.id}')">
-                                        ✏️ แก้ไขสินค้าเดิม
-                                    </button>
-                                    <button class="secondary-btn" style="background:#fff; border:1px solid #ddd;" onclick="document.getElementById('dup-warning-overlay').remove()">
-                                        ❌ ยกเลิก
-                                    </button>
+                    const isQuick = existingProduct.name.startsWith('(ขายด่วน)');
+                    if (isQuick) {
+                        if (!await App.confirm(`ตรวจสอบพบ "ประวัติการขายด่วน" ที่รอดำเนินการ\\n(คุณเคยขายติดลบไป ${existingProduct.stock} ชิ้น)\\n\\nระบบจะทำการอัปเดตข้อมูล และนำปริมาณที่กรอกมาหักลบยอดค้างให้โดยอัตโนมัติ (หักลบแล้วเหลือ ${stock + existingProduct.stock} ชิ้น)\\n\\nคุณต้องการแก้ไขและหักลบสต็อกอัตโนมัติหรือไม่?`)) {
+                            return;
+                        }
+
+                        // Proceed to adopt the debt and OVERWRITE the quick product
+                        id = existingProduct.id; // Override the new ID to use the quick product's ID
+                        stock = stock + existingProduct.stock; // Math: e.g. 20 + (-5) = 15
+                        // Let it continue to save!
+                    } else {
+                        const warningHtml = `
+                            <div id="dup-warning-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center;">
+                                <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                                    <div style="font-size:48px; margin-bottom:10px;">⚠️</div>
+                                    <h3 style="margin-bottom:10px;">บาร์โค้ดนี้มีอยู่แล้ว!</h3>
+                                    <div style="background:#f0f0f0; padding:10px; border-radius:5px; margin-bottom:15px; text-align:left; font-size:14px;">
+                                        <div><strong>สินค้า:</strong> ${existingProduct.name}</div>
+                                        <div><strong>ราคา:</strong> ฿${Utils.formatCurrency(existingProduct.price)}</div>
+                                        <div><strong>สต็อกเดิม:</strong> ${existingProduct.stock}</div>
+                                    </div>
+                                    <p style="margin-bottom:15px; font-size:14px;">คุณต้องการทำรายการอย่างไร?</p>
+                                    <div style="display:flex; flex-direction:column; gap:8px;">
+                                        <button class="primary-btn" onclick="App.combineStock('${existingProduct.id}', ${stock})">
+                                            📥 รวมสต็อก (เพิ่ม +${stock})
+                                        </button>
+                                        <button class="secondary-btn" onclick="App.switchToEdit('${existingProduct.id}')">
+                                            ✏️ แก้ไขสินค้าเดิม
+                                        </button>
+                                        <button class="secondary-btn" style="background:#fff; border:1px solid #ddd;" onclick="document.getElementById('dup-warning-overlay').remove()">
+                                            ❌ ยกเลิก
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    `;
-                    document.body.insertAdjacentHTML('beforeend', warningHtml);
-                    return; // STOP SAVE
+                        `;
+                        document.body.insertAdjacentHTML('beforeend', warningHtml);
+                        return; // STOP SAVE
+                    }
                 }
                 // -------------------------------
 
@@ -2499,15 +2511,83 @@ const App = {
             }
             // In Stock/Other views: Just Flash (as requested), no modal opening
         } else {
-            if (await App.confirm(`ไม่พบสินค้า ${barcode}\nต้องการเพิ่มสินค้าใหม่หรือไม่?`)) {
-                // Navigate to stock > Add
-                App.renderView('stock');
-                setTimeout(() => {
-                    App.openProductModal();
-                    setTimeout(() => document.getElementById('p-barcode').value = barcode, 200);
-                }, 100);
-            }
+            const notFoundHtml = `
+                <div id="not-found-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center;">
+                    <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                        <div style="font-size:48px; margin-bottom:10px;">⚠️</div>
+                        <h3 style="margin-bottom:10px;">ไม่พบสินค้า ${barcode}</h3>
+                        <p style="margin-bottom:15px; font-size:14px; color:#555;">ยังไม่มีสินค้านี้ในระบบ คุณต้องการทำอะไร?</p>
+                        
+                        <div style="background:#fff3cd; padding:15px; border-radius:8px; margin-bottom:15px; text-align:left; border:1px solid #ffeeba;">
+                            <label style="font-size:14px; font-weight:bold; color:#856404; display:block; margin-bottom:5px;">⚡ ขายด่วน (ระบุราคาขาย)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="number" id="quick-sell-price" placeholder="ราคา (บาท)" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
+                                <button class="primary-btn" onclick="App.doQuickSell('${barcode}')">ขายด่วนเลย</button>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <button class="secondary-btn" onclick="App.goToAddProduct('${barcode}')">
+                                ➕ ไปหน้าเพิ่มสินค้าแบบละเอียด
+                            </button>
+                            <button class="secondary-btn" style="background:#fff; border:1px solid #ddd;" onclick="document.getElementById('not-found-overlay').remove()">
+                                ❌ ยกเลิก
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', notFoundHtml);
+
+            setTimeout(() => {
+                const input = document.getElementById('quick-sell-price');
+                if (input) {
+                    input.focus();
+                    input.onkeydown = (e) => {
+                        if (e.key === 'Enter') App.doQuickSell(barcode);
+                    };
+                }
+            }, 100);
         }
+    },
+
+    doQuickSell: (barcode) => {
+        const input = document.getElementById('quick-sell-price');
+        const price = parseFloat(input.value);
+        if (isNaN(price) || price <= 0) {
+            App.alert('กรุณาระบุราคาขายที่ถูกต้อง');
+            return;
+        }
+
+        const newQuickProduct = {
+            id: barcode, // Important: use the barcode as ID so editing it later works easily
+            barcode: barcode,
+            name: `(ขายด่วน) ${barcode}`,
+            price: price,
+            cost: 0,
+            stock: 0,
+            isQuick: true,
+            entryDate: new Date().toISOString().split('T')[0],
+            updatedAt: Date.now()
+        };
+
+        DB.saveProduct(newQuickProduct);
+        App.state.products = DB.getProducts(); // Refresh state
+
+        // Add to cart
+        const addedProduct = App.state.products.find(p => p.id === barcode);
+        App.addToCart(addedProduct, true);
+
+        document.getElementById('not-found-overlay').remove();
+    },
+
+    goToAddProduct: (barcode) => {
+        document.getElementById('not-found-overlay').remove();
+        App.renderView('stock');
+        setTimeout(() => {
+            App.openProductModal();
+            setTimeout(() => document.getElementById('p-barcode').value = barcode, 200);
+        }, 100);
     },
 
     // --- Product Flash Popup (Helper) ---
@@ -2595,17 +2675,10 @@ const App = {
 
     // --- Cart Logic ---
     addToCart: async (product, fromScan = false) => {
-        if (product.stock <= 0) {
-            await App.alert('สินค้าหมดสต็อก!');
-            return;
-        }
+        // Removed strict stock blocks to allow Quick Sales (Native negative stock handling)
         const existingIndex = App.state.cart.findIndex(item => item.id === product.id);
         if (existingIndex > -1) {
             const existing = App.state.cart[existingIndex];
-            if (existing.qty + 1 > product.stock) {
-                await App.alert('จำนวนสินค้าเกินสต็อกที่มี');
-                return;
-            }
             existing.qty++;
             await App.checkWholesalePrompt(existing);
         } else {
@@ -2775,11 +2848,8 @@ const App = {
         }
 
         const product = DB.getProducts().find(p => p.id === item.id);
-        if (product && newQty > product.stock) {
-            await App.alert('จำนวนสินค้าเกินสต็อกที่มี');
-            newQty = product.stock;
-        }
 
+        // Allowed to exceed stock
         if (newQty !== item.qty) {
             item.qty = newQty;
             await App.checkWholesalePrompt(item);
@@ -2797,11 +2867,6 @@ const App = {
                 return; // User cancelled the deletion
             }
         } else {
-            const product = DB.getProducts().find(p => p.id === item.id);
-            if (product && newQty > product.stock) {
-                await App.alert('เกินจำนวนสต็อก');
-                return;
-            }
             item.qty = newQty;
             await App.checkWholesalePrompt(item);
         }
