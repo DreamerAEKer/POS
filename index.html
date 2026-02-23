@@ -112,9 +112,13 @@
                         <span>รวมเงิน</span>
                         <span class="total-price" id="cart-total">0.00</span>
                     </div>
-                    <div class="action-buttons">
-                        <button id="btn-park-cart" class="secondary-btn">พักบิล</button>
-                        <button id="btn-checkout" class="primary-btn">รับเงิน</button>
+                    <div class="action-buttons" style="display: flex; gap: 5px;">
+                        <button id="btn-park-cart" class="secondary-btn" style="flex:1;">พักบิล</button>
+                        <button id="btn-quick-print" class="secondary-btn" title="รับเงินพอดี & พิมพ์ใบเสร็จ"
+                            style="padding: 10px; border-color: #ccc; color: #555; display: flex; align-items: center; justify-content: center;">
+                            <span class="material-symbols-rounded">print</span>
+                        </button>
+                        <button id="btn-checkout" class="primary-btn" style="flex:2;">รับเงิน</button>
                     </div>
                 </div>
             </div>
@@ -206,11 +210,16 @@
         </div>
     </nav>
 
+    <!-- Global Version Display -->
+    <div id="app-version-display"
+        style="position: fixed; bottom: 5px; right: 10px; font-size: 11px; color: rgba(0,0,0,0.3); z-index: 10000; pointer-events: none; font-weight: bold;">
+    </div>
+
     <!-- Scripts (Order matters for file:// compatibility without modules) -->
-    <script src="js/utils.js?v=0.89.12"></script>
-    <script src="js/db.js?v=0.89.12"></script>
-    <script src="js/app.js?v=0.89.12"></script>
-    <link rel="stylesheet" href="css/styles.css?v=0.89.11_n">
+    <script src="js/utils.js?v=0.89.16"></script>
+    <script src="js/db.js?v=0.89.16"></script>
+    <script src="js/app.js?v=0.89.16"></script>
+    <link rel="stylesheet" href="css/styles.css?v=0.89.16">
 </body>
 
 </html>

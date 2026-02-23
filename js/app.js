@@ -45,6 +45,10 @@ const App = {
             App.renderView('pos');
             App.startClock();
 
+            // Set Global Version Display
+            const versionEl = document.getElementById('app-version-display');
+            if (versionEl) versionEl.textContent = 'v' + App.VERSION;
+
             console.log('App Initialized Successfully');
         } catch (e) {
             console.error('App Init Error:', e);
@@ -815,7 +819,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.14', // Update Version
+    VERSION: '0.89.16', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2829,6 +2833,10 @@ const App = {
             if (App.state.cart.length === 0) return;
             App.showPaymentModal();
         });
+        const quickBtn = document.getElementById('btn-quick-print');
+        if (quickBtn) {
+            quickBtn.addEventListener('click', App.quickCheckoutAndPrint);
+        }
 
         // --- Mobile Cart Toggle ---
         // --- Mobile Cart Toggle ---
@@ -2846,6 +2854,52 @@ const App = {
             mobileOverlay.addEventListener('click', () => {
                 App.toggleMobileCart(false);
             });
+        }
+    },
+
+    quickCheckoutAndPrint: async () => {
+        if (App.state.cart.length === 0) return;
+
+        if (await App.confirm('ต้องการปิดบิล (รับเงินพอดี) และพิมพ์ใบเสร็จทันทีหรือไม่?')) {
+            if (App.state.isProcessingPayment) return;
+            App.state.isProcessingPayment = true;
+
+            const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+
+            // Deduct Stock
+            App.state.cart.forEach(item => {
+                if (item.parentId && item.packSize) {
+                    DB.updateStock(item.parentId, item.qty * item.packSize);
+                } else {
+                    DB.updateStock(item.id, item.qty);
+                }
+            });
+
+            // Record Sale
+            const saleData = {
+                billId: App.state.editingBillId || null,
+                date: App.state.editingSaleDate || new Date(),
+                items: App.state.cart.map(item => ({ ...item, finalLineTotal: App.calcItemTotal(item) })),
+                total: total,
+                received: total,
+                change: 0
+            };
+            DB.recordSale(saleData);
+
+            // Clear Edit State
+            App.state.editingBillId = null;
+            App.state.editingSaleDate = null;
+
+            App.state.cart = [];
+            App.state.products = DB.getProducts();
+            App.renderCart();
+            App.renderProductGrid();
+            App.closeModals();
+            if (App.toggleMobileCart) App.toggleMobileCart(false);
+            App.state.isProcessingPayment = false;
+
+            // Trigger Print
+            App.printReceipt(saleData);
         }
     },
 
@@ -3488,7 +3542,7 @@ const App = {
 
         // --- Aggressive Hide (Nuclear Option) ---
         // Force hide elements via inline styles to bypass potential CSS specificity issues
-        const uiElements = document.querySelectorAll('#app, #sidebar, #mobile-bottom-nav, #btn-mobile-cart, .modal, #modal-overlay, #mobile-cart-overlay');
+        const uiElements = document.querySelectorAll('#app, #sidebar, #mobile-bottom-nav, #btn-mobile-cart, .modal, #modal-overlay, #mobile-cart-overlay, #app-version-display');
         const originalDisplays = new Map();
 
         uiElements.forEach(el => {
