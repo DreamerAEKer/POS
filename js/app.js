@@ -819,7 +819,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.16', // Update Version
+    VERSION: '0.89.17', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2638,12 +2638,9 @@ const App = {
 
             // Smart Re-park Check
             if (App.state.activeBill) {
-                // REQUEST: Always ask, but pre-fill old name
-                const oldNote = App.state.activeBill.note || '';
-                const result = await App.prompt('ยืนยันชื่อบิลพัก (สามารถแก้ไขได้):', oldNote);
-                if (result === null) return; // User cancelled
-                note = result.trim() || oldNote; // Use new input, or fallback to old note if empty (optional, but good for UX)
-                timestamp = App.state.activeBill.timestamp; // REUSE OLD TIMESTAMP
+                // Feature: Auto-save back to current table without prompting
+                note = App.state.activeBill.note || '';
+                timestamp = App.state.activeBill.timestamp;
             } else {
                 const result = await App.prompt('ตั้งชื่อบิลพักนี้ (เช่น โต๊ะ 5, คุณสมชาย):', '');
                 if (result === null) return; // User cancelled
@@ -2705,6 +2702,18 @@ const App = {
         const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
         App.elements.cartTotal.textContent = Utils.formatCurrency(total);
         App.updateMobileCartBadge();
+
+        // Update Smart Table/Parked Bill UI
+        const headerTitle = document.getElementById('cart-header-title');
+        const parkBtn = document.getElementById('btn-park-cart');
+
+        if (App.state.activeBill && App.state.activeBill.note) {
+            if (headerTitle) headerTitle.innerHTML = `ตะกร้าสินค้า: <span style="color:var(--primary-color);">📝 ${App.state.activeBill.note}</span>`;
+            if (parkBtn) parkBtn.textContent = `บันทึก (${App.state.activeBill.note})`;
+        } else {
+            if (headerTitle) headerTitle.textContent = 'ตะกร้าสินค้า';
+            if (parkBtn) parkBtn.textContent = 'พักบิล';
+        }
     },
 
     removeCartItem: async (index) => {
@@ -2824,6 +2833,7 @@ const App = {
         document.getElementById('btn-clear-cart').addEventListener('click', async () => {
             if (await App.confirm('ต้องการล้างตะกร้าสินค้าทั้งหมด?', 'ล้างตะกร้า')) {
                 App.state.cart = [];
+                App.state.activeBill = null; // Reset tracker
                 App.renderCart();
             }
         });
@@ -2891,6 +2901,7 @@ const App = {
             App.state.editingSaleDate = null;
 
             App.state.cart = [];
+            App.state.activeBill = null; // Clear tracker after print
             App.state.products = DB.getProducts();
             App.renderCart();
             App.renderProductGrid();
