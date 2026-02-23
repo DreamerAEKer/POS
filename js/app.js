@@ -1101,7 +1101,12 @@ const App = {
     // --- POS View ---
     renderPOSView: (container) => {
         container.innerHTML = `
-            <h2>ขายสินค้า</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>ขายสินค้า</h2>
+                <button class="secondary-btn" style="display:flex; align-items:center; gap:5px;" onclick="App.showManualEntryModal()">
+                    <span class="material-symbols-rounded">edit_square</span> พิมพ์รายการเอง
+                </button>
+            </div>
             <div class="product-grid" id="product-grid">
                 <!-- Products will be injected here -->
             </div>
@@ -2590,6 +2595,103 @@ const App = {
         }, 100);
     },
 
+    // --- Manual Entry ---
+    showManualEntryModal: () => {
+        // Close any other open modals just in case
+        App.closeModals();
+
+        const manualHtml = `
+            <div id="manual-entry-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center;">
+                <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
+                        <h3 style="margin:0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-rounded">edit_square</span> พิมพ์รายการขายเอง</h3>
+                        <button class="icon-btn" onclick="document.getElementById('manual-entry-overlay').remove()">
+                            <span class="material-symbols-rounded">close</span>
+                        </button>
+                    </div>
+                    
+                    <div style="margin-bottom:15px;">
+                        <label style="display:block; margin-bottom:5px; font-weight:bold; color:#555;">ชื่อรายการ / สินค้า</label>
+                        <input type="text" id="manual-name" placeholder="เช่น ค่าจัดส่ง, สินค้านอกระบบ" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
+                    </div>
+                    
+                    <div style="display:flex; gap:10px; margin-bottom:20px;">
+                        <div style="flex:1;">
+                            <label style="display:block; margin-bottom:5px; font-weight:bold; color:#555;">ราคา (บาท)</label>
+                            <input type="number" id="manual-price" placeholder="0" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:16px;">
+                        </div>
+                        <div style="width:100px;">
+                            <label style="display:block; margin-bottom:5px; font-weight:bold; color:#555;">จำนวน</label>
+                            <input type="number" id="manual-qty" value="1" min="1" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:16px; text-align:center;">
+                        </div>
+                    </div>
+
+                    <button class="primary-btn" style="width:100%; padding:12px; font-size:16px;" onclick="App.doManualEntry()">+ เพิ่มลงตะกร้า</button>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', manualHtml);
+
+        setTimeout(() => {
+            document.getElementById('manual-name').focus();
+
+            // Allow pressing Enter to submit
+            const submitOnEnter = (e) => {
+                if (e.key === 'Enter') App.doManualEntry();
+            };
+            document.getElementById('manual-name').addEventListener('keydown', submitOnEnter);
+            document.getElementById('manual-price').addEventListener('keydown', submitOnEnter);
+            document.getElementById('manual-qty').addEventListener('keydown', submitOnEnter);
+        }, 100);
+    },
+
+    doManualEntry: () => {
+        const nameInput = document.getElementById('manual-name').value.trim();
+        const priceInput = parseFloat(document.getElementById('manual-price').value);
+        let qtyInput = parseInt(document.getElementById('manual-qty').value);
+
+        if (!nameInput) {
+            App.alert('กรุณาระบุชื่อรายการ');
+            return;
+        }
+        if (isNaN(priceInput) || priceInput <= 0) {
+            App.alert('กรุณาระบุราคาที่ถูกต้อง');
+            return;
+        }
+        if (isNaN(qtyInput) || qtyInput <= 0) qtyInput = 1;
+
+        // Generate a random temporary ID for it
+        const randomId = 'M' + String(Date.now()).slice(-8);
+
+        const newManualProduct = {
+            id: randomId,
+            barcode: randomId,
+            name: nameInput,
+            price: priceInput,
+            cost: 0,
+            stock: 0,
+            isQuick: true, // Flag as temporary/quick
+            entryDate: new Date().toISOString().split('T')[0],
+            updatedAt: Date.now()
+        };
+
+        // Save it temporarily so it works with cart validations, 
+        // AND so the user has a record if they want to merge it later
+        DB.saveProduct(newManualProduct);
+        App.state.products = DB.getProducts();
+
+        // Add to cart directly and loop for qty
+        const addedProduct = App.state.products.find(p => p.id === randomId);
+
+        if (addedProduct) {
+            for (let i = 0; i < qtyInput; i++) {
+                App.addToCart(addedProduct, true);
+            }
+        }
+
+        document.getElementById('manual-entry-overlay').remove();
+    },
+
     // --- Product Flash Popup (Helper) ---
     showProductFlash: (product) => {
         // Remove existing flash if any
@@ -2746,7 +2848,10 @@ const App = {
                     <span class="material-symbols-rounded" style="font-size:20px;">drag_indicator</span>
                 </div>
                 <div style="flex:1;">
-                    <div style="font-weight:bold;">${item.name}</div>
+                    <div style="font-weight:bold; display:flex; align-items:center; gap:5px;">
+                        ${item.name} 
+                        ${product.isQuick || item.id.startsWith('M') ? `<span class="material-symbols-rounded" style="font-size:16px; color:var(--primary-color); cursor:pointer;" onclick="App.editCartItemName(${index})" title="แก้ไขชื่อ">edit</span>` : ''}
+                    </div>
                     <div style="font-size:14px; color:#666;">@${Utils.formatCurrency(item.price)} ${item.wholesaleQty > 0 && item.wholesalePrice > 0 ? `<span style="font-size:10px;color:var(--primary-color);">(${item.wholesaleQty}ชิ้น=${item.wholesalePrice}฿)</span>` : ''}</div>
                     ${stockWarning}
                 </div>
@@ -2793,6 +2898,27 @@ const App = {
         // Confirmation for accidental clicks is good UX
         if (await App.confirm('ต้องการลบรายการนี้ออกจากตะกร้า?')) {
             App.state.cart.splice(index, 1);
+
+            // If the cart is now empty, reset the smart parked bill tracker
+            if (App.state.cart.length === 0) App.state.activeBill = null;
+
+            App.renderCart();
+        }
+    },
+
+    editCartItemName: async (index) => {
+        const item = App.state.cart[index];
+        const newName = await App.prompt('ระบุชื่อรายการใหม่:', item.name);
+        if (newName && newName.trim() !== '') {
+            item.name = newName.trim();
+            // Also update the temporary product definition in the DB so receipt gets the new name
+            const products = DB.getProducts();
+            const pIndex = products.findIndex(p => p.id === item.id);
+            if (pIndex >= 0 && (products[pIndex].isQuick || products[pIndex].id.startsWith('M'))) {
+                products[pIndex].name = item.name;
+                DB.saveProducts(products);
+                App.state.products = DB.getProducts();
+            }
             App.renderCart();
         }
     },
