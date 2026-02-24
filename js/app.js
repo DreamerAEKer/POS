@@ -962,7 +962,7 @@ const App = {
                     </label>
                     <label style="display:flex; align-items:center; gap:10px; margin-top:10px;">
                         เว้นบรรทัดท้ายบิล (สำหรับฉีก/ตัด)
-                        <input type="number" id="set-printer-feed" value="${settings.printerFeedLines !== undefined ? settings.printerFeedLines : 5}" min="0" max="20" style="width:60px; padding:5px; font-size:16px; text-align:center; border:1px solid #ddd; border-radius:4px;">
+                        <input type="number" id="set-printer-feed" value="${settings.printerFeedLines !== undefined ? settings.printerFeedLines : 5}" min="0" max="50" style="width:60px; padding:5px; font-size:16px; text-align:center; border:1px solid #ddd; border-radius:4px;">
                         <span style="font-size:12px; color:#888;">บรรทัด</span>
                     </label>
                 </div>
@@ -3740,8 +3740,7 @@ const App = {
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
                 <!-- Feed for Cutter (Dynamic Setting) -->
-                ${Array(settings.printerFeedLines || 5).fill('<br>').join('')}
-                <div class="cut-feed">.</div> 
+                <div class="cut-feed" style="margin-top: ${(settings.printerFeedLines || 5) * 5}mm;">.</div> 
             </div>
         `;
         area.innerHTML = receiptHtml;

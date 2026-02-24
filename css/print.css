@@ -62,14 +62,21 @@
             color: #000 !important;
             /* Force Black */
         }
+    }
 
+    #receipt-print-area::after {
         /* Auto-Cut Padding at bottom */
         content: ".";
         display: block;
-        height: 15mm;
-        /* Reduced for auto-cut (driver usually handles better) */
         color: transparent;
         page-break-after: always;
+    }
+
+    .cut-feed {
+        color: transparent;
+        width: 100%;
+        text-align: center;
+        visibility: hidden;
     }
 
     .receipt-logo {
