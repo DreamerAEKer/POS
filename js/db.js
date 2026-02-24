@@ -92,6 +92,7 @@ const DB = {
             address: '',
             phone: '',
             printerWidth: '80mm', // New: 58mm or 80mm
+            printerFeedLines: 5,  // New: Paper feed length
             printLogo: true,      // New: Toggle Logo
             printQr: true,        // New: Toggle QR
             logo: null,           // New: Base64 Image

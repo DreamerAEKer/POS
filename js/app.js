@@ -819,7 +819,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.18', // Update Version
+    VERSION: '0.89.19', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -960,6 +960,11 @@ const App = {
                         <input type="checkbox" id="set-print-qr" ${settings.printQr ? 'checked' : ''}>
                         พิมพ์ QR Code ที่ท้ายบิล (Default)
                     </label>
+                    <label style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+                        เว้นบรรทัดท้ายบิล (สำหรับฉีก/ตัด)
+                        <input type="number" id="set-printer-feed" value="${settings.printerFeedLines !== undefined ? settings.printerFeedLines : 5}" min="0" max="20" style="width:60px; padding:5px; font-size:16px; text-align:center; border:1px solid #ddd; border-radius:4px;">
+                        <span style="font-size:12px; color:#888;">บรรทัด</span>
+                    </label>
                 </div>
                 
                 <button class="primary-btn" onclick="App.savePrinterSettings()" style="margin-top:15px;">บันทึกตั้งค่าเครื่องพิมพ์</button>
@@ -1021,12 +1026,14 @@ const App = {
     savePrinterSettings: async () => {
         const printLogo = document.getElementById('set-print-logo').checked;
         const printQr = document.getElementById('set-print-qr').checked;
+        const feedInput = document.getElementById('set-printer-feed');
+        const printerFeedLines = feedInput ? parseInt(feedInput.value) || 0 : 5;
 
         // Handle Images
         const logoInput = document.getElementById('set-logo-input');
         const qrInput = document.getElementById('set-qr-input');
 
-        const updates = { printLogo, printQr };
+        const updates = { printLogo, printQr, printerFeedLines };
 
         try {
             if (logoInput.files[0]) {
