@@ -819,7 +819,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.21', // Update Version
+    VERSION: '0.89.22', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3740,8 +3740,7 @@ const App = {
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
                 <!-- Feed for Cutter / Tearing -->
-                <div style="margin-top: ${(settings.printerFeedLines || 5) * 5}mm;"></div> 
-                ${'<br>'.repeat(settings.printerFeedLines || 5)}
+                ${Array(settings.printerFeedLines || 5).fill('<div style="color: white; user-select: none;">.</div>').join('')}
             </div>
         `;
         area.innerHTML = receiptHtml;
