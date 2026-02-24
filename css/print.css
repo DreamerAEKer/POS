@@ -13,7 +13,8 @@
     #btn-mobile-cart,
     .modal,
     #modal-overlay,
-    #mobile-cart-overlay {
+    #mobile-cart-overlay,
+    #app-version-display {
         display: none !important;
         visibility: hidden !important;
     }
