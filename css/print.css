@@ -66,10 +66,9 @@
 
     #receipt-print-area::after {
         /* Auto-Cut Padding at bottom */
-        content: ".";
+        content: "";
         display: block;
         color: transparent;
-        page-break-after: always;
     }
 
     .cut-feed {
@@ -77,9 +76,6 @@
         width: 100%;
         text-align: center;
         visibility: hidden;
-        /* Use actual block space instead of just margin to force paper feed */
-        display: block;
-        page-break-before: auto;
     }
 
     .receipt-logo {
