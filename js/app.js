@@ -3739,8 +3739,8 @@ const App = {
             <div class="receipt-footer">
                 <br>
                 <p>ขอบคุณที่อุดหนุน</p>
-                <!-- Feed for Cutter (Dynamic Setting) -->
-                <div class="cut-feed" style="margin-top: ${(settings.printerFeedLines || 5) * 5}mm;">.</div> 
+                <!-- Feed for Cutter (Dynamic Setting) - Using height to force physical space -->
+                <div class="cut-feed" style="height: ${(settings.printerFeedLines || 5) * 5}mm;">.</div> 
             </div>
         `;
         area.innerHTML = receiptHtml;
