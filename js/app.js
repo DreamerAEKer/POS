@@ -3961,25 +3961,25 @@ const App = {
         modal.innerHTML = `
             <h2>${title}</h2>
             <div style="margin-top: 15px;">
-                <label style="display:block; margin-bottom:5px;">ชื่อลูกค้า / เบอร์โทร:</label>
-                <input type="text" id="delivery-name" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;" placeholder="เช่น คุณเอ 0812345678">
+                <label style="display:block; margin-bottom:5px; font-weight:bold;">ชื่อลูกค้า / เบอร์โทร:</label>
+                <input type="text" id="delivery-name" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;" placeholder="เช่น คุณเอ 0812345678">
             </div>
             
             <div style="margin-top: 15px;">
-                <label style="display:block; margin-bottom:5px;">เวลาจัดส่ง / นัดรับ:</label>
+                <label style="display:block; margin-bottom:5px; font-weight:bold;">เวลาจัดส่ง / นัดรับ <span style="font-size:14px; color:#e65100; font-weight:normal;">(กดที่ช่องเพื่อตั้งเวลา)</span>:</label>
                 <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="time" id="delivery-time" value="${defaultTime}" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
+                    <input type="time" id="delivery-time" value="${defaultTime}" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; background-color:#fff; cursor:pointer; box-sizing:border-box;">
                 </div>
             </div>
 
             <div style="margin-top: 15px;">
-                <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                    <input type="checkbox" id="delivery-date-toggle" style="width:20px; height:20px;">
-                    <span>กำหนดวันที่ส่ง (ล่วงหน้าหลายวัน)</span>
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; background-color: #f9f9f9; padding: 12px; border-radius: 4px; border: 1px solid #ddd;">
+                    <input type="checkbox" id="delivery-date-toggle" style="width:24px; height:24px; cursor:pointer; accent-color: var(--primary-color);">
+                    <span style="font-weight:bold; color:#333; font-size:16px;">กำหนดวันที่ส่ง (ล่วงหน้าหลายวัน)</span>
                 </label>
                 <div id="delivery-date-container" style="display:none; margin-top:10px;">
-                    <label style="display:block; margin-bottom:5px; color:#666;">วันที่จัดส่ง:</label>
-                    <input type="date" id="delivery-date" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
+                    <label style="display:block; margin-bottom:5px; color:#666; font-weight:bold;">วันที่จัดส่ง <span style="font-size:14px; color:#e65100; font-weight:normal;">(กดที่ช่องเพื่อเลือกวันที่)</span>:</label>
+                    <input type="date" id="delivery-date" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; background-color:#fff; cursor:pointer; box-sizing:border-box;">
                 </div>
             </div>
 
