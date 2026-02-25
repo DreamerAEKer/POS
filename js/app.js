@@ -3998,7 +3998,13 @@ const App = {
 
             <div style="margin-top: 15px;">
                 <label style="display:block; margin-bottom:5px; font-weight:bold;">ที่อยู่จัดส่ง:</label>
-                <textarea id="delivery-address" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; resize:vertical; min-height:80px;" placeholder="บ้านเลขที่, ถนน, ซอย, จุดสังเกต..."></textarea>
+                <div style="display:flex; gap:5px; align-items:flex-start;">
+                    <textarea id="delivery-address" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; resize:vertical; min-height:80px;" placeholder="บ้านเลขที่, ถนน, ซอย, จุดสังเกต..."></textarea>
+                    <button class="secondary-btn" style="padding:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; height:80px; width:70px; background-color:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9;" onclick="const addr = document.getElementById('delivery-address').value; if(addr) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr), '_blank')" title="ค้นหาที่อยู่นี้บน Google Map">
+                        <span class="material-symbols-rounded" style="font-size:24px; margin-bottom:4px;">search</span>
+                        <span style="font-size:10px; line-height:1.2;">ค้นหาพิกัด</span>
+                    </button>
+                </div>
             </div>
 
             <div style="margin-top: 15px;">
