@@ -3896,22 +3896,33 @@ const App = {
             }
 
             return `
-                <div class="table-card" style="flex-direction:row; justify-content:space-between; padding:15px; border-color:${statusBorder}; background:${statusBg}; text-align:left;">
-                    <div>
+                <div class="table-card" style="flex-direction:row; justify-content:space-between; padding:15px; border-color:${statusBorder}; background:${statusBg}; text-align:left; flex-wrap:wrap; gap:10px;">
+                    <div style="flex:1; min-width:200px;">
                         <div style="font-weight:bold; font-size:18px; margin-bottom:5px; color:${statusColor};">
                             ${bill.note || 'ไม่ระบุชื่อ'}
                         </div>
-                        <div style="font-size:14px; color:#666;">
+                        <div style="font-size:14px; color:#666; margin-bottom:5px;">
                             ${bill.items.length} รายการ - ฿${Utils.formatCurrency(bill.items.reduce((s, i) => s + (i.price * i.qty), 0))}
                         </div>
+                        ${bill.deliveryDetails && bill.deliveryDetails.address ? `<div style="font-size:13px; color:#555; margin-bottom:5px; white-space:pre-wrap;"><span class="material-symbols-rounded" style="font-size:14px; vertical-align:middle;">location_on</span> ${bill.deliveryDetails.address}</div>` : ''}
+                        ${(bill.deliveryDetails && bill.deliveryDetails.map) || (bill.deliveryDetails && bill.deliveryDetails.image) ? `
+                        <div style="display:flex; gap:5px; margin-top:8px;">
+                            ${bill.deliveryDetails && bill.deliveryDetails.map ? `<button class="secondary-btn" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:2px;" onclick="event.stopPropagation(); window.open('${bill.deliveryDetails.map}', '_blank')"><span class="material-symbols-rounded" style="font-size:14px;">map</span> แผนที่</button>` : ''}
+                            ${bill.deliveryDetails && bill.deliveryDetails.image ? `<button class="secondary-btn" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:2px;" onclick="event.stopPropagation(); App.showDeliveryImage('${bill.id}')"><span class="material-symbols-rounded" style="font-size:14px;">image</span> รูปสถานที่</button>` : ''}
+                        </div>` : ''}
                     </div>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
                         <div style="display:flex; align-items:center; gap:5px; font-weight:bold; color:${statusColor}; font-size:18px;">
                             <span class="material-symbols-rounded" style="font-size:20px;">${urgencyIcon}</span> ${timeStr}
                         </div>
-                        <button class="primary-btn" style="padding:5px 15px; display:flex; align-items:center; gap:5px;" onclick="App.restoreDelivery('${bill.id}')">
-                            <span class="material-symbols-rounded" style="font-size:20px;">shopping_cart_checkout</span> จัดการ
-                        </button>
+                        <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
+                            <button class="secondary-btn" style="padding:5px 10px; display:flex; align-items:center; gap:5px; background:#1da1f2; color:white; border:none;" onclick="event.stopPropagation(); App.shareDeliveryBill('${bill.id}')" title="แชร์ข้อมูลจัดส่ง">
+                                <span class="material-symbols-rounded" style="font-size:18px;">share</span>
+                            </button>
+                            <button class="primary-btn" style="padding:5px 15px; display:flex; align-items:center; gap:5px;" onclick="event.stopPropagation(); App.restoreDelivery('${bill.id}')">
+                                <span class="material-symbols-rounded" style="font-size:20px;">shopping_cart_checkout</span> จัดการ
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -3948,6 +3959,8 @@ const App = {
         const title = "สร้างออเดอร์ส่ง/ล่วงหน้า";
         App.closeModals();
 
+        let uploadedDeliveryImage = null;
+
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal'); // reuse container
 
@@ -3983,8 +3996,35 @@ const App = {
                 </div>
             </div>
 
+            <div style="margin-top: 15px;">
+                <label style="display:block; margin-bottom:5px; font-weight:bold;">ที่อยู่จัดส่ง:</label>
+                <textarea id="delivery-address" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; resize:vertical; min-height:80px;" placeholder="บ้านเลขที่, ถนน, ซอย, จุดสังเกต..."></textarea>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <label style="display:block; margin-bottom:5px; font-weight:bold;">ลิงก์ Google Map:</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="url" id="delivery-map" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;" placeholder="https://maps.app.goo.gl/...">
+                    <button class="secondary-btn" style="padding:0 15px;" onclick="if(document.getElementById('delivery-map').value) window.open(document.getElementById('delivery-map').value, '_blank')" title="เปิดแผนที่">
+                        <span class="material-symbols-rounded">map</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <label style="display:block; margin-bottom:5px; font-weight:bold;">ภาพสถานที่ส่ง (ถ้ามี):</label>
+                <input type="file" id="delivery-image-input" accept="image/*" style="display:none;">
+                <div id="delivery-image-preview" style="width: 100%; min-height: 120px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; cursor: pointer; background-size: contain; background-repeat: no-repeat; background-position: center; overflow: hidden; position: relative;" onclick="document.getElementById('delivery-image-input').click()">
+                    <div id="delivery-image-placeholder" style="text-align: center; pointer-events: none;">
+                        <span class="material-symbols-rounded" style="font-size: 32px; display: block;">add_a_photo</span>
+                        <span style="font-size: 14px;">แตะเพื่อเพิ่มรูปภาพ</span>
+                    </div>
+                </div>
+            </div>
+
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
+                <button class="primary-btn" style="flex:1; background:#1da1f2;" id="btn-share-delivery" title="แชร์/คัดลอก ข้อมูลจัดส่ง"><span class="material-symbols-rounded" style="vertical-align:middle; font-size:18px;">share</span> แชร์</button>
                 <button class="primary-btn" style="flex:2;" id="btn-confirm-delivery">เริ่มออเดอร์</button>
             </div>
         `;
@@ -4006,6 +4046,46 @@ const App = {
         });
 
         document.getElementById('delivery-name').focus();
+
+        document.getElementById('delivery-image-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    uploadedDeliveryImage = ev.target.result;
+                    const preview = document.getElementById('delivery-image-preview');
+                    const placeholder = document.getElementById('delivery-image-placeholder');
+                    preview.style.backgroundImage = `url(${ev.target.result})`;
+                    placeholder.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        const shareBtn = document.getElementById('btn-share-delivery');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', async () => {
+                const name = document.getElementById('delivery-name').value.trim();
+                const time = document.getElementById('delivery-time').value;
+                const dateVal = document.getElementById('delivery-date').value;
+                const addr = document.getElementById('delivery-address').value.trim();
+                const mapLink = document.getElementById('delivery-map').value.trim();
+
+                let text = `ออเดอร์ส่ง: ${name || 'ไม่ระบุชื่อ'}\nเวลา: ${time}`;
+                if (dateVal) text += `\nวันที่: ${dateVal}`;
+                if (addr) text += `\nที่อยู่: ${addr}`;
+                if (mapLink) text += `\nแผนที่: ${mapLink}`;
+
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ title: 'ข้อมูลจัดส่ง', text: text });
+                    } catch (err) { console.log('Share canceled', err); }
+                } else {
+                    navigator.clipboard.writeText(text);
+                    alert('คัดลอกข้อมูลจัดส่งแล้ว');
+                }
+            });
+        }
 
         document.getElementById('btn-confirm-delivery').addEventListener('click', async () => {
             const name = document.getElementById('delivery-name').value.trim();
@@ -4037,14 +4117,24 @@ const App = {
             const newBillId = DB.generateBillId();
             const timestamp = Date.now();
 
+            const addr = document.getElementById('delivery-address').value.trim();
+            const mapLink = document.getElementById('delivery-map').value.trim();
+
+            const deliveryDetails = {
+                address: addr,
+                map: mapLink,
+                image: uploadedDeliveryImage
+            };
+
             // Park immediately
-            DB.parkCart(App.state.cart, name, timestamp, newBillId, targetDate.toISOString());
+            DB.parkCart(App.state.cart, name, timestamp, newBillId, targetDate.toISOString(), deliveryDetails);
 
             App.state.activeBill = {
                 id: newBillId,
                 note: name,
                 timestamp: timestamp,
-                deliveryTime: targetDate.toISOString() // active state metadata
+                deliveryTime: targetDate.toISOString(),
+                deliveryDetails: deliveryDetails // active state metadata
             };
 
             App.closeModals();
@@ -4053,6 +4143,53 @@ const App = {
             App.renderView('pos');
             if (window.innerWidth <= 1024) App.toggleMobileCart(true);
         });
+    },
+
+    showDeliveryImage: (billId) => {
+        const parkedBills = DB.getParkedCarts();
+        const bill = parkedBills.find(b => b.id === billId);
+        if (bill && bill.deliveryDetails && bill.deliveryDetails.image) {
+            App.closeModals();
+            const overlay = document.getElementById('modal-overlay');
+            const modal = document.getElementById('price-check-modal');
+            modal.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 style="margin:0;">รูปสถานที่ส่ง</h3>
+                    <button class="icon-btn" onclick="App.closeModals()"><span class="material-symbols-rounded">close</span></button>
+                </div>
+                <img src="${bill.deliveryDetails.image}" style="width:100%; max-height:70vh; object-fit:contain; border-radius:8px;">
+            `;
+            overlay.classList.remove('hidden');
+            modal.classList.remove('hidden');
+        }
+    },
+
+    shareDeliveryBill: async (billId) => {
+        const parkedBills = DB.getParkedCarts();
+        const bill = parkedBills.find(b => b.id === billId);
+        if (!bill) return;
+
+        const dDate = new Date(bill.deliveryTime);
+        let timeStr = `${String(dDate.getHours()).padStart(2, '0')}:${String(dDate.getMinutes()).padStart(2, '0')}`;
+        const today = new Date();
+        if (dDate.getDate() !== today.getDate() || dDate.getMonth() !== today.getMonth()) {
+            timeStr = `${dDate.getDate()}/${dDate.getMonth() + 1} ${timeStr}`;
+        }
+
+        let text = `ออเดอร์ส่ง: ${bill.note || 'ไม่ระบุชื่อ'}\nเวลา: ${timeStr}`;
+        if (bill.deliveryDetails) {
+            if (bill.deliveryDetails.address) text += `\nที่อยู่: ${bill.deliveryDetails.address}`;
+            if (bill.deliveryDetails.map) text += `\nแผนที่: ${bill.deliveryDetails.map}`;
+        }
+
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: 'ข้อมูลจัดส่ง', text: text });
+            } catch (err) { console.log('Share canceled', err); }
+        } else {
+            navigator.clipboard.writeText(text);
+            alert('คัดลอกข้อมูลจัดส่งแล้ว');
+        }
     },
 
     restoreDelivery: async (billId) => {
