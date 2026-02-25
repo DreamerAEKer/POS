@@ -825,7 +825,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.25', // Update Version
+    VERSION: '0.89.26', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3921,7 +3921,7 @@ const App = {
     addNewTable: async () => {
         const tables = DB.getTables();
         const nextNum = tables.length > 0 ? tables[tables.length - 1].id + 1 : 1;
-        const name = await App.prompt('ตั้งชื่อโต๊ะใหม่:', \`โต๊ะ \${nextNum}\`);
+        const name = await App.prompt('ตั้งชื่อโต๊ะใหม่:', `โต๊ะ ${nextNum}`);
         if (name) {
             DB.addTable(name);
             App.renderTablesView(App.elements.viewContainer);
@@ -3929,7 +3929,7 @@ const App = {
     },
 
     removeTable: async (id, name) => {
-        if (await App.confirm(\`ยืนยันการลบ "\${name}" ออกจากระบบหรือไม่?\`)) {
+        if (await App.confirm(`ยืนยันการลบ "${name}" ออกจากระบบหรือไม่?`)) {
             const success = DB.deleteTable(id);
             if (success) {
                 App.renderTablesView(App.elements.viewContainer);
@@ -3947,33 +3947,33 @@ const App = {
 
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal'); // reuse container
-        
+
         // Helper: Format current time to input[type=time] default value
         const now = new Date();
         now.setMinutes(now.getMinutes() + 30); // Default to 30 mins from now
         const hrs = String(now.getHours()).padStart(2, '0');
         const mins = String(now.getMinutes()).padStart(2, '0');
-        const defaultTime = \`\${hrs}:\${mins}\`;
+        const defaultTime = `${hrs}:${mins}`;
 
-        modal.innerHTML = \`
-            <h2>\${title}</h2>
+        modal.innerHTML = `
+            <h2>${title}</h2>
             <div style="margin-top: 15px;">
                 <label style="display:block; margin-bottom:5px;">ชื่อลูกค้า / เบอร์โทร:</label>
                 <input type="text" id="delivery-name" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;" placeholder="เช่น คุณเอ 0812345678">
             </div>
             <div style="margin-top: 15px;">
                 <label style="display:block; margin-bottom:5px;">เวลาจัดส่ง / นัดรับ:</label>
-                <input type="time" id="delivery-time" value="\${defaultTime}" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
+                <input type="time" id="delivery-time" value="${defaultTime}" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
             </div>
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
                 <button class="primary-btn" style="flex:2;" id="btn-confirm-delivery">เริ่มออเดอร์</button>
             </div>
-        \`;
+        `;
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
-        
+
         document.getElementById('delivery-name').focus();
 
         document.getElementById('btn-confirm-delivery').addEventListener('click', async () => {
@@ -4002,7 +4002,7 @@ const App = {
                 }
             }
 
-            const newBillId = DB.generateBillId(); 
+            const newBillId = DB.generateBillId();
             const timestamp = Date.now();
 
             // Park immediately
@@ -4140,29 +4140,29 @@ const App = {
 
                 if (product) {
                     result.innerHTML = `
-            < div style = "font-size:24px; font-weight:bold;" > ${ product.name }</div >
-        ${ product.image ?\`<img src="\${product.image}" style="max-height:100px; margin:10px 0;">\` : ''}
+                        <div style="font-size:24px; font-weight:bold;">${product.name}</div>
+                        ${product.image ? '<img src="' + product.image + '" style="max-height:100px; margin:10px 0;">' : ''}
                         <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
                         <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
                     `;
-        input.value = '';
-    } else {
-        if(val.length > 8) result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
-    }
-}, 300);
+                    input.value = '';
+                } else {
+                    if (val.length > 8) result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
+                }
+            }, 300);
         });
     },
 
-closeModals: () => {
-    document.getElementById('modal-overlay').classList.add('hidden');
-    document.querySelectorAll('.modal').forEach(m => {
-        m.classList.add('hidden');
-        // FIX: Do not wipe security-modal or confirmation-modal content as they are static
-        if (m.id !== 'security-modal' && m.id !== 'confirmation-modal') {
-            m.innerHTML = '';
-        }
-    });
-},
+    closeModals: () => {
+        document.getElementById('modal-overlay').classList.add('hidden');
+        document.querySelectorAll('.modal').forEach(m => {
+            m.classList.add('hidden');
+            // FIX: Do not wipe security-modal or confirmation-modal content as they are static
+            if (m.id !== 'security-modal' && m.id !== 'confirmation-modal') {
+                m.innerHTML = '';
+            }
+        });
+    },
 
     checkDeliveryAlerts: () => {
         const parkedBills = DB.getParkedCarts();
