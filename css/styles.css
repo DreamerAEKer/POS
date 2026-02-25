@@ -1018,3 +1018,44 @@ button {
     background: var(--neutral-200);
     color: var(--primary-color);
 }
+
+/* --- Delivery Alerts --- */
+.nav-item.alert-urgent {
+    background-color: #fcf8e3 !important;
+    color: #8a6d3b !important;
+    border: 2px solid #faebcc;
+    animation: flash-urgent 2s infinite;
+}
+
+.nav-item.alert-overdue {
+    background-color: #e53935 !important;
+    color: white !important;
+    border: 2px solid #b71c1c;
+    animation: flash-overdue 1s infinite;
+}
+
+@keyframes flash-urgent {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+@keyframes flash-overdue {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.8;
+        transform: scale(0.95);
+    }
+}

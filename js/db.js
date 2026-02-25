@@ -153,6 +153,24 @@ const DB = {
         localStorage.setItem(DB.KEYS.TABLES, JSON.stringify(tables));
     },
 
+    addTable: (name) => {
+        const tables = DB.getTables();
+        const maxId = tables.reduce((max, t) => Math.max(max, t.id), 0);
+        tables.push({ id: maxId + 1, name: name, billId: null });
+        DB.saveTables(tables);
+    },
+
+    deleteTable: (id) => {
+        let tables = DB.getTables();
+        const tIndex = tables.findIndex(t => t.id === id);
+        if (tIndex > -1 && tables[tIndex].billId === null) {
+            tables.splice(tIndex, 1);
+            DB.saveTables(tables);
+            return true;
+        }
+        return false; // Cannot delete if occupied or not found
+    },
+
     // --- Group Images ---
     getGroupImages: () => {
         return DB.safeGet(DB.KEYS.GROUP_IMAGES, {});
@@ -250,7 +268,7 @@ const DB = {
         return DB.safeGet('store_parked_trash', []); // New Key
     },
 
-    parkCart: (cartItems, note = '', customTimestamp = null, customId = null) => {
+    parkCart: (cartItems, note = '', customTimestamp = null, customId = null, deliveryTime = null) => {
         const parked = DB.getParkedCarts();
 
         // LIMIT CHECK: Maintain max 20 items
@@ -272,6 +290,7 @@ const DB = {
             id: customId || DB.generateBillId(),
             timestamp: customTimestamp || Date.now(), // Allow persistent queue position
             note: note,
+            deliveryTime: deliveryTime, // Delivery/Pre-order Target Time
             items: cartItems
         });
         localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));

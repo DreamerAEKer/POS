@@ -62,6 +62,10 @@ const App = {
         };
         update();
         setInterval(update, 1000);
+
+        setInterval(() => {
+            if (App.checkDeliveryAlerts) App.checkDeliveryAlerts();
+        }, 30000); // Check deliveries every 30 seconds
     },
 
     // --- Navigation & Views ---
@@ -3801,8 +3805,19 @@ const App = {
         const tables = DB.getTables();
         const parkedBills = DB.getParkedCarts();
 
+        // Filter out delivery bills to show separately
+        const deliveryBills = parkedBills.filter(b => b.deliveryTime);
+
         container.innerHTML = `
-            <h2>จัดการโต๊ะ (Dine-in)</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0;">จัดการโต๊ะ (Dine-in)</h2>
+                <div style="display:flex; gap:10px;">
+                    <button class="primary-btn" onclick="App.openNewDeliveryModal()" style="display:flex; align-items:center; gap:5px; padding:8px 15px;">
+                        <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง/ล่วงหน้า
+                    </button>
+                </div>
+            </div>
+            
             <div class="tables-grid">
                 ${tables.map(table => {
             const activeBill = table.billId ? parkedBills.find(b => b.id === table.billId) : null;
@@ -3812,7 +3827,12 @@ const App = {
             const billTotal = isOccupied ? activeBill.items.reduce((s, i) => s + (i.price * i.qty), 0) : 0;
 
             return `
-                        <div class="table-card ${isOccupied ? 'occupied' : ''}" onclick="App.handleTableClick(${table.id})">
+                        <div class="table-card ${isOccupied ? 'occupied' : ''}" onclick="App.handleTableClick(${table.id})" style="position:relative;">
+                            ${!isOccupied && table.id > 4 ? `
+                                <button class="icon-btn dangerous small" style="position:absolute; top:5px; right:5px; padding:2px;" onclick="event.stopPropagation(); App.removeTable(${table.id}, '${table.name}')" title="ลบโต๊ะ">
+                                    <span class="material-symbols-rounded" style="font-size:16px;">close</span>
+                                </button>
+                            ` : ''}
                             <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${table.name}</div>
                             <div style="font-size: 16px; color: ${isOccupied ? 'var(--primary-color)' : '#999'}; margin-bottom: 10px;">
                                 ${customerName}
@@ -3831,8 +3851,199 @@ const App = {
                         </div>
                     `;
         }).join('')}
+                <!-- Add New Table Button inside the grid -->
+                <div class="table-card" style="border: 2px dashed #ccc; background: transparent; display:flex; flex-direction:column; justify-content:center; align-items:center; cursor:pointer;" onclick="App.addNewTable()">
+                    <span class="material-symbols-rounded" style="font-size:48px; color:#ccc; margin-bottom:10px;">add_circle</span>
+                    <span style="color:#888; font-weight:bold;">เพิ่มโต๊ะใหม่</span>
+                </div>
+            </div>
+
+            <!-- Delivery Section -->
+            <div style="margin-top: 30px;">
+                <h3 style="margin-bottom:15px; display:flex; align-items:center; gap:5px; color:#e65100;">
+                    <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง / นัดรับ (${deliveryBills.length})
+                </h3>
+                ${deliveryBills.length === 0 ? '<div style="text-align:center; padding:20px; color:#999; border:1px dashed #ddd; border-radius:8px;">ไม่มีออเดอร์จัดส่งในขณะนี้</div>' : ''}
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    ${deliveryBills.map(bill => {
+            const timeDiff = new Date(bill.deliveryTime) - new Date();
+            const minsLeft = Math.floor(timeDiff / 60000);
+
+            let statusColor = '#333';
+            let statusBg = '#fff';
+            let statusBorder = '#eee';
+            let urgencyIcon = 'schedule';
+
+            if (minsLeft < 0) {
+                statusColor = 'white';
+                statusBg = '#e53935'; // Overdue - Red
+                statusBorder = '#b71c1c';
+                urgencyIcon = 'error';
+            } else if (minsLeft <= 15) {
+                statusColor = '#8a6d3b';
+                statusBg = '#fcf8e3'; // Urgent - Yellow
+                statusBorder = '#faebcc';
+                urgencyIcon = 'warning';
+            }
+
+            const formatTimeStr = new Date(bill.deliveryTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+            return `
+                            <div style="border:1px solid ${statusBorder}; background:${statusBg}; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                                <div style="flex:1;">
+                                    <div style="display:flex; align-items:center; gap:5px; margin-bottom:5px;">
+                                        <div style="font-weight:bold; font-size:18px; color:${statusColor === 'white' ? 'white' : 'var(--primary-color)'};">
+                                            ${bill.note || 'ไม่มีชื่อลูกค้า'}
+                                        </div>
+                                    </div>
+                                    <div style="font-size:14px; color:${statusColor}; display:flex; align-items:center; gap:5px; font-weight:bold;">
+                                        <span class="material-symbols-rounded" style="font-size:16px;">${urgencyIcon}</span> 
+                                        ส่งเวลา: ${formatTimeStr} 
+                                        ${minsLeft < 0 ? `(เลยเวลา ${Math.abs(minsLeft)} นาที)` : `(อีก ${minsLeft} นาที)`}
+                                    </div>
+                                    <div style="font-size:12px; color:${statusColor === 'white' ? '#ffcdd2' : '#666'}; margin-top:5px;">
+                                        #${bill.id} | ${bill.items.length} รายการ - ฿${Utils.formatCurrency(bill.items.reduce((s, i) => s + (i.price * i.qty), 0))}
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:10px;">
+                                    <button class="primary-btn" style="padding:10px; display:flex; align-items:center; gap:5px;" onclick="App.restoreDelivery('${bill.id}')">
+                                        <span class="material-symbols-rounded" style="font-size:20px;">shopping_cart_checkout</span> จัดการออเดอร์
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+        }).join('')}
+                </div>
             </div>
         `;
+    },
+
+    addNewTable: async () => {
+        const tables = DB.getTables();
+        const nextNum = tables.length > 0 ? tables[tables.length - 1].id + 1 : 1;
+        const name = await App.prompt('ตั้งชื่อโต๊ะใหม่:', \`โต๊ะ \${nextNum}\`);
+        if (name) {
+            DB.addTable(name);
+            App.renderTablesView(App.elements.viewContainer);
+        }
+    },
+
+    removeTable: async (id, name) => {
+        if (await App.confirm(\`ยืนยันการลบ "\${name}" ออกจากระบบหรือไม่?\`)) {
+            const success = DB.deleteTable(id);
+            if (success) {
+                App.renderTablesView(App.elements.viewContainer);
+            } else {
+                await App.alert('ไม่สามารถลบโต๊ะที่มีออเดอร์ค้างอยู่ได้');
+            }
+        }
+    },
+
+    openNewDeliveryModal: async () => {
+        // We need a customer name/phone and a time. 
+        // We can do this simply by creating an empty cart logic linked to delivery Time.
+        const title = "สร้างออเดอร์ส่ง/ล่วงหน้า";
+        App.closeModals();
+
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('price-check-modal'); // reuse container
+        
+        // Helper: Format current time to input[type=time] default value
+        const now = new Date();
+        now.setMinutes(now.getMinutes() + 30); // Default to 30 mins from now
+        const hrs = String(now.getHours()).padStart(2, '0');
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const defaultTime = \`\${hrs}:\${mins}\`;
+
+        modal.innerHTML = \`
+            <h2>\${title}</h2>
+            <div style="margin-top: 15px;">
+                <label style="display:block; margin-bottom:5px;">ชื่อลูกค้า / เบอร์โทร:</label>
+                <input type="text" id="delivery-name" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;" placeholder="เช่น คุณเอ 0812345678">
+            </div>
+            <div style="margin-top: 15px;">
+                <label style="display:block; margin-bottom:5px;">เวลาจัดส่ง / นัดรับ:</label>
+                <input type="time" id="delivery-time" value="\${defaultTime}" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
+                <button class="primary-btn" style="flex:2;" id="btn-confirm-delivery">เริ่มออเดอร์</button>
+            </div>
+        \`;
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+        
+        document.getElementById('delivery-name').focus();
+
+        document.getElementById('btn-confirm-delivery').addEventListener('click', async () => {
+            const name = document.getElementById('delivery-name').value.trim();
+            const timeVal = document.getElementById('delivery-time').value;
+
+            if (!name || !timeVal) {
+                alert('กรุณากรอกชื่อลูกค้าและเวลานัดรับ');
+                return;
+            }
+
+            // Create target Date object based on today + timeVal
+            const targetDate = new Date();
+            const [tHrs, tMins] = timeVal.split(':').map(Number);
+            targetDate.setHours(tHrs, tMins, 0, 0);
+
+            // If time is earlier than now, assume it's for tomorrow.
+            if (targetDate < new Date()) {
+                targetDate.setDate(targetDate.getDate() + 1);
+            }
+
+            // check if cart has items
+            if (App.state.cart.length > 0) {
+                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการเอาสินค้าเหล่านี้ไปเข้าออเดอร์นี้หรือไม่?\\n(ตอบ ยกเลิก เพื่อล้างตะกร้าก่อนเปิดออเดอร์)')) {
+                    App.state.cart = [];
+                }
+            }
+
+            const newBillId = DB.generateBillId(); 
+            const timestamp = Date.now();
+
+            // Park immediately
+            DB.parkCart(App.state.cart, name, timestamp, newBillId, targetDate.toISOString());
+
+            App.state.activeBill = {
+                id: newBillId,
+                note: name,
+                timestamp: timestamp,
+                deliveryTime: targetDate.toISOString() // active state metadata
+            };
+
+            App.closeModals();
+            App.renderCart();
+            App.updateParkedBadge();
+            App.renderView('pos');
+            if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+        });
+    },
+
+    restoreDelivery: async (billId) => {
+        const parkedBills = DB.getParkedCarts();
+        const bill = parkedBills.find(b => b.id === billId);
+        if (!bill) return;
+
+        if (App.state.cart.length > 0) {
+            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
+        }
+
+        // Just like tables, we leave it "parked" until checked out 
+        App.state.cart = JSON.parse(JSON.stringify(bill.items));
+        App.state.activeBill = {
+            id: bill.id,
+            note: bill.note,
+            timestamp: bill.timestamp,
+            deliveryTime: bill.deliveryTime
+        };
+
+        App.renderCart();
+        App.renderView('pos');
+        if (window.innerWidth <= 1024) App.toggleMobileCart(true);
     },
 
     handleTableClick: async (tableId) => {
@@ -3869,36 +4080,7 @@ const App = {
             }
         } else {
             // Empty: Open new table
-            const customerName = await App.prompt(`เปิดรอบบิลสำหรับ ${table.name}\nตั้งชื่อลูกค้าหรือหมายเหตุ:`, '');
-            if (customerName === null) return;
 
-            // Check warning if cart is not empty
-            if (App.state.cart.length > 0) {
-                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการเอาสินค้าเหล่านี้ไปเข้าโต๊ะใหม่หรือไม่?\n(ตอบ ยกเลิก เพื่อล้างตะกร้าก่อนเปิดโต๊ะ)')) {
-                    App.state.cart = [];
-                }
-            }
-
-            const newBillId = DB.generateBillId(); // Uses timestamp internally
-            const timestamp = Date.now();
-
-            table.billId = newBillId;
-            DB.saveTables(tables);
-
-            // Park immediately to secure the table
-            DB.parkCart(App.state.cart, customerName || table.name, timestamp, newBillId);
-
-            App.state.activeBill = {
-                id: newBillId,
-                note: customerName || table.name,
-                timestamp: timestamp
-            };
-
-            App.renderCart();
-            App.updateParkedBadge();
-            App.renderView('pos');
-            if (window.innerWidth <= 1024) App.toggleMobileCart(true);
-            await App.alert(`เปิด ${table.name} เรียบร้อยแล้ว`);
         }
     },
 
@@ -3927,7 +4109,7 @@ const App = {
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
         modal.innerHTML = `
-            <div style="text-align:center;">
+            < div style = "text-align:center;" >
                 <span class="material-symbols-rounded" style="font-size:64px; color:var(--secondary-color);">price_check</span>
                 <h2>เช็คราคาสินค้า</h2>
                 <p>ยิงบาร์โค้ด หรือ พิมพ์ค้นหา</p>
@@ -3958,30 +4140,59 @@ const App = {
 
                 if (product) {
                     result.innerHTML = `
-                         <div style="font-size:24px; font-weight:bold;">${product.name}</div>
-                         ${product.image ? `<img src="${product.image}" style="max-height:100px; margin:10px 0;">` : ''}
-                         <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
-                         <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
-                     `;
-                    input.value = '';
-                } else {
-                    if (val.length > 8) result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
-                }
-            }, 300);
+            < div style = "font-size:24px; font-weight:bold;" > ${ product.name }</div >
+        ${ product.image ?\`<img src="\${product.image}" style="max-height:100px; margin:10px 0;">\` : ''}
+                        <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
+                        <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
+                    `;
+        input.value = '';
+    } else {
+        if(val.length > 8) result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
+    }
+}, 300);
         });
     },
 
+closeModals: () => {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.querySelectorAll('.modal').forEach(m => {
+        m.classList.add('hidden');
+        // FIX: Do not wipe security-modal or confirmation-modal content as they are static
+        if (m.id !== 'security-modal' && m.id !== 'confirmation-modal') {
+            m.innerHTML = '';
+        }
+    });
+},
 
+    checkDeliveryAlerts: () => {
+        const parkedBills = DB.getParkedCarts();
+        const deliveryBills = parkedBills.filter(b => b.deliveryTime);
+        if (deliveryBills.length === 0) return;
 
-    closeModals: () => {
-        document.getElementById('modal-overlay').classList.add('hidden');
-        document.querySelectorAll('.modal').forEach(m => {
-            m.classList.add('hidden');
-            // FIX: Do not wipe security-modal or confirmation-modal content as they are static
-            if (m.id !== 'security-modal' && m.id !== 'confirmation-modal') {
-                m.innerHTML = '';
-            }
+        let hasUrgent = false;
+        let hasOverdue = false;
+
+        deliveryBills.forEach(bill => {
+            const timeDiff = new Date(bill.deliveryTime) - new Date();
+            const minsLeft = Math.floor(timeDiff / 60000);
+
+            if (minsLeft < 0) hasOverdue = true;
+            else if (minsLeft <= 15) hasUrgent = true;
         });
+
+        // Flash or alert based on severity
+        const tablesNavBtn = document.querySelector('[data-view="tables"]');
+        if (tablesNavBtn) {
+            // Remove old classes
+            tablesNavBtn.classList.remove('alert-urgent', 'alert-overdue');
+
+            if (hasOverdue) {
+                tablesNavBtn.classList.add('alert-overdue');
+                // Optional: Play sound or show toast
+            } else if (hasUrgent) {
+                tablesNavBtn.classList.add('alert-urgent');
+            }
+        }
     }
 };
 
