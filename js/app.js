@@ -3827,34 +3827,34 @@ const App = {
             const billTotal = isOccupied ? activeBill.items.reduce((s, i) => s + (i.price * i.qty), 0) : 0;
 
             return `
-                        <div class="table-card ${isOccupied ? 'occupied' : ''}" onclick="App.handleTableClick(${table.id})" style="position:relative;">
+                        <div class="table-card ${isOccupied ? 'occupied' : ''}" onclick="App.handleTableClick(${table.id})" style="position:relative; box-sizing:border-box;">
                             ${!isOccupied && table.id > 4 ? `
                                 <button class="icon-btn dangerous small" style="position:absolute; top:5px; right:5px; padding:2px;" onclick="event.stopPropagation(); App.removeTable(${table.id}, '${table.name}')" title="ลบโต๊ะ">
                                     <span class="material-symbols-rounded" style="font-size:16px;">close</span>
                                 </button>
                             ` : ''}
-                            <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${table.name}</div>
-                            <div style="font-size: 16px; color: ${isOccupied ? 'var(--primary-color)' : '#999'}; margin-bottom: 10px;">
+                            <div style="font-size: 20px; font-weight: bold; margin-bottom: 5px;">${table.name}</div>
+                            <div style="font-size: 14px; color: ${isOccupied ? 'var(--primary-color)' : '#999'}; margin-bottom: 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">
                                 ${customerName}
                             </div>
                             ${isOccupied ? `
-                                <div style="font-size: 14px; margin-bottom: 5px;">${itemCount} รายการ</div>
-                                <div style="font-size: 18px; font-weight: bold; color: var(--danger-color);">฿${Utils.formatCurrency(billTotal)}</div>
-                                <div style="margin-top: 10px; display: flex; gap: 5px; justify-content: center;" onclick="event.stopPropagation()">
-                                    <button class="icon-btn small" onclick="App.editTableName(${table.id}, '${activeBill.note || ''}')" title="เปลี่ยนชื่อลูกค้า">
-                                        <span class="material-symbols-rounded" style="font-size: 18px;">edit</span>
+                                <div style="font-size: 13px; margin-bottom: 5px; color:#555;">${itemCount} รายการ</div>
+                                <div style="font-size: 16px; font-weight: bold; color: var(--danger-color);">฿${Utils.formatCurrency(billTotal)}</div>
+                                <div style="margin-top: 5px; display: flex; justify-content: center;" onclick="event.stopPropagation()">
+                                    <button class="icon-btn small" onclick="App.editTableName(${table.id}, '${activeBill.note || ''}')" title="เปลี่ยนชื่อลูกค้า" style="padding:2px;">
+                                        <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
                                     </button>
                                 </div>
                             ` : `
-                                <div style="font-size: 14px; color: #ccc;">กดเพื่อเปิดโต๊ะ</div>
+                                <div style="font-size: 13px; color: #ccc;">กดเพื่อเปิดโต๊ะ</div>
                             `}
                         </div>
                     `;
         }).join('')}
                 <!-- Add New Table Button inside the grid -->
-                <div class="table-card" style="border: 2px dashed #ccc; background: transparent; display:flex; flex-direction:column; justify-content:center; align-items:center; cursor:pointer;" onclick="App.addNewTable()">
-                    <span class="material-symbols-rounded" style="font-size:48px; color:#ccc; margin-bottom:10px;">add_circle</span>
-                    <span style="color:#888; font-weight:bold;">เพิ่มโต๊ะใหม่</span>
+                <div class="table-card" style="border: 2px dashed #ccc; background: transparent; display:flex; flex-direction:column; justify-content:center; align-items:center; cursor:pointer; box-sizing:border-box; padding:15px;" onclick="App.addNewTable()">
+                    <span class="material-symbols-rounded" style="font-size:36px; color:#ccc; margin-bottom:5px;">add_circle</span>
+                    <span style="color:#888; font-weight:bold; font-size:14px;">เพิ่มโต๊ะใหม่</span>
                 </div>
             </div>
 
