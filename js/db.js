@@ -12,7 +12,8 @@ const DB = {
         SUPPLIER_PRICES: 'store_suppliers_prices',
         SETTINGS: 'store_settings',
         GROUP_IMAGES: 'store_group_images',
-        PAYMENT_PREFS: 'store_payment_prefs'
+        PAYMENT_PREFS: 'store_payment_prefs',
+        TABLES: 'store_tables'
     },
 
     // Helper for safe parsing
@@ -133,6 +134,25 @@ const DB = {
         localStorage.setItem(DB.KEYS.PAYMENT_PREFS, JSON.stringify(updated));
     },
 
+    // --- Tables ---
+    getTables: () => {
+        let tables = DB.safeGet(DB.KEYS.TABLES, null);
+        if (!tables || tables.length === 0) {
+            tables = [
+                { id: 1, name: 'โต๊ะ 1', billId: null },
+                { id: 2, name: 'โต๊ะ 2', billId: null },
+                { id: 3, name: 'โต๊ะ 3', billId: null },
+                { id: 4, name: 'โต๊ะ 4', billId: null }
+            ];
+            localStorage.setItem(DB.KEYS.TABLES, JSON.stringify(tables));
+        }
+        return tables;
+    },
+
+    saveTables: (tables) => {
+        localStorage.setItem(DB.KEYS.TABLES, JSON.stringify(tables));
+    },
+
     // --- Group Images ---
     getGroupImages: () => {
         return DB.safeGet(DB.KEYS.GROUP_IMAGES, {});
@@ -230,26 +250,26 @@ const DB = {
         return DB.safeGet('store_parked_trash', []); // New Key
     },
 
-    parkCart: (cartItems, note = '', customTimestamp = null) => {
+    parkCart: (cartItems, note = '', customTimestamp = null, customId = null) => {
         const parked = DB.getParkedCarts();
 
-        // LIMIT CHECK: Maintain max 5 items
-        // If we have 5 or more, remove the Oldest (index 0 because getParkedCarts sorts ASC)
-        if (parked.length >= 5) {
+        // LIMIT CHECK: Maintain max 20 items
+        // If we have 20 or more, remove the Oldest (index 0 because getParkedCarts sorts ASC)
+        if (parked.length >= 20) {
             const oldest = parked.shift(); // Remove the oldest
 
             // Move to Trash (Safety Net) - Robust FIFO
             let trash = DB.getParkedTrash();
             trash.push(oldest);
             trash.sort((a, b) => b.timestamp - a.timestamp); // Newest First
-            if (trash.length > 10) trash = trash.slice(0, 10);
+            if (trash.length > 20) trash = trash.slice(0, 20);
             localStorage.setItem('store_parked_trash', JSON.stringify(trash));
 
             // Note: We don't save parked yet, we'll save after adding the new one
         }
 
         parked.push({
-            id: DB.generateBillId(),
+            id: customId || DB.generateBillId(),
             timestamp: customTimestamp || Date.now(), // Allow persistent queue position
             note: note,
             items: cartItems

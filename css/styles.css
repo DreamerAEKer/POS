@@ -929,3 +929,92 @@ button {
     color: #fff;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
+
+/* --- Tables View --- */
+.tables-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    padding: 20px;
+    height: 100%;
+}
+
+.table-card {
+    background: var(--neutral-0);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.table-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.table-card.occupied {
+    border-color: var(--primary-color);
+    background: #e3f2fd;
+}
+
+.table-card .table-name {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--neutral-800);
+}
+
+.table-card .table-status {
+    font-size: 16px;
+    color: var(--neutral-500);
+    margin-bottom: 15px;
+}
+
+.table-card.occupied .table-status {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.table-card .table-amount {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--danger-color);
+    margin-bottom: 15px;
+}
+
+.table-card .table-actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    margin-top: auto;
+}
+
+.table-card.empty .table-actions {
+    display: none;
+}
+
+.table-card .btn-edit-table {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: var(--neutral-500);
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+}
+
+.table-card .btn-edit-table:hover {
+    background: var(--neutral-200);
+    color: var(--primary-color);
+}

@@ -180,6 +180,8 @@ const App = {
             App.renderSettingsView(container);
         } else if (viewName === 'sales') {
             App.renderSalesView(container);
+        } else if (viewName === 'tables') {
+            App.renderTablesView(container);
         }
     },
 
@@ -2828,7 +2830,7 @@ const App = {
                 if (result === null) return; // User cancelled
                 note = result.trim();
             }
-            DB.parkCart(App.state.cart, note, timestamp);
+            DB.parkCart(App.state.cart, note, timestamp, App.state.activeBill ? App.state.activeBill.id : null);
 
             // Clear Active State
             App.state.activeBill = null;
@@ -2984,10 +2986,14 @@ const App = {
 
         // Allowed to exceed stock
         if (newQty !== item.qty) {
-            item.qty = newQty;
-            await App.checkWholesalePrompt(item);
+            if (await App.confirm(`ยืนยันการเปลี่ยนแปลงจำนวนสินค้า "${item.name}"\nจาก ${item.qty} เป็น ${newQty} ใช่หรือไม่?`, 'ยืนยันจำนวน')) {
+                item.qty = newQty;
+                await App.checkWholesalePrompt(item);
+                App.renderCart();
+            } else {
+                App.renderCart(); // reset UI wrapper
+            }
         }
-        App.renderCart();
     },
 
     updateCartQty: async (index, change) => {
@@ -2996,14 +3002,17 @@ const App = {
         if (newQty <= 0) {
             if (await App.confirm(`ต้องการลบ "${item.name}" ออกจากตะกร้าหรือไม่?`)) {
                 App.state.cart.splice(index, 1);
+                App.renderCart();
             } else {
                 return; // User cancelled the deletion
             }
         } else {
-            item.qty = newQty;
-            await App.checkWholesalePrompt(item);
+            if (await App.confirm(`ยืนยันการเปลี่ยนแปลงจำนวนสินค้า "${item.name}"\nเป็น ${newQty} ชิ้น ใช่หรือไม่?`, 'ยืนยันจำนวน')) {
+                item.qty = newQty;
+                await App.checkWholesalePrompt(item);
+                App.renderCart();
+            }
         }
-        App.renderCart();
     },
 
     completeSale: async (isTest = false) => {
@@ -3094,12 +3103,23 @@ const App = {
             };
             DB.recordSale(saleData);
 
-            // Clear Edit State
+            // Clear Edit State & Table Ties
+            if (App.state.activeBill && App.state.activeBill.id) {
+                DB.removeParkedCart(App.state.activeBill.id);
+                const tables = DB.getTables();
+                const matchedTable = tables.find(t => t.billId === App.state.activeBill.id);
+                if (matchedTable) {
+                    matchedTable.billId = null;
+                    DB.saveTables(tables);
+                }
+            }
+
             App.state.editingBillId = null;
             App.state.editingSaleDate = null;
 
             App.state.cart = [];
             App.state.activeBill = null; // Clear tracker after print
+            App.updateParkedBadge();
             App.state.products = DB.getProducts();
             App.renderCart();
             App.renderProductGrid();
@@ -3418,6 +3438,7 @@ const App = {
 
             // Set Active Bill State for Smart Re-parking
             App.state.activeBill = {
+                id: parkingData.id,
                 note: parkingData.note,
                 timestamp: parkingData.timestamp // Keep Original Queue Time!
             };
@@ -3775,6 +3796,130 @@ const App = {
     },
 
 
+    // --- Tables / Dine-in View ---
+    renderTablesView: (container) => {
+        const tables = DB.getTables();
+        const parkedBills = DB.getParkedCarts();
+
+        container.innerHTML = `
+            <h2>จัดการโต๊ะ (Dine-in)</h2>
+            <div class="tables-grid">
+                ${tables.map(table => {
+            const activeBill = table.billId ? parkedBills.find(b => b.id === table.billId) : null;
+            const isOccupied = !!activeBill;
+            const customerName = isOccupied ? (activeBill.note || 'ไม่มีชื่อ') : 'ว่าง';
+            const itemCount = isOccupied ? activeBill.items.length : 0;
+            const billTotal = isOccupied ? activeBill.items.reduce((s, i) => s + (i.price * i.qty), 0) : 0;
+
+            return `
+                        <div class="table-card ${isOccupied ? 'occupied' : ''}" onclick="App.handleTableClick(${table.id})">
+                            <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${table.name}</div>
+                            <div style="font-size: 16px; color: ${isOccupied ? 'var(--primary-color)' : '#999'}; margin-bottom: 10px;">
+                                ${customerName}
+                            </div>
+                            ${isOccupied ? `
+                                <div style="font-size: 14px; margin-bottom: 5px;">${itemCount} รายการ</div>
+                                <div style="font-size: 18px; font-weight: bold; color: var(--danger-color);">฿${Utils.formatCurrency(billTotal)}</div>
+                                <div style="margin-top: 10px; display: flex; gap: 5px; justify-content: center;" onclick="event.stopPropagation()">
+                                    <button class="icon-btn small" onclick="App.editTableName(${table.id}, '${activeBill.note || ''}')" title="เปลี่ยนชื่อลูกค้า">
+                                        <span class="material-symbols-rounded" style="font-size: 18px;">edit</span>
+                                    </button>
+                                </div>
+                            ` : `
+                                <div style="font-size: 14px; color: #ccc;">กดเพื่อเปิดโต๊ะ</div>
+                            `}
+                        </div>
+                    `;
+        }).join('')}
+            </div>
+        `;
+    },
+
+    handleTableClick: async (tableId) => {
+        const tables = DB.getTables();
+        const table = tables.find(t => t.id === tableId);
+        if (!table) return;
+
+        if (table.billId) {
+            // Occupied: Restore bill to cart and go to POS
+            const parkedBills = DB.getParkedCarts();
+            const bill = parkedBills.find(b => b.id === table.billId);
+            if (bill) {
+                if (App.state.cart.length > 0) {
+                    if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
+                }
+
+                // Keep the bill in the DB, just load it into active state
+                // We DON'T delete it from DB like normal restore, because it is still "parked" at the table until checkout
+                App.state.cart = JSON.parse(JSON.stringify(bill.items)); // clone
+                App.state.activeBill = {
+                    id: bill.id,
+                    note: bill.note,
+                    timestamp: bill.timestamp
+                };
+                App.renderCart();
+                App.renderView('pos');
+                // Auto open mobile cart
+                if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+            } else {
+                // Orphaned table state (bill deleted or checked out)
+                table.billId = null;
+                DB.saveTables(tables);
+                App.renderTablesView(App.elements.viewContainer);
+            }
+        } else {
+            // Empty: Open new table
+            const customerName = await App.prompt(`เปิดรอบบิลสำหรับ ${table.name}\nตั้งชื่อลูกค้าหรือหมายเหตุ:`, '');
+            if (customerName === null) return;
+
+            // Check warning if cart is not empty
+            if (App.state.cart.length > 0) {
+                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการเอาสินค้าเหล่านี้ไปเข้าโต๊ะใหม่หรือไม่?\n(ตอบ ยกเลิก เพื่อล้างตะกร้าก่อนเปิดโต๊ะ)')) {
+                    App.state.cart = [];
+                }
+            }
+
+            const newBillId = DB.generateBillId(); // Uses timestamp internally
+            const timestamp = Date.now();
+
+            table.billId = newBillId;
+            DB.saveTables(tables);
+
+            // Park immediately to secure the table
+            DB.parkCart(App.state.cart, customerName || table.name, timestamp, newBillId);
+
+            App.state.activeBill = {
+                id: newBillId,
+                note: customerName || table.name,
+                timestamp: timestamp
+            };
+
+            App.renderCart();
+            App.updateParkedBadge();
+            App.renderView('pos');
+            if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+            await App.alert(`เปิด ${table.name} เรียบร้อยแล้ว`);
+        }
+    },
+
+    editTableName: async (tableId, currentName) => {
+        const newName = await App.prompt('แก้ไขชื่อลูกค้า / หมายเหตุ:', currentName);
+        if (newName !== null) {
+            const tables = DB.getTables();
+            const table = tables.find(t => t.id === tableId);
+            if (table && table.billId) {
+                DB.updateParkedNote(table.billId, newName);
+
+                // If it's currently active in POS, update the active state too
+                if (App.state.activeBill && App.state.activeBill.id === table.billId) {
+                    App.state.activeBill.note = newName;
+                    App.renderCart();
+                }
+
+                App.renderTablesView(App.elements.viewContainer);
+            }
+        }
+    },
 
     // --- Price Check ---
     showPriceCheckModal: () => {
