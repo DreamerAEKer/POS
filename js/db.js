@@ -268,7 +268,7 @@ const DB = {
         return DB.safeGet('store_parked_trash', []); // New Key
     },
 
-    parkCart: (cartItems, note = '', customTimestamp = null, customId = null, deliveryTime = null) => {
+    parkCart: (cartItems, note = '', customTimestamp = null, customId = null, deliveryTime = null, deliveryDetails = null) => {
         const parked = DB.getParkedCarts();
 
         // LIMIT CHECK: Maintain max 20 items
@@ -291,6 +291,7 @@ const DB = {
             timestamp: customTimestamp || Date.now(), // Allow persistent queue position
             note: note,
             deliveryTime: deliveryTime, // Delivery/Pre-order Target Time
+            deliveryDetails: deliveryDetails, // NEW: Address, map, image
             items: cartItems
         });
         localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));
