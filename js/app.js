@@ -3886,32 +3886,35 @@ const App = {
                 urgencyIcon = 'warning';
             }
 
-            const formatTimeStr = new Date(bill.deliveryTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            const dDate = new Date(bill.deliveryTime);
+            let timeStr = `${String(dDate.getHours()).padStart(2, '0')}:${String(dDate.getMinutes()).padStart(2, '0')}`;
+
+            // Show Date if it's not today
+            const today = new Date();
+            if (dDate.getDate() !== today.getDate() || dDate.getMonth() !== today.getMonth()) {
+                timeStr = `${dDate.getDate()}/${dDate.getMonth() + 1} ${timeStr}`;
+            }
 
             return `
-                            <div style="border:1px solid ${statusBorder}; background:${statusBg}; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                                <div style="flex:1;">
-                                    <div style="display:flex; align-items:center; gap:5px; margin-bottom:5px;">
-                                        <div style="font-weight:bold; font-size:18px; color:${statusColor === 'white' ? 'white' : 'var(--primary-color)'};">
-                                            ${bill.note || 'ไม่มีชื่อลูกค้า'}
-                                        </div>
-                                    </div>
-                                    <div style="font-size:14px; color:${statusColor}; display:flex; align-items:center; gap:5px; font-weight:bold;">
-                                        <span class="material-symbols-rounded" style="font-size:16px;">${urgencyIcon}</span> 
-                                        ส่งเวลา: ${formatTimeStr} 
-                                        ${minsLeft < 0 ? `(เลยเวลา ${Math.abs(minsLeft)} นาที)` : `(อีก ${minsLeft} นาที)`}
-                                    </div>
-                                    <div style="font-size:12px; color:${statusColor === 'white' ? '#ffcdd2' : '#666'}; margin-top:5px;">
-                                        #${bill.id} | ${bill.items.length} รายการ - ฿${Utils.formatCurrency(bill.items.reduce((s, i) => s + (i.price * i.qty), 0))}
-                                    </div>
-                                </div>
-                                <div style="display:flex; gap:10px;">
-                                    <button class="primary-btn" style="padding:10px; display:flex; align-items:center; gap:5px;" onclick="App.restoreDelivery('${bill.id}')">
-                                        <span class="material-symbols-rounded" style="font-size:20px;">shopping_cart_checkout</span> จัดการออเดอร์
-                                    </button>
-                                </div>
-                            </div>
-                        `;
+                <div class="table-card" style="flex-direction:row; justify-content:space-between; padding:15px; border-color:${statusBorder}; background:${statusBg}; text-align:left;">
+                    <div>
+                        <div style="font-weight:bold; font-size:18px; margin-bottom:5px; color:${statusColor};">
+                            ${bill.note || 'ไม่ระบุชื่อ'}
+                        </div>
+                        <div style="font-size:14px; color:#666;">
+                            ${bill.items.length} รายการ - ฿${Utils.formatCurrency(bill.items.reduce((s, i) => s + (i.price * i.qty), 0))}
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:5px; font-weight:bold; color:${statusColor}; font-size:18px;">
+                            <span class="material-symbols-rounded" style="font-size:20px;">${urgencyIcon}</span> ${timeStr}
+                        </div>
+                        <button class="primary-btn" style="padding:5px 15px; display:flex; align-items:center; gap:5px;" onclick="App.restoreDelivery('${bill.id}')">
+                            <span class="material-symbols-rounded" style="font-size:20px;">shopping_cart_checkout</span> จัดการ
+                        </button>
+                    </div>
+                </div>
+            `;
         }).join('')}
                 </div>
             </div>
@@ -3921,7 +3924,7 @@ const App = {
     addNewTable: async () => {
         const tables = DB.getTables();
         const nextNum = tables.length > 0 ? tables[tables.length - 1].id + 1 : 1;
-        const name = await App.prompt('ตั้งชื่อโต๊ะใหม่:', `โต๊ะ ${nextNum}`);
+        const name = await App.prompt('ตั้งชื่อโต๊ะใหม่:', `โต๊ะ ${nextNum} `);
         if (name) {
             DB.addTable(name);
             App.renderTablesView(App.elements.viewContainer);
@@ -3929,7 +3932,7 @@ const App = {
     },
 
     removeTable: async (id, name) => {
-        if (await App.confirm(`ยืนยันการลบ "${name}" ออกจากระบบหรือไม่?`)) {
+        if (await App.confirm(`ยืนยันการลบ "${name}" ออกจากระบบหรือไม่ ? `)) {
             const success = DB.deleteTable(id);
             if (success) {
                 App.renderTablesView(App.elements.viewContainer);
@@ -3953,7 +3956,7 @@ const App = {
         now.setMinutes(now.getMinutes() + 30); // Default to 30 mins from now
         const hrs = String(now.getHours()).padStart(2, '0');
         const mins = String(now.getMinutes()).padStart(2, '0');
-        const defaultTime = `${hrs}:${mins}`;
+        const defaultTime = `${hrs}:${mins} `;
 
         modal.innerHTML = `
             <h2>${title}</h2>
@@ -3961,10 +3964,25 @@ const App = {
                 <label style="display:block; margin-bottom:5px;">ชื่อลูกค้า / เบอร์โทร:</label>
                 <input type="text" id="delivery-name" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;" placeholder="เช่น คุณเอ 0812345678">
             </div>
+            
             <div style="margin-top: 15px;">
                 <label style="display:block; margin-bottom:5px;">เวลาจัดส่ง / นัดรับ:</label>
-                <input type="time" id="delivery-time" value="${defaultTime}" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="time" id="delivery-time" value="${defaultTime}" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
+                </div>
             </div>
+
+            <div style="margin-top: 15px;">
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                    <input type="checkbox" id="delivery-date-toggle" style="width:20px; height:20px;">
+                    <span>กำหนดวันที่ส่ง (ล่วงหน้าหลายวัน)</span>
+                </label>
+                <div id="delivery-date-container" style="display:none; margin-top:10px;">
+                    <label style="display:block; margin-bottom:5px; color:#666;">วันที่จัดส่ง:</label>
+                    <input type="date" id="delivery-date" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px;">
+                </div>
+            </div>
+
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
                 <button class="primary-btn" style="flex:2;" id="btn-confirm-delivery">เริ่มออเดอร์</button>
@@ -3974,10 +3992,24 @@ const App = {
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
 
+        const dateToggle = document.getElementById('delivery-date-toggle');
+        const dateContainer = document.getElementById('delivery-date-container');
+        const dateInput = document.getElementById('delivery-date');
+
+        dateToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                dateContainer.style.display = 'block';
+            } else {
+                dateContainer.style.display = 'none';
+                dateInput.value = ''; // Clear value when hidden
+            }
+        });
+
         document.getElementById('delivery-name').focus();
 
         document.getElementById('btn-confirm-delivery').addEventListener('click', async () => {
             const name = document.getElementById('delivery-name').value.trim();
+            const dateVal = document.getElementById('delivery-date').value;
             const timeVal = document.getElementById('delivery-time').value;
 
             if (!name || !timeVal) {
@@ -3986,12 +4018,12 @@ const App = {
             }
 
             // Create target Date object based on today + timeVal
-            const targetDate = new Date();
+            const targetDate = dateVal ? new Date(dateVal) : new Date();
             const [tHrs, tMins] = timeVal.split(':').map(Number);
             targetDate.setHours(tHrs, tMins, 0, 0);
 
-            // If time is earlier than now, assume it's for tomorrow.
-            if (targetDate < new Date()) {
+            // If no date was selected and time is earlier than now, assume it's for tomorrow.
+            if (!dateVal && targetDate < new Date()) {
                 targetDate.setDate(targetDate.getDate() + 1);
             }
 
@@ -4079,8 +4111,33 @@ const App = {
                 App.renderTablesView(App.elements.viewContainer);
             }
         } else {
-            // Empty: Open new table
+            // Empty table: Initialize new bill
+            const customerName = await App.prompt('ชื่อลูกค้า / หมายเหตุ (เปิดโต๊ะใหม่):');
+            if (customerName === null) return; // cancelled
 
+            if (App.state.cart.length > 0) {
+                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการนำไปรวมในโต๊ะนี้หรือไม่?\\n(ตอบ "ยกเลิก" จะเริ่มโต๊ะด้วยตะกร้าเปล่า)')) {
+                    App.state.cart = []; // clear cart
+                }
+            }
+
+            const newBillId = DB.generateBillId();
+            const timestamp = Date.now();
+
+            table.billId = newBillId;
+            DB.saveTables(tables);
+            DB.parkCart(App.state.cart, customerName, timestamp, newBillId);
+
+            // Set as active session
+            App.state.activeBill = {
+                id: newBillId,
+                note: customerName,
+                timestamp: timestamp
+            };
+            App.renderTablesView(App.elements.viewContainer);
+            App.renderCart();
+            App.renderView('pos');
+            if (window.innerWidth <= 1024) App.toggleMobileCart(true);
         }
     },
 
@@ -4109,7 +4166,7 @@ const App = {
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
         modal.innerHTML = `
-            < div style = "text-align:center;" >
+    < div style = "text-align:center;" >
                 <span class="material-symbols-rounded" style="font-size:64px; color:var(--secondary-color);">price_check</span>
                 <h2>เช็คราคาสินค้า</h2>
                 <p>ยิงบาร์โค้ด หรือ พิมพ์ค้นหา</p>
@@ -4117,7 +4174,7 @@ const App = {
                 <div id="check-result" style="margin-top:20px; min-height:100px;"></div>
                 <button class="secondary-btn" style="width:100%; margin-top:20px;" onclick="App.closeModals()">ปิด</button>
             </div>
-        `;
+`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
 
@@ -4140,11 +4197,11 @@ const App = {
 
                 if (product) {
                     result.innerHTML = `
-                        <div style="font-size:24px; font-weight:bold;">${product.name}</div>
-                        ${product.image ? '<img src="' + product.image + '" style="max-height:100px; margin:10px 0;">' : ''}
+    < div style = "font-size:24px; font-weight:bold;" > ${product.name}</div >
+        ${product.image ? '<img src="' + product.image + '" style="max-height:100px; margin:10px 0;">' : ''}
                         <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
                         <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
-                    `;
+`;
                     input.value = '';
                 } else {
                     if (val.length > 8) result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
