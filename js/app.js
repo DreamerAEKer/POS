@@ -3174,8 +3174,46 @@ const App = {
             
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px; max-height:400px; overflow-y:auto;">
                 ${listToRender.length === 0 ? `<p style="text-align:center; color:#888;">${showTrash ? 'ถังขยะว่างเปล่า' : 'ไม่มีรายการพักบิล'}</p>` : ''}
-                ${listToRender.map(cart => `
-                    <div style="border:1px solid #eee; padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; background:${showTrash ? '#fff5f5' : '#fff'};">
+                ${listToRender.map(cart => {
+            let deliveryLabel = '';
+            let bgColor = showTrash ? '#fff5f5' : '#fff';
+            let borderColor = showTrash ? '#ffcdd2' : '#eee';
+
+            if (cart.deliveryTime) {
+                const timeDiff = new Date(cart.deliveryTime) - new Date();
+                const minsLeft = Math.floor(timeDiff / 60000);
+                const dDate = new Date(cart.deliveryTime);
+                let timeStr = `${String(dDate.getHours()).padStart(2, '0')}:${String(dDate.getMinutes()).padStart(2, '0')}`;
+
+                const today = new Date();
+                if (dDate.getDate() !== today.getDate() || dDate.getMonth() !== today.getMonth()) {
+                    timeStr = `${dDate.getDate()}/${dDate.getMonth() + 1} ${timeStr}`;
+                }
+
+                let statusColor = '#e65100'; // Default Orange
+                let badgeText = `รอส่ง: ${timeStr} (${minsLeft} นาที)`;
+
+                if (minsLeft < 0) {
+                    statusColor = '#c62828'; // Red
+                    badgeText = `เลยกำหนดส่ง: ${timeStr} (เลยมา ${Math.abs(minsLeft)} นาที)`;
+                    bgColor = '#ffebee';
+                    borderColor = '#ef9a9a';
+                } else if (minsLeft <= 15) {
+                    statusColor = '#f57f17'; // Yellow-Orange
+                    badgeText = `ใกล้ถึงเวลาส่ง: ${timeStr} (อีก ${minsLeft} นาที)`;
+                    bgColor = '#fffde7';
+                    borderColor = '#fff59d';
+                }
+
+                deliveryLabel = `
+                            <div style="font-size:12px; font-weight:bold; color:${statusColor}; margin-top:4px; display:flex; align-items:center; gap:4px;">
+                                <span class="material-symbols-rounded" style="font-size:14px;">two_wheeler</span> ${badgeText}
+                            </div>
+                        `;
+            }
+
+            return `
+                    <div style="border:1px solid ${borderColor}; padding:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; background:${bgColor}; mb-2">
                         <div style="flex:1;">
                             <div style="display:flex; align-items:center; gap:5px;">
                                 <div style="font-weight:bold; font-size:16px; color:var(--primary-color); cursor:pointer;" onclick="App.editParkedName('${cart.id}', '${cart.note || ''}', event)" title="แก้ไขชื่อ">
@@ -3191,6 +3229,7 @@ const App = {
                                 ${cart.id} | ${new Date(cart.timestamp).toLocaleString('th-TH')} <span style="color:blue;">(${typeof Utils !== 'undefined' && Utils.timeAgo ? Utils.timeAgo(cart.timestamp) : 'เพิ่งพัก'})</span>
                             </div>
                             <div style="font-size:12px;">${cart.items.length} รายการ - ${Utils.formatCurrency(cart.items.reduce((s, i) => s + (i.price * i.qty), 0))} บาท</div>
+                            ${deliveryLabel}
                         </div>
                         <div style="margin-left:10px;">
                             ${showTrash ? `
@@ -3206,7 +3245,7 @@ const App = {
                             `}
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
             ${showTrash ? `
                 <div style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">
