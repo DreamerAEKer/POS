@@ -1240,7 +1240,10 @@ const App = {
         container.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2>จัดการสต็อก</h2>
-                <div style="text-align:right;">
+                <div style="text-align:right; display:flex; gap:10px; align-items:center;">
+                    <button class="secondary-btn" onclick="App.printProductCatalog()" style="display:flex; align-items:center; gap:5px; padding: 10px 15px;">
+                        <span class="material-symbols-rounded" style="font-size:18px;">print</span> แคตตาล็อค
+                    </button>
                     <button class="primary-btn" onclick="App.openProductModal()">+ เพิ่มสินค้า</button>
                 </div>
             </div>
@@ -1474,6 +1477,94 @@ const App = {
 
             </div>
         `;
+    },
+
+    // --- Product Catalog Print ---
+    printProductCatalog: () => {
+        const products = App.state.products.slice().sort((a, b) => {
+            const groupA = a.group || 'ไม่มีหมวดหมู่';
+            const groupB = b.group || 'ไม่มีหมวดหมู่';
+            if (groupA < groupB) return -1;
+            if (groupA > groupB) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        if (products.length === 0) {
+            App.alert('ไม่มีสินค้าในสต็อก');
+            return;
+        }
+
+        let printHtml = `
+            <!DOCTYPE html>
+            <html lang="th">
+            <head>
+                <meta charset="UTF-8">
+                <title>แคตตาล็อคสินค้า</title>
+                <!-- Include fonts from the main app for consistency -->
+                <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+                <style>
+                    body { font-family: 'Sarabun', sans-serif; padding: 20px; font-size: 14px; margin: 0; color: #333; }
+                    @page { size: A4 portrait; margin: 1cm; }
+                    h1 { text-align: center; font-size: 24px; margin-bottom: 20px; }
+                    .catalog-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+                    .product-card { border: 1px solid #ccc; padding: 10px; text-align: center; border-radius: 8px; page-break-inside: avoid; background: white; }
+                    .product-image { width: 100%; height: 120px; object-fit: contain; margin-bottom: 10px; background: #fafafa; border-radius: 4px; display: block; }
+                    .product-no-image { width: 100%; height: 120px; background: #f0f0f0; margin-bottom: 10px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; border: 1px dashed #ccc; box-sizing: border-box; }
+                    .product-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; }
+                    .product-price { color: #d32f2f; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+                    .product-barcode { font-size: 11px; color: #666; font-family: monospace; }
+                    .category-header { font-size: 18px; font-weight: bold; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #555; padding-bottom: 5px; grid-column: 1 / -1; page-break-after: avoid; }
+                    @media print {
+                        body { padding: 0; }
+                        .catalog-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+                        .product-card { width: 100%; box-sizing: border-box; border: 1px solid #999; }
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>แคตตาล็อคสินค้า</h1>
+                <div class="catalog-grid">
+        `;
+
+        let currentGroup = null;
+        products.forEach(p => {
+            const group = p.group || 'ไม่มีหมวดหมู่';
+            if (group !== currentGroup) {
+                printHtml += `<div class="category-header">${group}</div>`;
+                currentGroup = group;
+            }
+            const imgHtml = p.image ? `<img src="${p.image}" class="product-image">` : `<div class="product-no-image">ไม่มีรูป</div>`;
+            printHtml += `
+                <div class="product-card">
+                    ${imgHtml}
+                    <div class="product-name">${p.name}</div>
+                    <div class="product-price">฿${Number(p.price).toFixed(2)}</div>
+                    <div class="product-barcode">${p.barcode || '-'}</div>
+                </div>
+            `;
+        });
+
+        printHtml += `
+                </div>
+                <script>
+                    window.onload = function() {
+                        setTimeout(() => {
+                            window.print();
+                        }, 500);
+                    }
+                </script>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(printHtml);
+            printWindow.document.close();
+        } else {
+            // Fallback for pop-up blocker
+            alert("กรุณาอนุญาต Pop-up บนเว็บบราว์เซอร์เพื่อแสดงแคตตาล็อค");
+        }
     },
 
     // --- Category Edit Logic ---
