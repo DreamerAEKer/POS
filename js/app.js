@@ -825,7 +825,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.28', // Update Version
+    VERSION: '0.89.29', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3228,14 +3228,21 @@ const App = {
     },
 
     updateParkedBadge: () => {
-        const count = DB.getParkedCarts().length;
+        const tables = DB.getTables();
+        const tableBillIds = tables.filter(t => t.billId).map(t => t.billId);
+        const parkedBills = DB.getParkedCarts().filter(c => !tableBillIds.includes(c.id));
+        const count = parkedBills.length;
         App.elements.parkedCount.textContent = count;
         App.elements.parkedCount.style.display = count > 0 ? 'inline-block' : 'none';
     },
 
     showParkedCartsModal: () => {
         App.closeModals(); // Prevent Overlap
-        const parked = DB.getParkedCarts(); // Sorted by DB
+        const rawParked = DB.getParkedCarts(); // Sorted by DB
+        const tables = DB.getTables();
+        const tableBillIds = tables.filter(t => t.billId).map(t => t.billId);
+        const parked = rawParked.filter(c => !tableBillIds.includes(c.id));
+
         const trash = DB.getParkedTrash();
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal'); // reuse
