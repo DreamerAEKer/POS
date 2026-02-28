@@ -13,7 +13,8 @@ const DB = {
         SETTINGS: 'store_settings',
         GROUP_IMAGES: 'store_group_images',
         PAYMENT_PREFS: 'store_payment_prefs',
-        TABLES: 'store_tables'
+        TABLES: 'store_tables',
+        AUTO_CART: 'store_auto_cart'
     },
 
     // Helper for safe parsing
@@ -256,6 +257,17 @@ const DB = {
 
         const runningNum = count.toString().padStart(3, '0');
         return `${prefix}-${runningNum}`;
+    },
+
+    // --- Auto-Save Cart ---
+    saveAutoCart: (cartState) => {
+        localStorage.setItem(DB.KEYS.AUTO_CART, JSON.stringify(cartState));
+    },
+    getAutoCart: () => {
+        return DB.safeGet(DB.KEYS.AUTO_CART, null);
+    },
+    clearAutoCart: () => {
+        localStorage.removeItem(DB.KEYS.AUTO_CART);
     },
 
     // --- Parked Carts ---

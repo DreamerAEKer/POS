@@ -34,6 +34,16 @@ const App = {
         try {
             // Load Data
             App.state.products = DB.getProducts();
+
+            // Restore Auto-cart if exists
+            const autoCartState = DB.getAutoCart();
+            if (autoCartState && autoCartState.cart && autoCartState.cart.length > 0) {
+                App.state.cart = autoCartState.cart;
+                App.state.activeBill = autoCartState.activeBill || null;
+                App.state.editingBillId = autoCartState.editingBillId || null;
+                App.state.editingSaleDate = autoCartState.editingSaleDate || null;
+            }
+
             App.updateParkedBadge();
 
             // Setup Event Listeners
@@ -825,7 +835,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.30', // Update Version
+    VERSION: '0.89.31', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -2996,6 +3006,14 @@ const App = {
             if (headerTitle) headerTitle.textContent = 'ตะกร้าสินค้า';
             if (parkBtn) parkBtn.textContent = 'พักบิล';
         }
+
+        // Auto-save current cart state
+        DB.saveAutoCart({
+            cart: App.state.cart,
+            activeBill: App.state.activeBill,
+            editingBillId: App.state.editingBillId,
+            editingSaleDate: App.state.editingSaleDate
+        });
     },
 
     removeCartItem: async (index) => {
