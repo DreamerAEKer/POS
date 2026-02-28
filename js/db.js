@@ -271,29 +271,39 @@ const DB = {
     parkCart: (cartItems, note = '', customTimestamp = null, customId = null, deliveryTime = null, deliveryDetails = null) => {
         const parked = DB.getParkedCarts();
 
-        // LIMIT CHECK: Maintain max 20 items
-        // If we have 20 or more, remove the Oldest (index 0 because getParkedCarts sorts ASC)
-        if (parked.length >= 20) {
-            const oldest = parked.shift(); // Remove the oldest
+        const existingIndex = customId ? parked.findIndex(p => p.id === customId) : -1;
 
-            // Move to Trash (Safety Net) - Robust FIFO
-            let trash = DB.getParkedTrash();
-            trash.push(oldest);
-            trash.sort((a, b) => b.timestamp - a.timestamp); // Newest First
-            if (trash.length > 20) trash = trash.slice(0, 20);
-            localStorage.setItem('store_parked_trash', JSON.stringify(trash));
+        if (existingIndex > -1) {
+            // Update existing parked cart instead of pushing a duplicate
+            parked[existingIndex] = {
+                ...parked[existingIndex],
+                timestamp: customTimestamp || parked[existingIndex].timestamp,
+                note: note || parked[existingIndex].note,
+                deliveryTime: deliveryTime || parked[existingIndex].deliveryTime,
+                deliveryDetails: deliveryDetails || parked[existingIndex].deliveryDetails,
+                items: cartItems
+            };
+        } else {
+            // LIMIT CHECK: Maintain max 20 items
+            if (parked.length >= 20) {
+                const oldest = parked.shift();
 
-            // Note: We don't save parked yet, we'll save after adding the new one
+                let trash = DB.getParkedTrash();
+                trash.push(oldest);
+                trash.sort((a, b) => b.timestamp - a.timestamp);
+                if (trash.length > 20) trash = trash.slice(0, 20);
+                localStorage.setItem('store_parked_trash', JSON.stringify(trash));
+            }
+
+            parked.push({
+                id: customId || DB.generateBillId(),
+                timestamp: customTimestamp || Date.now(),
+                note: note,
+                deliveryTime: deliveryTime,
+                deliveryDetails: deliveryDetails,
+                items: cartItems
+            });
         }
-
-        parked.push({
-            id: customId || DB.generateBillId(),
-            timestamp: customTimestamp || Date.now(), // Allow persistent queue position
-            note: note,
-            deliveryTime: deliveryTime, // Delivery/Pre-order Target Time
-            deliveryDetails: deliveryDetails, // NEW: Address, map, image
-            items: cartItems
-        });
         localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(parked));
     },
 
