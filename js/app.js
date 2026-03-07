@@ -835,7 +835,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.31', // Update Version
+    VERSION: '0.89.32', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1310,6 +1310,16 @@ const App = {
 
     getFilteredStock: () => {
         let products = [...App.state.products];
+
+        if (App.state.searchQuery) {
+            const query = App.state.searchQuery.toLowerCase();
+            products = products.filter(p =>
+                (p.name && p.name.toLowerCase().includes(query)) ||
+                (p.barcode && p.barcode.includes(query)) ||
+                (p.packBarcode && p.packBarcode.includes(query)) ||
+                (p.group && p.group.toLowerCase().includes(query))
+            );
+        }
 
         // 1. Filter
         switch (App.state.stockTab) {
@@ -2540,7 +2550,11 @@ const App = {
                     input.value = '';
                     App.state.searchQuery = '';
                 } else {
-                    if (App.state.currentView === 'pos') App.renderProductGrid();
+                    if (App.state.currentView === 'pos') {
+                        App.renderProductGrid();
+                    } else if (App.state.currentView === 'stock') {
+                        App.renderView('stock');
+                    }
                 }
             }, 300);
         });
