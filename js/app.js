@@ -835,7 +835,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.33', // Update Version
+    VERSION: '0.89.34', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3633,7 +3633,7 @@ const App = {
     },
 
     restoreParked: async (id) => {
-        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
+        if (!await App.safeReplaceCart()) return; // Silent auto-park
 
         // Note: retrieve logic in DB now returns the object but deletes it from DB
         // But we want to allow "re-parking" to same slot.
@@ -4405,7 +4405,7 @@ const App = {
         const bill = parkedBills.find(b => b.id === billId);
         if (!bill) return;
 
-        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
+        if (!await App.safeReplaceCart()) return; // Silent auto-park
 
         // Just like tables, we leave it "parked" until checked out 
         App.state.cart = JSON.parse(JSON.stringify(bill.items));
@@ -4427,11 +4427,48 @@ const App = {
         if (!table) return;
 
         if (table.billId) {
-            // Occupied: Show table details modal instead of immediately overriding cart
+            // Occupied: Handle Merging Walk-in Cart OR Show Details
             const parkedBills = DB.getParkedCarts();
             const bill = parkedBills.find(b => b.id === table.billId);
             if (bill) {
-                App.showTableDetailsModal(table, bill);
+                // Smart Merge Logic: If we have a walk-in cart (no active bill), ask to merge.
+                if (App.state.cart.length > 0 && App.state.activeBill === null) {
+                    if (await App.confirm(`ตะกร้าปัจจุบันมีสินค้า\nต้องการนำไป "เพิ่ม" ในโต๊ะ ${table.name} หรือไม่?`)) {
+                        // Merge items into table bill
+                        const mergedItems = [...bill.items];
+                        App.state.cart.forEach(cartItem => {
+                            const existing = mergedItems.find(i => i.id === cartItem.id);
+                            if (existing) {
+                                existing.qty += cartItem.qty;
+                            } else {
+                                mergedItems.push(cartItem);
+                            }
+                        });
+                        
+                        // Update parked bill in DB
+                        DB.parkCart(mergedItems, bill.note, bill.timestamp, bill.id, bill.deliveryTime, bill.deliveryDetails);
+                        
+                        // Clear current cart since it's merged
+                        App.state.cart = [];
+                        App.state.activeBill = null;
+                        App.renderCart();
+                        App.updateParkedBadge();
+                        
+                        if (typeof App.alert === 'function') {
+                            App.alert(`เพิ่มรายการเข้าโต๊ะ ${table.name} สำเร็จ`);
+                        }
+                    } else {
+                        // User declined merge, so silently park the walk-in cart and view table
+                        await App.safeReplaceCart();
+                        App.showTableDetailsModal(table, bill);
+                    }
+                } else {
+                    // No walk-in cart, or it's another table's cart. Silently park and show details.
+                    if (App.state.cart.length > 0) {
+                        await App.safeReplaceCart();
+                    }
+                    App.showTableDetailsModal(table, bill);
+                }
             } else {
                 // Orphaned table state (bill deleted or checked out)
                 table.billId = null;
@@ -4444,8 +4481,13 @@ const App = {
             if (customerName === null) return; // cancelled
 
             if (App.state.cart.length > 0) {
-                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการนำไปรวมในโต๊ะนี้หรือไม่?\n(ตอบ "ยกเลิก" จะเริ่มโต๊ะด้วยตะกร้าเปล่า โดยตะกร้าเก่าจะถูกนำไปพักไว้ใน "พักบิล" อัตโนมัติ)')) {
-                    await App.safeReplaceCart(); // Auto-park silently
+                if (App.state.activeBill === null) {
+                   if (!await App.confirm(`ตะกร้าปัจจุบันมีสินค้า\nต้องการนำไปเปิด "โต๊ะใหม่" นี้หรือไม่?`)) {
+                       await App.safeReplaceCart(); // Auto-park silently
+                   }
+                } else {
+                   // Another table's cart, silently auto-park to avoid confusion
+                   await App.safeReplaceCart();
                 }
             }
 
@@ -4544,7 +4586,7 @@ const App = {
         const bill = parkedBills.find(b => b.id === table.billId);
         if (!bill) return;
 
-        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่ด้วยรายการของโต๊ะหรือไม่?')) return;
+        if (!await App.safeReplaceCart()) return; // Silent auto-park
 
         App.state.cart = JSON.parse(JSON.stringify(bill.items));
         App.state.activeBill = {
@@ -4569,7 +4611,7 @@ const App = {
         const bill = parkedBills.find(b => b.id === table.billId);
         if (!bill) return;
 
-        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่และเปิดหน้ารับเงินโต๊ะหรือไม่?')) return;
+        if (!await App.safeReplaceCart()) return; // Silent auto-park
 
         App.state.cart = JSON.parse(JSON.stringify(bill.items));
         App.state.activeBill = {
