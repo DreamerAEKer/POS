@@ -835,7 +835,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.38', // Update Version
+    VERSION: '0.89.39', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3190,8 +3190,22 @@ const App = {
 
     updateMobileCartBadge: () => {
         const count = App.state.cart.reduce((sum, item) => sum + item.qty, 0);
+        const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
         const badge = document.getElementById('mobile-cart-count');
+        const badgeTotal = document.getElementById('mobile-cart-total');
         if (badge) badge.textContent = count;
+        if (badgeTotal) {
+            badgeTotal.textContent = `฿${Utils.formatCurrency(total)}`;
+            if (count > 0) {
+                badgeTotal.style.display = 'inline';
+                document.getElementById('btn-mobile-cart').style.borderRadius = '30px';
+                document.getElementById('btn-mobile-cart').style.padding = '0 18px';
+            } else {
+                badgeTotal.style.display = 'none';
+                document.getElementById('btn-mobile-cart').style.borderRadius = '50%';
+                document.getElementById('btn-mobile-cart').style.padding = '0';
+            }
+        }
     },
 
     setupCartActions: () => {
