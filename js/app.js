@@ -2971,36 +2971,46 @@ const App = {
             const product = App.state.products.find(p => p.id === item.id) || item;
             const stockWarning = product.stock <= 10 ? `<div style="font-size:11px; color:#e65100; margin-top:2px; font-weight:normal;">⚠️ เหลือสต็อก ${product.stock} ชิ้น</div>` : '';
             return `
-            <div class="cart-item" draggable="true" ondragstart="App.cartDragStart(event, ${index})" ondragover="App.cartDragOver(event)" ondrop="App.cartDrop(event, ${index})" ondragend="App.cartDragEnd(event)">
-                <div style="cursor:grab; margin-right:5px; color:#ccc; display:flex; align-items:center;">
-                    <span class="material-symbols-rounded" style="font-size:20px;">drag_indicator</span>
-                </div>
-                <div style="flex:1;">
-                    <div style="font-weight:bold; display:flex; align-items:center; gap:5px;">
-                        ${item.name} 
-                        ${product.isQuick || item.id.startsWith('M') ? `<span class="material-symbols-rounded" style="font-size:16px; color:var(--primary-color); cursor:pointer;" onclick="App.editCartItemName(${index})" title="แก้ไขชื่อ">edit</span>` : ''}
+            <div class="cart-item" draggable="true" ondragstart="App.cartDragStart(event, ${index})" ondragover="App.cartDragOver(event)" ondrop="App.cartDrop(event, ${index})" ondragend="App.cartDragEnd(event)" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                <!-- Row 1: Drag, Name, Delete -->
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; width:100%;">
+                    <div style="display:flex; align-items:flex-start; flex:1;">
+                        <div style="cursor:grab; margin-right:5px; color:#ccc; display:flex; align-items:center; transform: translateY(2px);">
+                            <span class="material-symbols-rounded" style="font-size:20px;">drag_indicator</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-weight:bold; display:flex; align-items:center; gap:5px; line-height:1.3; font-size:15px;">
+                                ${item.name} 
+                                ${product.isQuick || item.id.startsWith('M') ? `<span class="material-symbols-rounded" style="font-size:16px; color:var(--primary-color); cursor:pointer;" onclick="App.editCartItemName(${index})" title="แก้ไขชื่อ">edit</span>` : ''}
+                            </div>
+                            ${stockWarning}
+                        </div>
                     </div>
-                    <div style="font-size:14px; color:#666;">@${Utils.formatCurrency(item.price)} ${item.wholesaleQty > 0 && item.wholesalePrice > 0 ? `<span style="font-size:10px;color:var(--primary-color);">(${item.wholesaleQty}ชิ้น=${item.wholesalePrice}฿)</span>` : ''}</div>
-                    ${stockWarning}
+                    
+                    <button class="icon-btn dangerous" onclick="App.removeCartItem(${index})" title="ลบรายการนี้" style="padding:4px; margin-left:5px; height:32px; width:32px; display:flex; align-items:center; justify-content:center;">
+                        <span class="material-symbols-rounded" style="font-size:20px;">delete</span>
+                    </button>
                 </div>
-                
-                <div style="display:flex; align-items:center; gap:5px;">
+
+                <!-- Row 2: Price, Qty, Total -->
+                <div style="display:flex; align-items:center; justify-content:space-between; width:100%; padding-left:25px;">
+                    <!-- Unit Price -->
+                    <div style="font-size:13px; color:#666; line-height:1.2;">
+                        @${Utils.formatCurrency(item.price)}
+                        ${item.wholesaleQty > 0 && item.wholesalePrice > 0 ? `<div style="font-size:11px;color:var(--primary-color);">(${item.wholesaleQty}ชิ้น=${item.wholesalePrice}฿)</div>` : ''}
+                    </div>
+
                     <!-- Qty Controls -->
                     <div style="display:flex; align-items:center; background:#f0f0f0; border-radius:20px; padding:2px;">
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, -1)" style="width:28px; height:28px;">-</button>
-                        <div onclick="App.promptQtyChange(${index})" style="width:45px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold; height:28px; background:white; margin:0 2px; font-size:16px; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;" title="กดเพื่อระบุจำนวนที่เพิ่ม">${item.qty}</div>
+                        <div onclick="App.promptQtyChange(${index})" style="width:55px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold; height:28px; background:white; margin:0 2px; font-size:14px; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; color:var(--primary-color);" title="กดเพื่อระบุจำนวนที่เพิ่ม">${item.qty} ชิ้น</div>
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, 1)" style="width:28px; height:28px;">+</button>
                     </div>
 
                     <!-- Line Total -->
-                    <div style="font-weight:bold; width:60px; text-align:right; font-size:14px;">
-                        ${Utils.formatCurrency(App.calcItemTotal(item))}
+                    <div style="font-weight:bold; font-size:16px; color:var(--primary-color); text-align:right; min-width:60px;">
+                        ฿${Utils.formatCurrency(App.calcItemTotal(item))}
                     </div>
-                    
-                    <!-- Delete Button -->
-                    <button class="icon-btn dangerous" onclick="App.removeCartItem(${index})" title="ลบรายการนี้" style="padding:4px;">
-                        <span class="material-symbols-rounded" style="font-size:22px;">delete</span>
-                    </button>
                 </div>
             </div>
         `}).join('');
