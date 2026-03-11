@@ -822,8 +822,8 @@ const App = {
             }
         });
 
-        // 2. Load to Cart
-        App.state.cart = JSON.parse(JSON.stringify(sale.items)); // Deep copy
+        // 2. Load to Cart (Deep copy and track originalQty)
+        App.state.cart = JSON.parse(JSON.stringify(sale.items)).map(item => ({ ...item, originalQty: item.qty }));
         App.state.editingBillId = sale.billId;
         App.state.editingSaleDate = sale.date;
 
@@ -835,7 +835,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.34', // Update Version
+    VERSION: '0.89.35', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3031,8 +3031,14 @@ const App = {
     },
 
     removeCartItem: async (index) => {
+        const item = App.state.cart[index];
         // Confirmation for accidental clicks is good UX
-        if (await App.confirm('ต้องการลบรายการนี้ออกจากตะกร้า?')) {
+        let msg = `ต้องการลบรายการ "${item.name}" ออกจากตะกร้า?`;
+        if (item.originalQty) {
+            msg = `⚠️ รายการ "${item.name}" มีอยู่ในออเดอร์เดิม (${item.originalQty} ชิ้น)\nยืนยันลบทิ้งใช่หรือไม่?`;
+        }
+        
+        if (await App.confirm(msg, item.originalQty ? 'ยืนยันลบรายการ' : undefined)) {
             App.state.cart.splice(index, 1);
 
             // If the cart is now empty, reset the smart parked bill tracker
@@ -3109,36 +3115,60 @@ const App = {
             newQty = 1;
         }
 
-        const product = DB.getProducts().find(p => p.id === item.id);
-
-        // Allowed to exceed stock
         if (newQty !== item.qty) {
-            if (await App.confirm(`ยืนยันการเปลี่ยนแปลงจำนวนสินค้า "${item.name}"\nจาก ${item.qty} เป็น ${newQty} ใช่หรือไม่?`, 'ยืนยันจำนวน')) {
-                item.qty = newQty;
-                await App.checkWholesalePrompt(item);
-                App.renderCart();
-            } else {
-                App.renderCart(); // reset UI wrapper
+            // If reducing below what was originally ordered, warn the user
+            if (item.originalQty && newQty < item.originalQty) {
+                if (!await App.confirm(`⚠️ สินค้าน้อยกว่าออเดอร์เดิม (${item.originalQty} ชิ้น)\nยืนยันลดจำนวน "${item.name}" เหลือ ${newQty} ใช่หรือไม่?`, 'ยืนยันลดจำนวน')) {
+                    App.renderCart(); // reset UI wrapper
+                    return;
+                }
             }
+            
+            item.qty = newQty;
+            await App.checkWholesalePrompt(item);
+            App.renderCart();
         }
     },
 
     updateCartQty: async (index, change) => {
         const item = App.state.cart[index];
+        
+        if (change > 0) {
+            // Addition: Explicitly ask for amount to avoid rapid tapping mistakes and make it faster for bulk
+            const toAddStr = await App.prompt(`ระบุจำนวนที่ต้องการเพิ่ม สำหรับ "${item.name}":`, '1');
+            if (toAddStr === null) return; // Cancelled
+            
+            const toAdd = parseInt(toAddStr);
+            if (isNaN(toAdd) || toAdd <= 0) return; // Invalid
+            
+            item.qty += toAdd;
+            await App.checkWholesalePrompt(item);
+            App.renderCart();
+            
+            if (typeof App.alert === 'function') {
+                App.alert(`เพิ่ม "${item.name}" จำนวน ${toAdd} ชิ้น\n➤ รวมเป็น ${item.qty} ชิ้น`);
+            }
+            return;
+        }
+        
+        // Subtraction
         const newQty = item.qty + change;
         if (newQty <= 0) {
             if (await App.confirm(`ต้องการลบ "${item.name}" ออกจากตะกร้าหรือไม่?`)) {
                 App.state.cart.splice(index, 1);
                 App.renderCart();
-            } else {
-                return; // User cancelled the deletion
             }
         } else {
-            if (await App.confirm(`ยืนยันการเปลี่ยนแปลงจำนวนสินค้า "${item.name}"\nเป็น ${newQty} ชิ้น ใช่หรือไม่?`, 'ยืนยันจำนวน')) {
-                item.qty = newQty;
-                await App.checkWholesalePrompt(item);
-                App.renderCart();
+            // Warn if reducing below original ordered amount from table
+            if (item.originalQty && newQty < item.originalQty) {
+                if (!await App.confirm(`⚠️ สินค้าน้อยกว่าออเดอร์เดิม (${item.originalQty} ชิ้น)\nยืนยันลดจำนวน "${item.name}" เหลือ ${newQty} ใช่หรือไม่?`, 'ยืนยันลดจำนวน')) {
+                    return;
+                }
             }
+            
+            item.qty = newQty;
+            await App.checkWholesalePrompt(item);
+            App.renderCart();
         }
     },
 
@@ -3640,7 +3670,7 @@ const App = {
         const parkingData = DB.retrieveParkedCart(id);
 
         if (parkingData) {
-            App.state.cart = parkingData.items;
+            App.state.cart = parkingData.items.map(item => ({ ...item, originalQty: item.qty }));
 
             // Set Active Bill State for Smart Re-parking
             App.state.activeBill = {
@@ -4408,7 +4438,7 @@ const App = {
         if (!await App.safeReplaceCart()) return; // Silent auto-park
 
         // Just like tables, we leave it "parked" until checked out 
-        App.state.cart = JSON.parse(JSON.stringify(bill.items));
+        App.state.cart = JSON.parse(JSON.stringify(bill.items)).map(item => ({ ...item, originalQty: item.qty }));
         App.state.activeBill = {
             id: bill.id,
             note: bill.note,
@@ -4588,7 +4618,7 @@ const App = {
 
         if (!await App.safeReplaceCart()) return; // Silent auto-park
 
-        App.state.cart = JSON.parse(JSON.stringify(bill.items));
+        App.state.cart = JSON.parse(JSON.stringify(bill.items)).map(item => ({ ...item, originalQty: item.qty }));
         App.state.activeBill = {
             id: bill.id,
             note: bill.note,
@@ -4613,7 +4643,7 @@ const App = {
 
         if (!await App.safeReplaceCart()) return; // Silent auto-park
 
-        App.state.cart = JSON.parse(JSON.stringify(bill.items));
+        App.state.cart = JSON.parse(JSON.stringify(bill.items)).map(item => ({ ...item, originalQty: item.qty }));
         App.state.activeBill = {
             id: bill.id,
             note: bill.note,
