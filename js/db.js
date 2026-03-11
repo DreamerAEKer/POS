@@ -298,12 +298,21 @@ const DB = {
         } else {
             // LIMIT CHECK: Maintain max 20 items
             if (parked.length >= 20) {
-                const oldest = parked.shift();
+                const oldest = parked.shift(); // Remove oldest cart
 
                 let trash = DB.getParkedTrash();
                 trash.push(oldest);
+                // Sort Newest First (Descending)
                 trash.sort((a, b) => b.timestamp - a.timestamp);
-                if (trash.length > 20) trash = trash.slice(0, 20);
+                
+                // Keep max 20 items in trash
+                if (trash.length > 20) {
+                    // Alert user if App is loaded (Since DB doesn't have UI context directly)
+                    if (typeof App !== 'undefined' && App.alert) {
+                        App.alert('ถังขยะเต็ม! รายการที่เก่าที่สุดจะถูกลบถาวร');
+                    }
+                    trash = trash.slice(0, 20); // Keep top 20 newest
+                }
                 localStorage.setItem('store_parked_trash', JSON.stringify(trash));
             }
 
@@ -351,7 +360,14 @@ const DB = {
             let trash = DB.getParkedTrash();
             trash.push(item);
             trash.sort((a, b) => b.timestamp - a.timestamp); // Newest First
-            if (trash.length > 10) trash = trash.slice(0, 10);
+            
+            // Limit to 20
+            if (trash.length > 20) {
+                 if (typeof App !== 'undefined' && App.alert) {
+                     App.alert('ถังขยะเต็ม! รายการที่เก่าที่สุดจะถูกลบถาวร');
+                 }
+                 trash = trash.slice(0, 20);
+            }
             localStorage.setItem('store_parked_trash', JSON.stringify(trash));
 
             // Remove from Active

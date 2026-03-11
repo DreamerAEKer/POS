@@ -835,7 +835,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.89.32', // Update Version
+    VERSION: '0.89.33', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3587,6 +3587,41 @@ const App = {
         App.state.showingTrash = !App.state.showingTrash;
         App.showParkedCartsModal();
     },
+    safeReplaceCart: async (confirmMessage) => {
+        if (App.state.cart.length > 0) {
+            // Auto-park logic: If replacing, save current cart to parked bills
+            let parkNote = 'บิลพักอัตโนมัติ (ระบบเปลี่ยนตะกร้า)';
+            let parkTimestamp = Date.now();
+            let parkId = null;
+            let deliveryTime = null;
+            let deliveryDetails = null;
+
+            if (App.state.activeBill) {
+                parkNote = App.state.activeBill.note || parkNote;
+                parkTimestamp = App.state.activeBill.timestamp || parkTimestamp;
+                parkId = App.state.activeBill.id;
+                deliveryTime = App.state.activeBill.deliveryTime || null;
+                deliveryDetails = App.state.activeBill.deliveryDetails || null;
+            }
+
+            // Check if user still wants to replace. If it's a silent replace, we can omit the prompt,
+            // but for safety, we ask if a confirmMessage is provided.
+            if (confirmMessage) {
+                if (!await App.confirm(`${confirmMessage}\n(ตะกร้าปัจจุบันจะถูกนำไปพักไว้ใน "พักบิล" อัตโนมัติ เพื่อป้องกันข้อมูลสูญหาย)`)) {
+                    return false;
+                }
+            }
+            
+            // Proceed to auto-park without user intervention
+            DB.parkCart(App.state.cart, parkNote, parkTimestamp, parkId, deliveryTime, deliveryDetails);
+            
+            // Clear current cart so it's ready for the new data
+            App.state.activeBill = null;
+            App.state.cart = [];
+            App.updateParkedBadge();
+        }
+        return true;
+    },
 
     editParkedName: async (id, currentName, event) => {
         if (event) event.stopPropagation(); // Stop bubbling to prevent accidental clicks
@@ -3598,9 +3633,7 @@ const App = {
     },
 
     restoreParked: async (id) => {
-        if (App.state.cart.length > 0) {
-            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
-        }
+        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
 
         // Note: retrieve logic in DB now returns the object but deletes it from DB
         // But we want to allow "re-parking" to same slot.
@@ -4372,9 +4405,7 @@ const App = {
         const bill = parkedBills.find(b => b.id === billId);
         if (!bill) return;
 
-        if (App.state.cart.length > 0) {
-            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
-        }
+        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
 
         // Just like tables, we leave it "parked" until checked out 
         App.state.cart = JSON.parse(JSON.stringify(bill.items));
@@ -4413,8 +4444,8 @@ const App = {
             if (customerName === null) return; // cancelled
 
             if (App.state.cart.length > 0) {
-                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการนำไปรวมในโต๊ะนี้หรือไม่?\\n(ตอบ "ยกเลิก" จะเริ่มโต๊ะด้วยตะกร้าเปล่า)')) {
-                    App.state.cart = []; // clear cart
+                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการนำไปรวมในโต๊ะนี้หรือไม่?\n(ตอบ "ยกเลิก" จะเริ่มโต๊ะด้วยตะกร้าเปล่า โดยตะกร้าเก่าจะถูกนำไปพักไว้ใน "พักบิล" อัตโนมัติ)')) {
+                    await App.safeReplaceCart(); // Auto-park silently
                 }
             }
 
@@ -4513,9 +4544,7 @@ const App = {
         const bill = parkedBills.find(b => b.id === table.billId);
         if (!bill) return;
 
-        if (App.state.cart.length > 0) {
-            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่ด้วยรายการของโต๊ะหรือไม่?')) return;
-        }
+        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่ด้วยรายการของโต๊ะหรือไม่?')) return;
 
         App.state.cart = JSON.parse(JSON.stringify(bill.items));
         App.state.activeBill = {
@@ -4540,9 +4569,7 @@ const App = {
         const bill = parkedBills.find(b => b.id === table.billId);
         if (!bill) return;
 
-        if (App.state.cart.length > 0) {
-            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่และเปิดหน้ารับเงินโต๊ะหรือไม่?')) return;
-        }
+        if (!await App.safeReplaceCart('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่และเปิดหน้ารับเงินโต๊ะหรือไม่?')) return;
 
         App.state.cart = JSON.parse(JSON.stringify(bill.items));
         App.state.activeBill = {
