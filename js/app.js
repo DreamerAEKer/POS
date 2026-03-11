@@ -2988,7 +2988,7 @@ const App = {
                     <!-- Qty Controls -->
                     <div style="display:flex; align-items:center; background:#f0f0f0; border-radius:20px; padding:2px;">
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, -1)" style="width:28px; height:28px;">-</button>
-                        <input type="number" class="hide-arrows" value="${item.qty}" min="1" max="${product.stock}" onchange="App.setCartQty(${index}, this.value)" style="width:45px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold; height:28px; background:white; margin:0 2px; font-size:16px;">
+                        <div onclick="App.promptQtyChange(${index})" style="width:45px; text-align:center; border:1px solid #ddd; border-radius:4px; font-weight:bold; height:28px; background:white; margin:0 2px; font-size:16px; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;" title="กดเพื่อระบุจำนวนที่เพิ่ม">${item.qty}</div>
                         <button class="icon-btn small" onclick="App.updateCartQty(${index}, 1)" style="width:28px; height:28px;">+</button>
                     </div>
 
@@ -3108,18 +3108,24 @@ const App = {
         App.state.draggedCartIndex = null;
     },
 
-    setCartQty: async (index, newQtyStr) => {
+    promptQtyChange: async (index) => {
         const item = App.state.cart[index];
-        let newQty = parseInt(newQtyStr);
-        if (isNaN(newQty) || newQty <= 0) {
-            newQty = 1;
-        }
-
-        if (newQty !== item.qty) {
-            // If reducing below what was originally ordered, warn the user
+        const addStr = await App.prompt(`ระบุการเปลี่ยนแปลงสำหรับ "${item.name}"\n(เช่น ใส่ 5 เพื่อเพิ่ม 5 ชิ้น หรือ -2 เพื่อลด 2 ชิ้น):`, '');
+        if (addStr === null || addStr.trim() === '') return;
+        
+        let change = parseInt(addStr);
+        if (isNaN(change) || change === 0) return;
+        
+        const newQty = item.qty + change;
+        
+        if (newQty <= 0) {
+            if (await App.confirm(`ต้องการลบ "${item.name}" ออกจากตะกร้าหรือไม่?`)) {
+                App.state.cart.splice(index, 1);
+                App.renderCart();
+            }
+        } else {
             if (item.originalQty && newQty < item.originalQty) {
                 if (!await App.confirm(`⚠️ สินค้าน้อยกว่าออเดอร์เดิม (${item.originalQty} ชิ้น)\nยืนยันลดจำนวน "${item.name}" เหลือ ${newQty} ใช่หรือไม่?`, 'ยืนยันลดจำนวน')) {
-                    App.renderCart(); // reset UI wrapper
                     return;
                 }
             }
@@ -3127,32 +3133,17 @@ const App = {
             item.qty = newQty;
             await App.checkWholesalePrompt(item);
             App.renderCart();
+            
+            if (change > 0 && typeof App.alert === 'function') {
+                App.alert(`เพิ่ม "${item.name}" ไป ${change} ชิ้น\n➤ รวมเป็น ${newQty} ชิ้น`);
+            }
         }
     },
 
     updateCartQty: async (index, change) => {
         const item = App.state.cart[index];
-        
-        if (change > 0) {
-            // Addition: Explicitly ask for amount to avoid rapid tapping mistakes and make it faster for bulk
-            const toAddStr = await App.prompt(`ระบุจำนวนที่ต้องการเพิ่ม สำหรับ "${item.name}":`, '1');
-            if (toAddStr === null) return; // Cancelled
-            
-            const toAdd = parseInt(toAddStr);
-            if (isNaN(toAdd) || toAdd <= 0) return; // Invalid
-            
-            item.qty += toAdd;
-            await App.checkWholesalePrompt(item);
-            App.renderCart();
-            
-            if (typeof App.alert === 'function') {
-                App.alert(`เพิ่ม "${item.name}" จำนวน ${toAdd} ชิ้น\n➤ รวมเป็น ${item.qty} ชิ้น`);
-            }
-            return;
-        }
-        
-        // Subtraction
         const newQty = item.qty + change;
+        
         if (newQty <= 0) {
             if (await App.confirm(`ต้องการลบ "${item.name}" ออกจากตะกร้าหรือไม่?`)) {
                 App.state.cart.splice(index, 1);
