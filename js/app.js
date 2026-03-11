@@ -4396,26 +4396,11 @@ const App = {
         if (!table) return;
 
         if (table.billId) {
-            // Occupied: Restore bill to cart and go to POS
+            // Occupied: Show table details modal instead of immediately overriding cart
             const parkedBills = DB.getParkedCarts();
             const bill = parkedBills.find(b => b.id === table.billId);
             if (bill) {
-                if (App.state.cart.length > 0) {
-                    if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่หรือไม่?')) return;
-                }
-
-                // Keep the bill in the DB, just load it into active state
-                // We DON'T delete it from DB like normal restore, because it is still "parked" at the table until checkout
-                App.state.cart = JSON.parse(JSON.stringify(bill.items)); // clone
-                App.state.activeBill = {
-                    id: bill.id,
-                    note: bill.note,
-                    timestamp: bill.timestamp
-                };
-                App.renderCart();
-                App.renderView('pos');
-                // Auto open mobile cart
-                if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+                App.showTableDetailsModal(table, bill);
             } else {
                 // Orphaned table state (bill deleted or checked out)
                 table.billId = null;
@@ -4469,6 +4454,111 @@ const App = {
 
                 App.renderTablesView(App.elements.viewContainer);
             }
+        }
+    },
+
+    showTableDetailsModal: (table, bill) => {
+        App.closeModals();
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('table-detail-modal');
+
+        const itemCount = bill.items.length;
+        const billTotal = bill.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+        modal.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                <h3 style="margin:0; font-size: 20px;">${table.name}</h3>
+                <button class="icon-btn" onclick="App.closeModals()"><span class="material-symbols-rounded">close</span></button>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <div style="font-weight: bold; color: var(--primary-color); font-size: 16px;">ลูกค้า: ${bill.note || 'ไม่มีชื่อ'}</div>
+                <div style="font-size: 14px; color: #666; margin-top: 5px;">รายการอาหาร (${itemCount} รายการ)</div>
+            </div>
+            
+            <div style="max-height: 250px; overflow-y: auto; background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+                ${bill.items.length > 0 ? bill.items.map(item => `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; border-bottom: 1px dashed #ddd; padding-bottom: 5px;">
+                        <span style="flex: 1; word-break: break-word; padding-right: 10px;">${item.qty}x ${item.name}</span>
+                        <span style="font-weight: bold; white-space: nowrap;">฿${Utils.formatCurrency(item.qty * item.price)}</span>
+                    </div>
+                `).join('') : '<div style="text-align: center; color: #999;">ไม่มีรายการ</div>'}
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 20px; font-weight: bold; margin-bottom: 20px;">
+                <span>ยอดรวม</span>
+                <span style="color: var(--danger-color);">฿${Utils.formatCurrency(billTotal)}</span>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="primary-btn" onclick="App.loadTableAndGoToPos(${table.id})" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <span class="material-symbols-rounded">add_circle</span> สั่งอาหารเพิ่ม
+                </button>
+                <button class="primary-btn" onclick="App.checkoutTableDirectly(${table.id})" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #4caf50;">
+                    <span class="material-symbols-rounded">payments</span> เช็คบิล / รับเงิน
+                </button>
+            </div>
+        `;
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    loadTableAndGoToPos: async (tableId) => {
+        const tables = DB.getTables();
+        const table = tables.find(t => t.id === tableId);
+        if (!table || !table.billId) return;
+
+        const parkedBills = DB.getParkedCarts();
+        const bill = parkedBills.find(b => b.id === table.billId);
+        if (!bill) return;
+
+        if (App.state.cart.length > 0) {
+            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่ด้วยรายการของโต๊ะหรือไม่?')) return;
+        }
+
+        App.state.cart = JSON.parse(JSON.stringify(bill.items));
+        App.state.activeBill = {
+            id: bill.id,
+            note: bill.note,
+            timestamp: bill.timestamp
+        };
+
+        App.closeModals();
+        App.renderCart();
+        App.renderView('pos');
+        if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+    },
+
+    checkoutTableDirectly: async (tableId) => {
+        // Load table to cart, then directly open payment modal
+        const tables = DB.getTables();
+        const table = tables.find(t => t.id === tableId);
+        if (!table || !table.billId) return;
+
+        const parkedBills = DB.getParkedCarts();
+        const bill = parkedBills.find(b => b.id === table.billId);
+        if (!bill) return;
+
+        if (App.state.cart.length > 0) {
+            if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการแทนที่และเปิดหน้ารับเงินโต๊ะหรือไม่?')) return;
+        }
+
+        App.state.cart = JSON.parse(JSON.stringify(bill.items));
+        App.state.activeBill = {
+            id: bill.id,
+            note: bill.note,
+            timestamp: bill.timestamp
+        };
+
+        App.closeModals();
+        App.renderCart();
+        App.renderView('pos');
+
+        // Ensure total is recalculated before showing payment modal
+        const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+        if (total > 0) {
+            App.showPaymentModal();
         }
     },
 
@@ -4527,7 +4617,7 @@ const App = {
         document.querySelectorAll('.modal').forEach(m => {
             m.classList.add('hidden');
             // FIX: Do not wipe security-modal or confirmation-modal content as they are static
-            if (m.id !== 'security-modal' && m.id !== 'confirmation-modal') {
+            if (m.id !== 'security-modal' && m.id !== 'confirmation-modal' && m.id !== 'table-detail-modal') {
                 m.innerHTML = '';
             }
         });
