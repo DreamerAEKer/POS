@@ -30,6 +30,22 @@ const DB = {
         }
     },
 
+    // New: Helper for safe saving with Quota Check
+    saveToLocalStorage: (key, data) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(data));
+            return true;
+        } catch (e) {
+            console.error(`Error saving ${key} to LocalStorage:`, e);
+            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                if (typeof App !== 'undefined' && App.alert) {
+                    App.alert('⚠️ พื้นที่เต็ม! ไม่สามารถบันทึกข้อมูลเพิ่มได้\n\nสาเหตุ: รูปภาพสินค้ามีขนาดใหญ่หรือจำนวนมากเกินไป\nทางแก้: กรุณาไปที่หน้า "ตั้งค่า" แล้วกดปุ่ม "ขยายพื้นที่จัดเก็บ"');
+                }
+            }
+            return false;
+        }
+    },
+
     // Initial Mock Data
     init: () => {
         // Safe check using new helper
@@ -208,11 +224,40 @@ const DB = {
         } else {
             products.push(product);
         }
-        localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(products));
+        return DB.saveToLocalStorage(DB.KEYS.PRODUCTS, products);
     },
 
     saveProducts: (productsArray) => {
-        localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(productsArray));
+        return DB.saveToLocalStorage(DB.KEYS.PRODUCTS, productsArray);
+    },
+
+    // New: Batch recompress all images to free up space
+    recompressAllProducts: async (progressCallback) => {
+        const products = DB.getProducts();
+        let changedCount = 0;
+        
+        for (let i = 0; i < products.length; i++) {
+            if (products[i].image && products[i].image.startsWith('data:image')) {
+                try {
+                    const originalSize = products[i].image.length;
+                    // Shrink to 200px width, 0.5 quality
+                    const newImage = await Utils.compressImage(products[i].image, 200, 0.5);
+                    
+                    if (newImage.length < originalSize) {
+                        products[i].image = newImage;
+                        changedCount++;
+                    }
+                } catch (err) {
+                    console.warn(`Failed to compress image for product ${products[i].id}`, err);
+                }
+            }
+            if (progressCallback) progressCallback(i + 1, products.length);
+        }
+        
+        if (changedCount > 0) {
+            DB.saveProducts(products);
+        }
+        return changedCount;
     },
 
     deleteProduct: (id) => {
@@ -540,7 +585,7 @@ const DB = {
         return JSON.stringify(data, null, 2);
     },
 
-    importData: (jsonString) => {
+    importData: async (jsonString, progressCallback) => {
         try {
             const data = JSON.parse(jsonString);
 
@@ -549,36 +594,80 @@ const DB = {
                 throw new Error('ไฟล์ข้อมูลไม่ถูกต้อง (Invalid Data Structure)');
             }
 
-            // Restore Settings if available (Optional for backward compatibility)
-            if (data.settings) {
-                localStorage.setItem(DB.KEYS.SETTINGS, JSON.stringify(data.settings));
-            }
+            const performSave = (products, groupImages) => {
+                // Restore Settings if available (Optional for backward compatibility)
+                if (data.settings) {
+                    localStorage.setItem(DB.KEYS.SETTINGS, JSON.stringify(data.settings));
+                }
 
-            // Restore Group Images if available
-            if (data.groupImages) {
-                localStorage.setItem(DB.KEYS.GROUP_IMAGES, JSON.stringify(data.groupImages));
-            }
+                // Restore Group Images if available
+                if (groupImages) {
+                    localStorage.setItem(DB.KEYS.GROUP_IMAGES, JSON.stringify(groupImages));
+                }
 
-            // Restore Counters if available
-            if (data.counters) {
-                Object.keys(data.counters).forEach(key => {
-                    localStorage.setItem(key, data.counters[key]);
-                });
-            }
+                // Restore Counters if available
+                if (data.counters) {
+                    Object.keys(data.counters).forEach(key => {
+                        localStorage.setItem(key, data.counters[key]);
+                    });
+                }
 
-            // Save to LocalStorage
-            localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(data.products || []));
-            localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(data.suppliers || []));
-            localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(data.supplierPrices || []));
-            localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(data.parkedCarts || []));
-            localStorage.setItem(DB.KEYS.SALES, JSON.stringify(data.sales || []));
+                // Save to LocalStorage
+                localStorage.setItem(DB.KEYS.PRODUCTS, JSON.stringify(products || []));
+                localStorage.setItem(DB.KEYS.SUPPLIERS, JSON.stringify(data.suppliers || []));
+                localStorage.setItem(DB.KEYS.SUPPLIER_PRICES, JSON.stringify(data.supplierPrices || []));
+                localStorage.setItem(DB.KEYS.PARKED_CARTS, JSON.stringify(data.parkedCarts || []));
+                localStorage.setItem(DB.KEYS.SALES, JSON.stringify(data.sales || []));
+            };
+
+            try {
+                // First pass: Attempt normal save
+                performSave(data.products, data.groupImages);
+            } catch (e) {
+                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                    console.warn('Initial import failed (Storage Full). Starting Smart Compression...');
+                    
+                    const products = data.products || [];
+                    const groupImages = data.groupImages || {};
+                    
+                    const productsWithImages = products.filter(p => p.image);
+                    const groupsWithImages = Object.keys(groupImages).filter(g => groupImages[g]);
+                    const total = productsWithImages.length + groupsWithImages.length;
+                    let current = 0;
+
+                    // 1. Compress Products
+                    for (const p of products) {
+                        if (p.image) {
+                            p.image = await Utils.compressImage(p.image, 150, 0.4); // Aggressive
+                            current++;
+                            if (progressCallback) progressCallback(current, total);
+                        }
+                    }
+
+                    // 2. Compress Group Images
+                    for (const g of Object.keys(groupImages)) {
+                        if (groupImages[g]) {
+                            groupImages[g] = await Utils.compressImage(groupImages[g], 150, 0.4);
+                            current++;
+                            if (progressCallback) progressCallback(current, total);
+                        }
+                    }
+
+                    // Second pass: Save compressed data
+                    performSave(products, groupImages);
+                } else {
+                    throw e;
+                }
+            }
 
             return { success: true };
         } catch (e) {
-            console.error(e);
-            let msg = 'ไฟล์ไม่ถูกต้อง';
+            console.error('Import Error:', e);
+            let msg = 'ไฟล์ไม่ถูกต้องหรือระบบขัดข้อง';
             if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-                msg = 'ความจุเต็ม! (รูปภาพเยอะเกินไป)';
+                msg = 'ความจุเต็ม! (บีบอัดจนสุดแล้วก็ยังไม่พอ กรุณาลบไฟล์ที่ไม่จำเป็น)';
+            } else if (e.message) {
+                msg = e.message;
             }
             return { success: false, message: msg };
         }

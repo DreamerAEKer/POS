@@ -883,6 +883,23 @@ const App = {
                     <input type="file" id="restore-input" accept=".json" style="display:none;" onchange="App.restoreData(this)">
                     <button class="secondary-btn" onclick="document.getElementById('restore-input').click()">Upload Backup</button>
                 </div>
+
+                <!-- Storage Management (Expand Storage) -->
+                <div id="storage-management-card" style="background:var(--primary-light); padding:20px; border-radius:12px; box-shadow:var(--shadow-sm); text-align:center; grid-column:1 / -1; border:2px dashed var(--primary-color); margin-top:10px;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                        <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color);">speed</span>
+                        <h3 style="margin:0; color:var(--primary-color);">จัดการพื้นที่จัดเก็บและการแสดงผล</h3>
+                        <p style="color:var(--primary-dark); font-size:14px; margin-bottom:5px; max-width:500px;">
+                            หากพบปัญหา <b>"พื้นที่เต็ม"</b> หรือเครื่องเริ่มทำงานช้าลง ให้กดปุ่มนี้เพื่อบีบอัดรูปภาพเก่าทั้งหมดในระบบ (ช่วยให้เก็บสินค้าได้เพิ่มขึ้นอีกหลายเท่าตัว)
+                        </p>
+                        <button class="primary-btn" onclick="App.runStorageCleanup()" style="min-width:250px; height:50px; font-size:16px;">
+                            <span class="material-symbols-rounded" style="vertical-align:middle; margin-right:8px;">auto_fix_high</span>
+                            ขยายพื้นที่จัดเก็บ (บีบอัดรูปภาพเก่า)
+                        </button>
+                        <div id="cleanup-progress" style="margin-top:10px; font-size:14px; color:var(--primary-color); font-weight:bold; display:none;">
+                             กำลังขยายพื้นที่...
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -1017,6 +1034,39 @@ const App = {
         });
     },
 
+    runStorageCleanup: async () => {
+        if (!await App.confirm('⚠️ ยืนยันการบีบอัดรูปภาพเก่า?\n\nระบบจะทำการย่อขนาดรูปภาพสินค้าทั้งหมดเพื่อเพิ่มพื้นที่จัดเก็บ ข้อมูลอื่นๆ จะยังอยู่ครบถ้วน\n(แนะนำให้ Download Backup เก็บไว้ก่อนเพื่อความปลอดภัย)')) return;
+
+        const progressDiv = document.getElementById('cleanup-progress');
+        if (progressDiv) {
+            progressDiv.style.display = 'block';
+            progressDiv.style.color = 'var(--primary-color)';
+        }
+        
+        try {
+            const count = await DB.recompressAllProducts((current, total) => {
+                if (progressDiv) progressDiv.textContent = `กำลังดำเนินการ: ${current} / ${total} รายการ... ${Math.round((current/total)*100)}%`;
+            });
+
+            App.state.products = DB.getProducts(); // Refresh 
+            
+            if (progressDiv) {
+                progressDiv.style.color = 'var(--success-color)';
+                progressDiv.textContent = `✨ สำเร็จ! บีบอัดไปทั้งหมด ${count} รูปภาพ พื้นที่ว่างเพิ่มขึ้นแล้ว`;
+            }
+            
+            setTimeout(async () => {
+                await App.alert(`🎉 ขยายพื้นที่สำเร็จ!\nบีบอัดรูปภาพสินค้าไปทั้งหมด ${count} รายการ\nท่านสามารถเพิ่มสินค้าและรูปภาพใหม่ได้ทันทีครับ`);
+                if (progressDiv) progressDiv.style.display = 'none';
+            }, 500);
+        } catch (err) {
+            console.error('Cleanup Error:', err);
+            await App.alert('เกิดข้อผิดพลาดระหว่างการบีบอัด');
+            if (progressDiv) progressDiv.style.display = 'none';
+        }
+    },
+
+
     changePin: () => {
         const newPin = document.getElementById('set-new-pin').value;
         if (!/^\d{4}$/.test(newPin)) {
@@ -1053,10 +1103,12 @@ const App = {
 
         try {
             if (logoInput.files[0]) {
-                updates.logo = await Utils.fileToBase64(logoInput.files[0]);
+                const raw = await Utils.fileToBase64(logoInput.files[0]);
+                updates.logo = await Utils.compressImage(raw, 300, 0.7);
             }
             if (qrInput.files[0]) {
-                updates.qrCode = await Utils.fileToBase64(qrInput.files[0]);
+                const raw = await Utils.fileToBase64(qrInput.files[0]);
+                updates.qrCode = await Utils.compressImage(raw, 300, 0.7);
             }
 
             DB.saveSettings(updates);
@@ -1067,15 +1119,17 @@ const App = {
         }
     },
 
-    handleGroupImageUpload: (input, groupName) => {
+    handleGroupImageUpload: async (input, groupName) => {
         if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const base64 = e.target.result;
-                DB.setGroupImage(groupName, base64);
+            try {
+                const raw = await Utils.fileToBase64(input.files[0]);
+                const compressed = await Utils.compressImage(raw, 250, 0.5);
+                DB.setGroupImage(groupName, compressed);
                 App.renderView('settings'); // Re-render to show new image
-            };
-            reader.readAsDataURL(input.files[0]);
+            } catch (err) {
+                console.error('Group Upload Error:', err);
+                App.alert('ไม่สามารถอัปโหลดรูปภาพหมวดหมู่ได้');
+            }
         }
     },
 
@@ -1088,10 +1142,19 @@ const App = {
 
     handleImagePreview: async (input, previewId) => {
         if (input.files && input.files[0]) {
-            const base64 = await Utils.fileToBase64(input.files[0]);
-            const preview = document.getElementById(previewId);
-            if (preview) {
-                preview.innerHTML = `<img src="${base64}" style="width:100%; height:100%; object-fit:contain;">`;
+            try {
+                const raw = await Utils.fileToBase64(input.files[0]);
+                const compressed = await Utils.compressImage(raw, 300, 0.7);
+                const preview = document.getElementById(previewId);
+                if (preview) {
+                    preview.innerHTML = `<img src="${compressed}" style="width:100%; height:100%; object-fit:contain;">`;
+                    // Note: Dataset is used during savePrinterSettings as backup if needed 
+                    // though here it's mainly for display.
+                    preview.dataset.base64 = compressed;
+                }
+            } catch (err) {
+                console.error('Preview Error:', err);
+                App.alert('ไม่สามารถแสดงตัวอย่างภาพได้');
             }
         }
     },
@@ -1108,13 +1171,39 @@ const App = {
     restoreData: (input) => {
         const file = input.files[0];
         if (!file) return;
+
+        // Show Processing Overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'import-progress-overlay';
+        overlay.style = 'position:fixed; inset:0; background:rgba(255,255,255,0.9); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;';
+        overlay.innerHTML = `
+            <div style="font-size:48px; margin-bottom:20px;">📦</div>
+            <h2 style="color:var(--primary-color);">กำลังกู้คืนข้อมูล...</h2>
+            <p id="import-status" style="margin-top:10px; color:#666;">กรุณารอสักครู่ ระบบกำลังนำเข้าข้อมูลสินค้า</p>
+            <div id="import-progress-bar-container" style="width:200px; height:10px; background:#eee; border-radius:5px; margin-top:20px; overflow:hidden; display:none;">
+                <div id="import-progress-bar" style="width:0%; height:100%; background:var(--primary-color); transition:width 0.3s;"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const result = DB.importData(e.target.result);
+            const statusEl = document.getElementById('import-status');
+            const barContainer = document.getElementById('import-progress-bar-container');
+            const bar = document.getElementById('import-progress-bar');
+
+            // Use the new async importData with progress callback
+            const result = await DB.importData(e.target.result, (current, total) => {
+                barContainer.style.display = 'block';
+                statusEl.innerHTML = `พื้นที่เก็บข้อมูลในเครื่องไม่พอ<br><b>ระบบกำลังย่อขนาดรูปภาพให้อัตโนมัติ...</b><br>(${current} / ${total} รายการ)`;
+                bar.style.width = (current / total * 100) + '%';
+            });
+
             if (result.success) {
-                await App.alert('กู้คืนข้อมูลสำเร็จ!');
-                location.reload();
+                statusEl.innerHTML = '<span style="color:green; font-weight:bold;">✅ กู้คืนข้อมูลสำเร็จ! กำลังเริ่มระบบใหม่...</span>';
+                setTimeout(() => location.reload(), 1500);
             } else {
+                overlay.remove();
                 await App.alert('เกิดข้อผิดพลาด: ' + result.message);
             }
         };
@@ -1950,13 +2039,20 @@ const App = {
                             </div>
                         </div>
 
-                        <div>
-                            <label>รูปภาพ</label>
-                            <div style="display:flex; gap:10px; align-items:center;">
-                                <div id="p-image-preview" style="width:60px; height:60px; background:#eee; border-radius:8px; overflow:hidden; flex-shrink:0;">
-                                    ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : ''}
+                        <div style="margin-top:15px;">
+                            <label style="font-weight:bold; color:var(--primary-color);">รูปภาพสินค้า</label>
+                            <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
+                                <div id="p-image-preview" data-base64="${product && product.image ? product.image : ''}" style="width:80px; height:80px; background:#f0f7ff; border-radius:12px; overflow:hidden; flex-shrink:0; border:2px dashed var(--primary-color); display:flex; align-items:center; justify-content:center;">
+                                    ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : '<span class="material-symbols-rounded" style="font-size:32px; color:var(--primary-color); opacity:0.5;">add_a_photo</span>'}
                                 </div>
-                                <input type="file" id="p-image-input" accept="image/*" style="width:100%;">
+                                <div style="flex:1;">
+                                    <input type="file" id="p-image-input" accept="image/*" style="display:none;">
+                                    <button type="button" class="secondary-btn" onclick="document.getElementById('p-image-input').click()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; height:45px; background:white; border:1px solid var(--primary-color); color:var(--primary-color);">
+                                        <span class="material-symbols-rounded">camera_alt</span>
+                                        ถ่ายรูป / เลือกไฟล์
+                                    </button>
+                                    <div style="font-size:11px; color:#888; margin-top:5px;">* รูปจะถูกย่อขนาดอัตโนมัติเพื่อประหยัดพื้นที่</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2020,9 +2116,16 @@ const App = {
 
             fileInput.addEventListener('change', async (e) => {
                 if (e.target.files[0]) {
-                    const base64 = await Utils.fileToBase64(e.target.files[0]);
-                    preview.innerHTML = `<img src="${base64}" style="width:100%;height:100%;object-fit:cover;">`;
-                    preview.dataset.base64 = base64;
+                    try {
+                        const originalBase64 = await Utils.fileToBase64(e.target.files[0]);
+                        // Universal Compressor for extra safety
+                        const compressed = await Utils.compressImage(originalBase64, 200, 0.5);
+                        preview.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover;">`;
+                        preview.dataset.base64 = compressed;
+                    } catch (err) {
+                        console.error('File Upload Error:', err);
+                        App.alert('ไม่สามารถอัปโหลดรูปภาพนี้ได้');
+                    }
                 }
             });
             document.getElementById('product-form').addEventListener('submit', async (e) => {

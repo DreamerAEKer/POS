@@ -77,5 +77,35 @@ const Utils = {
     toggle: (id) => {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('hidden');
+    },
+
+    // New: Universal Image Compressor for existing Base64 strings
+    compressImage: (base64, maxWidth = 200, quality = 0.5) => {
+        return new Promise((resolve, reject) => {
+            if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:image')) {
+                return resolve(base64);
+            }
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                // Return even smaller JPEG
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = (e) => reject(e);
+            img.src = base64;
+        });
     }
 };
+
