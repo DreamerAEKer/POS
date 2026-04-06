@@ -1504,7 +1504,7 @@ const App = {
             const costAlert = !p.cost ? 'color:orange;' : '';
 
             return `
-                                <tr style="border-bottom:1px solid #eee;">
+                                <tr id="stock-item-${p.id}" style="border-bottom:1px solid #eee;">
                                     <td style="padding:10px;">
                                         <div style="display:flex; align-items:center; gap:10px;">
                                             <div style="width:36px; height:36px; background:#eee; border-radius:4px; overflow:hidden; flex-shrink:0;">
@@ -2745,7 +2745,32 @@ const App = {
                     App.addToCart(product, true); // True = fromScan
                 }
             }
-            // In Stock/Other views: Just Flash (as requested), no modal opening
+            // In Stock/Other views: Just Flash, and scroll to item if in Stock View
+            if (App.state.currentView === 'stock') {
+                // Try to find the element
+                let el = document.getElementById(`stock-item-${product.id}`);
+
+                // If not found, it might be filtered out - reset view
+                if (!el) {
+                    App.state.searchQuery = '';
+                    App.state.stockTab = 'all';
+                    App.renderView('stock');
+                    // Wait for render
+                    setTimeout(() => {
+                        el = document.getElementById(`stock-item-${product.id}`);
+                        if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            el.classList.add('row-highlight-flash');
+                            setTimeout(() => el.classList.remove('row-highlight-flash'), 2000);
+                        }
+                    }, 100);
+                } else {
+                    // Found immediately
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.classList.add('row-highlight-flash');
+                    setTimeout(() => el.classList.remove('row-highlight-flash'), 2000);
+                }
+            }
         } else {
             const notFoundHtml = `
                 <div id="not-found-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center;">
