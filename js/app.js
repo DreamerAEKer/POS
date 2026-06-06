@@ -32,6 +32,9 @@ const App = {
 
     init: async () => {
         try {
+            // Initialize DB (load from localforage to cache)
+            await DB.init();
+
             // Load Data
             App.state.products = DB.getProducts();
 
