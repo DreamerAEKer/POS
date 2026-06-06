@@ -838,7 +838,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.91.0', // Update Version
+    VERSION: '0.92.0', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1211,6 +1211,36 @@ const App = {
             }
         };
         reader.readAsText(file);
+    },    setQuickFilter: (groupName) => {
+        if (groupName === 'all') {
+            App.state.searchQuery = '';
+        } else {
+            App.state.searchQuery = groupName;
+        }
+        if (App.elements.globalSearch) {
+            App.elements.globalSearch.value = App.state.searchQuery;
+        }
+        App.renderView(App.state.currentView);
+    },
+
+    renderQuickFilterBarHtml: () => {
+        const products = App.state.products || [];
+        const groups = [...new Set(products.map(p => p.group).filter(g => g))];
+        if (groups.length === 0) return '';
+        
+        const currentFilter = App.state.searchQuery || 'all';
+        let chipsHtml = `<div class="quick-filter-chip ${currentFilter === 'all' ? 'active' : ''}" onclick="App.setQuickFilter('all')">ทั้งหมด</div>`;
+        
+        groups.forEach(g => {
+            const isActive = currentFilter === g;
+            chipsHtml += `<div class="quick-filter-chip ${isActive ? 'active' : ''}" onclick="App.setQuickFilter('${g}')">${g}</div>`;
+        });
+
+        return `
+            <div class="quick-filter-bar" style="margin-top: 10px; margin-bottom: 10px; border-radius: 8px;">
+                ${chipsHtml}
+            </div>
+        `;
     },
 
     // --- POS View ---
@@ -1222,6 +1252,7 @@ const App = {
                     <span class="material-symbols-rounded">edit_square</span> พิมพ์รายการเอง
                 </button>
             </div>
+            ${App.renderQuickFilterBarHtml()}
             <div class="product-grid" id="product-grid">
                 <!-- Products will be injected here -->
             </div>
@@ -1349,6 +1380,7 @@ const App = {
                     <button class="primary-btn" onclick="App.openProductModal()">+ เพิ่มสินค้า</button>
                 </div>
             </div>
+            ${App.renderQuickFilterBarHtml()}
             
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:15px;">
                  <div onclick="App.setStockTab('all')" style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm); cursor:pointer;">

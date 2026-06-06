@@ -534,6 +534,201 @@ body.printing-mode #receipt-print-area {
     }
 
     #mobile-bottom-nav .nav-item span:first-child,
+}
+
+/* Buttons */
+button {
+    cursor: pointer;
+    font-family: inherit;
+    border: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.primary-btn {
+    background-color: var(--primary-color);
+    color: white;
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    font-size: var(--text-lg);
+    font-weight: bold;
+}
+
+.primary-btn:active {
+    background-color: var(--primary-hover);
+}
+
+.primary-btn:disabled {
+    background-color: var(--neutral-400);
+    cursor: not-allowed;
+}
+
+.secondary-btn {
+    background-color: var(--secondary-light);
+    color: var(--secondary-color);
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    font-weight: bold;
+}
+
+.icon-btn {
+    background: transparent;
+    padding: var(--space-sm);
+    border-radius: var(--radius-full);
+}
+
+.icon-btn:hover {
+    background-color: var(--neutral-200);
+}
+
+.icon-btn.dangerous {
+    color: var(--danger-color);
+}
+
+.badge {
+    background: var(--danger-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+/* General Utilities */
+.hidden {
+    display: none !important;
+}
+
+/* Modal */
+#modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2100;
+}
+
+.modal {
+    background: white;
+    padding: var(--space-lg);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 800px;
+    box-shadow: var(--shadow-lg);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Fix: Confirmation Modal should always be on top and centered, ignoring flex layout of overlay */
+#confirmation-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2200;
+    /* Higher than overlay */
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    /* Strong shadow */
+    width: 90%;
+    max-width: 320px;
+}
+
+/* Print Area - Hidden on Screen by Default */
+#receipt-print-area {
+    display: none;
+}
+
+/* --- PRINTING MODE (Explicit Toggle for Android) --- */
+body.printing-mode #app,
+body.printing-mode #mobile-bottom-nav,
+body.printing-mode .mobile-cart-btn,
+body.printing-mode #modal-overlay {
+    display: none !important;
+}
+
+body.printing-mode #receipt-print-area {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    z-index: 99999;
+}
+
+/* --- RESPONSIVE DESIGN (Dedicated Mobile Nav) --- */
+
+/* Default: Hide Mobile Nav on Desktop */
+#mobile-bottom-nav {
+    display: none;
+}
+
+/* Mobile/Tablet Devices (Max 1024px) - Covers iPad Portrait/Landscape */
+@media screen and (max-width: 1024px) {
+
+    /* 1. Layout Reset */
+    #app {
+        flex-direction: column;
+        padding-bottom: 90px;
+        /* Space for fixed bottom nav + Safe Area */
+    }
+
+    /* 2. Hide Desktop Elements */
+    #sidebar {
+        display: none !important;
+    }
+
+    .mobile-only {
+        display: flex !important;
+    }
+
+    /* 3. Show Dedicated Mobile Nav */
+    #mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: auto;
+        min-height: 70px;
+        background: #ffffff;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        justify-content: space-around;
+        align-items: center;
+        /* Safe Area for iPhone X+ AND Android Nav Bar */
+        padding-bottom: env(safe-area-inset-bottom, 20px);
+        padding-bottom: max(env(safe-area-inset-bottom), 20px);
+        /* Ensure at least 20px */
+    }
+
+    /* Mobile Nav Items */
+    #mobile-bottom-nav .nav-item,
+    #mobile-bottom-nav .nav-action-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 5px;
+        /* Add vertical padding */
+        color: var(--neutral-400);
+        font-size: 10px;
+    }
+
+    #mobile-bottom-nav .nav-item.active,
+    #mobile-bottom-nav .nav-action-item.active {
+        color: var(--primary-color);
+        background: transparent;
+        /* Remove desktop active bg */
+    }
+
+    #mobile-bottom-nav .nav-item span:first-child,
     #mobile-bottom-nav .nav-action-item span:first-child {
         font-size: 26px;
         margin-bottom: 4px;
@@ -542,15 +737,17 @@ body.printing-mode #receipt-print-area {
     /* 4. Content Area Adjustments */
     #main-content {
         width: 100%;
-        height: auto;
         flex: 1;
-        overflow-y: hidden;
-        /* Fix: Prevent double scrollbar, let view-container handle it */
-        /* Scroll within content */
+        display: flex;
+        flex-direction: column;
+        /* Removed height: auto and overflow-y: hidden to prevent iOS 100vh scrolling bug */
     }
 
     #view-container {
         padding-bottom: 120px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        flex: 1;
         /* Space for the floating cart button */
     }
 
@@ -1071,4 +1268,40 @@ button {
 }
 .row-highlight-flash {
     animation: row-highlight-flash 2.0s ease-out;
+}
+
+/* --- Quick Category Filter --- */
+.quick-filter-bar {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 10px var(--space-md);
+    background: var(--neutral-100);
+    border-bottom: 1px solid var(--neutral-300);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+}
+
+.quick-filter-bar::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+}
+
+.quick-filter-chip {
+    background: var(--neutral-200);
+    color: var(--neutral-700);
+    border: 1px solid var(--neutral-300);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quick-filter-chip.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
