@@ -838,7 +838,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.90.0', // Update Version
+    VERSION: '0.91.0', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1934,6 +1934,10 @@ const App = {
                         <label>ต้นทุน (Cost)</label>
                         <input type="number" step="0.5" id="p-cost" value="${product ? (product.cost || '') : ''}" placeholder="ใส่เพื่อคิดกำไร" style="width:100%;">
                     </div>
+                    <div style="flex: 1 1 150px;">
+                        <label>ราคาเป๋าตัง (60:40)</label>
+                        <input type="number" step="0.5" id="p-tct-price" value="${product ? (product.thaiChuaiThaiPrice || '') : ''}" placeholder="ระบุราคาที่นี่" style="width:100%;">
+                    </div>
                 </div>
 
                  <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:flex-start;">
@@ -2142,6 +2146,7 @@ const App = {
 
                 // New Fields
                 const cost = parseFloat(document.getElementById('p-cost').value) || 0;
+                const thaiChuaiThaiPrice = parseFloat(document.getElementById('p-tct-price').value) || 0;
                 const location = document.getElementById('p-location').value.trim(); // Get Location
                 const entryDate = document.getElementById('p-entry-date').value; // Get Entry Date
                 const expiryDate = document.getElementById('p-expiry').value;
@@ -2212,7 +2217,7 @@ const App = {
 
                 const newProduct = {
                     id, barcode, group, name, price, stock, image: newImage,
-                    cost, expiryDate, tags, location, entryDate, // Save Location & Entry Date
+                    cost, thaiChuaiThaiPrice, expiryDate, tags, location, entryDate, // Save Location & Entry Date
                     parentId, packSize, wholesaleQty, wholesalePrice, packBarcode,
                     updatedAt: Date.now() // Auto-Timestamp
                 };
@@ -3044,6 +3049,10 @@ const App = {
             await App.checkWholesalePrompt(existing);
         } else {
             const newItem = { ...product, qty: 1 };
+            if (App.state.isTCTMode && product.thaiChuaiThaiPrice > 0) {
+                newItem.price = product.thaiChuaiThaiPrice;
+                newItem.wholesalePrice = 0;
+            }
             App.state.cart.push(newItem);
             await App.checkWholesalePrompt(newItem);
         }
@@ -3353,6 +3362,12 @@ const App = {
             if (App.state.cart.length === 0) return;
             App.showPaymentModal();
         });
+        
+        const btnTctPrice = document.getElementById('btn-tct-price');
+        if (btnTctPrice) {
+            btnTctPrice.addEventListener('click', App.applyTCTPrice);
+        }
+
         const quickBtn = document.getElementById('btn-quick-print');
         if (quickBtn) {
             quickBtn.addEventListener('click', App.quickCheckoutAndPrint);
@@ -3374,6 +3389,54 @@ const App = {
             mobileOverlay.addEventListener('click', () => {
                 App.toggleMobileCart(false);
             });
+        }
+    },
+
+    applyTCTPrice: async () => {
+        if (App.state.cart.length === 0) return;
+        
+        // Initialize state if not present
+        if (App.state.isTCTMode === undefined) App.state.isTCTMode = false;
+        
+        App.state.isTCTMode = !App.state.isTCTMode; // Toggle mode
+        
+        let applied = false;
+        App.state.cart.forEach(item => {
+            const product = App.state.products.find(p => p.id === item.id);
+            if (product) {
+                if (App.state.isTCTMode && product.thaiChuaiThaiPrice > 0) {
+                    item.price = product.thaiChuaiThaiPrice;
+                    item.wholesalePrice = 0; // Disable wholesale pricing if TCT applies
+                    applied = true;
+                } else if (!App.state.isTCTMode) {
+                    // Restore original prices
+                    item.price = product.price;
+                    item.wholesalePrice = product.wholesalePrice || 0;
+                    applied = true; // Always true when reverting
+                }
+            }
+        });
+        
+        const btnTctPrice = document.getElementById('btn-tct-price');
+        if (btnTctPrice) {
+            if (App.state.isTCTMode) {
+                btnTctPrice.style.background = '#e8f0fe';
+            } else {
+                btnTctPrice.style.background = '';
+            }
+        }
+        
+        if (applied || !App.state.isTCTMode) {
+            App.renderCart();
+            if (App.state.isTCTMode) {
+                await App.alert('เปิดใช้งานราคา "ไทยช่วยไทย (เป๋าตัง)" แล้ว');
+            } else {
+                await App.alert('กลับสู่ราคาปกติเรียบร้อยแล้ว');
+            }
+        } else {
+            // Revert the toggle if no product has TCT price
+            App.state.isTCTMode = false;
+            await App.alert('ไม่มีสินค้าในตะกร้าที่ตั้งราคา "ไทยช่วยไทย" ไว้');
         }
     },
 
