@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>สแกนสินค้า — ร้านชำ POS</title>
+    <meta name="description" content="แอปเสริมสแกน QR/Barcode สินค้า ดึงราคาจากฐานข้อมูล POS และสร้างใบเสร็จพิมพ์ได้">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,500,1,0" />
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root{
+            --green:#00e676;--green-dim:#00c853;--green-glow:rgba(0,230,118,.35);
+            --red:#ff5252;--red-glow:rgba(255,82,82,.3);
+            --bg:#0d0f14;--surface:#161921;--surface2:#1e2230;--surface3:#252b3a;
+            --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.13);
+            --text:#e8eaf0;--text-dim:#8892a4;--text-muted:#4e596e;
+            --radius-sm:10px;--radius-md:16px;--radius-lg:22px;
+            --font:'Sarabun',sans-serif;--transition:.2s cubic-bezier(.4,0,.2,1)
+        }
+        html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+
+        /* Layout */
+        #app{display:grid;grid-template-rows:1fr auto;height:100dvh;max-width:480px;margin:0 auto;position:relative}
+
+        /* ── Scanner Section ── */
+        #scanner-section{position:relative;overflow:hidden;background:#000;flex-shrink:0}
+        #camera-video{width:100%;height:100%;object-fit:cover;display:block}
+        #scanner-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+        .vf-shade{position:absolute;background:rgba(0,0,0,.55)}
+        .vf-shade.top{top:0;left:0;right:0;height:calc(50% - 90px)}
+        .vf-shade.bottom{bottom:0;left:0;right:0;height:calc(50% - 90px)}
+        .vf-shade.left{top:calc(50% - 90px);bottom:calc(50% - 90px);left:0;width:calc(50% - 110px)}
+        .vf-shade.right{top:calc(50% - 90px);bottom:calc(50% - 90px);right:0;width:calc(50% - 110px)}
+        #viewfinder{position:absolute;width:220px;height:180px;top:50%;left:50%;transform:translate(-50%,-50%)}
+        #viewfinder::before,#viewfinder::after,#viewfinder .vf-br::before,#viewfinder .vf-br::after{content:'';position:absolute;width:28px;height:28px;border-color:var(--green);border-style:solid}
+        #viewfinder::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+        #viewfinder::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+        #viewfinder .vf-br::before{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+        #viewfinder .vf-br::after{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+        #scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--green),transparent);box-shadow:0 0 8px var(--green-glow);top:0;animation:scan-sweep 2s ease-in-out infinite}
+        @keyframes scan-sweep{0%{top:0;opacity:1}50%{top:calc(100% - 2px);opacity:1}100%{top:0;opacity:.4}}
+        #scanner-hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent)}
+        #hud-title{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+        .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse-dot 1.5s ease-in-out infinite}
+        @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+        #btn-torch,#btn-camera-switch{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;backdrop-filter:blur(6px);transition:var(--transition)}
+        #btn-torch:active,#btn-camera-switch:active{transform:scale(.9)}
+        #btn-torch.active{background:rgba(255,220,0,.3);border-color:#ffd600;color:#ffd600}
+        #scanner-hint{position:absolute;bottom:0;left:0;right:0;text-align:center;padding:10px 16px 14px;background:linear-gradient(to top,rgba(0,0,0,.7),transparent);font-size:13px;color:rgba(255,255,255,.65)}
+        #no-camera-msg{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--surface);text-align:center;padding:30px;color:var(--text-dim)}
+        #manual-input-wrap{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:260px;display:flex;gap:6px}
+        #manual-barcode{flex:1;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:rgba(255,255,255,.08);color:#fff;font-family:var(--font);font-size:15px;outline:none;backdrop-filter:blur(8px)}
+        #manual-barcode::placeholder{color:rgba(255,255,255,.4)}
+        #manual-barcode:focus{border-color:var(--green);box-shadow:0 0 0 2px var(--green-glow)}
+        #btn-manual-search{background:var(--green);border:none;border-radius:var(--radius-sm);width:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#000;transition:var(--transition);flex-shrink:0}
+        #btn-manual-search:active{transform:scale(.92)}
+
+        /* ── Product Popup ── */
+        #product-popup{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(135deg,var(--surface2) 0%,var(--surface3) 100%);border-top:1px solid var(--border2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:20px 20px 24px;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);z-index:20}
+        #product-popup.visible{transform:translateY(0)}
+        #product-popup.not-found{border-top-color:var(--red)}
+        #popup-pill{width:40px;height:4px;border-radius:9999px;background:var(--border2);margin:0 auto 18px}
+        #popup-content{display:flex;align-items:center;gap:16px}
+        #popup-img{width:64px;height:64px;border-radius:var(--radius-sm);background:var(--surface3);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);overflow:hidden}
+        #popup-img img{width:100%;height:100%;object-fit:cover}
+        #popup-info{flex:1;min-width:0}
+        #popup-name{font-size:17px;font-weight:700;line-height:1.3;margin-bottom:4px;word-break:break-word}
+        #popup-barcode{font-size:12px;color:var(--text-muted);margin-bottom:8px;font-family:monospace;letter-spacing:.5px}
+        #popup-price{font-size:28px;font-weight:800;color:var(--green);letter-spacing:-.5px}
+        #popup-price .currency{font-size:16px;font-weight:600;margin-right:2px}
+        #popup-not-found-msg{text-align:center;padding:10px 0 4px}
+        #countdown-wrap{position:relative;width:52px;height:52px;flex-shrink:0}
+        #countdown-svg{transform:rotate(-90deg)}
+        #countdown-ring{fill:none;stroke:var(--green);stroke-width:3;stroke-linecap:round;stroke-dasharray:138.2;stroke-dashoffset:0}
+        #countdown-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--green)}
+
+        /* ── Cart Panel ── */
+        #bottom-panel{display:flex;flex-direction:column;background:var(--surface);border-top:1px solid var(--border);max-height:55vh;overflow:hidden}
+        #cart-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+        #cart-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--text)}
+        #cart-count-badge{background:var(--green);color:#000;font-size:11px;font-weight:800;border-radius:9999px;padding:2px 8px;min-width:22px;text-align:center;transition:transform .15s}
+        #cart-count-badge.bump{transform:scale(1.35)}
+        #btn-clear-cart{background:none;border:1px solid rgba(255,82,82,.3);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;color:var(--red);cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:4px;transition:var(--transition)}
+        #btn-clear-cart:active{transform:scale(.95)}
+        #cart-items{overflow-y:auto;flex:1;scrollbar-width:thin;scrollbar-color:var(--surface3) transparent}
+        #cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:32px 20px;color:var(--text-muted)}
+        .cart-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);animation:slide-in .25s ease}
+        @keyframes slide-in{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}
+        .cart-item:last-child{border-bottom:none}
+        .item-name{font-size:14px;font-weight:600;line-height:1.3;color:var(--text);grid-column:1}
+        .item-price-line{font-size:12px;color:var(--text-dim);grid-column:1}
+        .item-controls{display:flex;align-items:center;gap:2px;grid-column:2;grid-row:1/span 2}
+        .qty-btn{background:var(--surface3);border:1px solid var(--border2);color:var(--text);width:32px;height:32px;border-radius:8px;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:var(--transition);line-height:1;font-family:var(--font)}
+        .qty-btn:active{transform:scale(.88)}
+        .qty-btn.del{border-color:rgba(255,82,82,.4);color:var(--red);font-size:16px}
+        .qty-btn.del:active{background:rgba(255,82,82,.15)}
+        .qty-num{min-width:32px;text-align:center;font-size:16px;font-weight:800;color:var(--text)}
+        #cart-footer{padding:14px 18px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0}
+        #total-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+        #total-label{font-size:15px;color:var(--text-dim);font-weight:500}
+        #total-amount{font-size:30px;font-weight:800;color:var(--green);letter-spacing:-1px}
+        #total-amount .curr{font-size:16px;margin-right:2px;color:var(--text-dim);font-weight:600}
+        #btn-print{width:100%;padding:14px;background:linear-gradient(135deg,var(--green-dim) 0%,#00e676 100%);color:#000;border:none;border-radius:var(--radius-md);font-family:var(--font);font-size:17px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:var(--transition);box-shadow:0 4px 20px var(--green-glow)}
+        #btn-print:active{transform:scale(.97)}
+        #btn-print:disabled{background:var(--surface3);color:var(--text-muted);box-shadow:none;cursor:not-allowed}
+
+        /* ── Toast ── */
+        #toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-md);padding:12px 20px;font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
+        #toast.show{transform:translateX(-50%) translateY(0)}
+        #toast.success{border-color:var(--green)}
+        #toast.error{border-color:var(--red)}
+        #receipt-print-area{display:none}
+
+        /* ── Print ── */
+        @media print{
+            @page{margin:0;size:80mm auto}
+            html,body{visibility:visible!important;background:white!important;overflow:visible!important}
+            #app{display:none!important}
+            #receipt-print-area{display:block!important;position:relative!important;width:100%;max-width:80mm;margin:0 auto;padding:5px 2mm 0 2mm;background:white;color:black;font-family:'Sarabun',sans-serif;font-size:16px;line-height:1.3;font-weight:600;visibility:visible!important}
+            #receipt-print-area *{visibility:visible;color:#000!important}
+            .receipt-header,.receipt-footer{text-align:center;margin-bottom:12px}
+            .receipt-header h2{font-size:24px;margin-bottom:5px;font-weight:900}
+            .receipt-divider{border-top:2px dashed black;margin:10px 0}
+            .receipt-item{display:block;margin-bottom:6px;font-size:18px;font-weight:900}
+            .receipt-total{display:flex;justify-content:space-between;font-weight:900;font-size:22px;margin-top:15px;border-top:3px solid black;padding-top:8px}
+            .receipt-logo{text-align:center;margin-bottom:10px}
+            .receipt-logo img{max-width:80%;height:auto;filter:grayscale(100%) contrast(150%)}
+            .receipt-qr{text-align:center;margin-top:10px;margin-bottom:10px}
+            .receipt-qr img{width:160px;height:160px;max-width:80%;object-fit:contain;image-rendering:pixelated;filter:contrast(200%) grayscale(100%)}
+        }
+        @media(orientation:landscape){
+            #app{grid-template-columns:1fr 320px;grid-template-rows:1fr}
+            #scanner-section{grid-column:1;grid-row:1}
+            #bottom-panel{grid-column:2;grid-row:1;max-height:100vh;border-top:none;border-left:1px solid var(--border)}
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <!-- Scanner -->
+    <section id="scanner-section">
+        <video id="camera-video" autoplay muted playsinline></video>
+        <div id="scanner-overlay">
+            <div class="vf-shade top"></div>
+            <div class="vf-shade bottom"></div>
+            <div class="vf-shade left"></div>
+            <div class="vf-shade right"></div>
+            <div id="viewfinder">
+                <div class="vf-br"></div>
+                <div id="scan-line"></div>
+            </div>
+        </div>
+        <div id="scanner-hud">
+            <div id="hud-title">
+                <div class="logo-dot"></div>
+                สแกนสินค้า
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button id="btn-camera-switch" title="สลับกล้อง">
+                    <span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span>
+                </button>
+                <button id="btn-torch" title="ไฟฉาย">
+                    <span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span>
+                </button>
+            </div>
+        </div>
+        <div id="no-camera-msg">
+            <span class="material-symbols-rounded" style="font-size:52px;color:var(--text-muted);">no_photography</span>
+            <p style="font-size:15px;line-height:1.6;">ไม่พบกล้อง หรือไม่ได้รับอนุญาต<br>กรุณาใส่บาร์โค้ดด้วยตัวเอง</p>
+        </div>
+        <div id="manual-input-wrap">
+            <input type="text" id="manual-barcode" placeholder="ใส่บาร์โค้ด..." inputmode="numeric" autocomplete="off">
+            <button id="btn-manual-search">
+                <span class="material-symbols-rounded" style="font-size:20px;">search</span>
+            </button>
+        </div>
+        <div id="scanner-hint">จ่อบาร์โค้ดสินค้าที่กรอบด้านบน</div>
+
+        <!-- Product Popup -->
+        <div id="product-popup">
+            <div id="popup-pill"></div>
+            <div id="popup-found" style="display:none;">
+                <div id="popup-content">
+                    <div id="popup-img">
+                        <span class="material-symbols-rounded" style="font-size:28px;color:var(--text-muted);">category</span>
+                    </div>
+                    <div id="popup-info">
+                        <div id="popup-name">—</div>
+                        <div id="popup-barcode">—</div>
+                        <div id="popup-price"><span class="currency">฿</span><span id="popup-price-val">0.00</span></div>
+                    </div>
+                    <div id="countdown-wrap">
+                        <svg id="countdown-svg" width="52" height="52" viewBox="0 0 52 52">
+                            <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+                            <circle id="countdown-ring" cx="26" cy="26" r="22"/>
+                        </svg>
+                        <div id="countdown-num">2</div>
+                    </div>
+                </div>
+            </div>
+            <div id="popup-not-found" style="display:none;">
+                <div id="popup-not-found-msg">
+                    <span class="material-symbols-rounded" style="font-size:40px;color:var(--red);">search_off</span>
+                    <p style="color:var(--text-dim);font-size:15px;margin-top:6px;">
+                        ไม่พบสินค้าในระบบ<br>
+                        <small id="popup-nf-barcode" style="font-family:monospace;color:var(--text-muted);"></small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cart -->
+    <div id="bottom-panel">
+        <div id="cart-header">
+            <div id="cart-title">
+                <span class="material-symbols-rounded" style="font-size:20px;color:var(--green);">shopping_cart</span>
+                รายการสินค้า
+                <span id="cart-count-badge">0</span>
+            </div>
+            <button id="btn-clear-cart">
+                <span class="material-symbols-rounded" style="font-size:15px;">delete_sweep</span>
+                ล้าง
+            </button>
+        </div>
+        <div id="cart-items">
+            <div id="cart-empty">
+                <span class="material-symbols-rounded" style="font-size:40px;">shopping_cart_off</span>
+                <p>ยังไม่มีสินค้า — สแกนเพื่อเริ่มต้น</p>
+            </div>
+        </div>
+        <div id="cart-footer">
+            <div id="total-row">
+                <span id="total-label">ยอดรวม</span>
+                <span id="total-amount"><span class="curr">฿</span><span id="total-val">0.00</span></span>
+            </div>
+            <button id="btn-print" disabled>
+                <span class="material-symbols-rounded">print</span>
+                พิมพ์ใบเสร็จ
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="receipt-print-area"></div>
+<div id="toast">
+    <span class="t-icon material-symbols-rounded">check_circle</span>
+    <span id="toast-msg">—</span>
+</div>
+
+<script src="js/localforage.min.js"></script>
+<script>
+const App = (() => {
+    const S = {
+        cart:[], products:[], settings:{}, scanning:true,
+        lockBarcode:null, lockClearTimer:null,
+        stream:null, facingMode:'environment', torchOn:false,
+        detector:null, scanInterval:null, countdownRAF:null, popupTimeout:null
+    };
+    const $=id=>document.getElementById(id);
+    const el = {
+        video:$('camera-video'), noCamera:$('no-camera-msg'),
+        manualInput:$('manual-barcode'), btnManual:$('btn-manual-search'),
+        btnTorch:$('btn-torch'), btnCamSwitch:$('btn-camera-switch'),
+        popup:$('product-popup'), popupFound:$('popup-found'), popupNotFound:$('popup-not-found'),
+        popupName:$('popup-name'), popupBarcode:$('popup-barcode'), popupPriceVal:$('popup-price-val'),
+        popupImg:$('popup-img'), popupNFBarcode:$('popup-nf-barcode'),
+        cdRing:$('countdown-ring'), cdNum:$('countdown-num'),
+        cartItems:$('cart-items'), cartEmpty:$('cart-empty'),
+        cartBadge:$('cart-count-badge'), totalVal:$('total-val'),
+        btnPrint:$('btn-print'), btnClear:$('btn-clear-cart'),
+        receiptArea:$('receipt-print-area'),
+        toast:$('toast'), toastMsg:$('toast-msg'), toastIcon:document.querySelector('#toast .t-icon'),
+        hint:$('scanner-hint')
+    };
+
+    /* ── DB ── */
+    async function loadDB(){
+        try{
+            S.products = await localforage.getItem('store_products') || [];
+            S.settings = await localforage.getItem('store_settings') || {};
+        }catch(e){ S.products=[]; S.settings={}; }
+    }
+
+    function findProduct(barcode){
+        const b=String(barcode).trim();
+        const main=S.products.find(p=>String(p.barcode)===b);
+        if(main) return {product:main,isPack:false};
+        const pack=S.products.find(p=>p.packBarcode&&String(p.packBarcode)===b);
+        if(pack) return {product:pack,isPack:true};
+        return null;
+    }
+
+    /* ── Camera ── */
+    async function startCamera(){
+        try{
+            if(S.stream) stopCamera();
+            const stream=await navigator.mediaDevices.getUserMedia({
+                video:{facingMode:S.facingMode,width:{ideal:1280},height:{ideal:720}}
+            });
+            S.stream=stream;
+            el.video.srcObject=stream;
+            await el.video.play();
+            el.video.style.display='block';
+            el.noCamera.style.display='none';
+            el.hint.style.display='block';
+            startScanning();
+        }catch(err){
+            el.video.style.display='none';
+            el.noCamera.style.display='flex';
+            el.hint.style.display='none';
+        }
+    }
+    function stopCamera(){
+        if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
+        stopScanning();
+    }
+    async function toggleTorch(){
+        if(!S.stream) return;
+        const track=S.stream.getVideoTracks()[0];
+        if(!track||!track.getCapabilities) return;
+        if(!track.getCapabilities().torch){ showToast('กล้องนี้ไม่มีไฟฉาย','error'); return; }
+        S.torchOn=!S.torchOn;
+        await track.applyConstraints({advanced:[{torch:S.torchOn}]});
+        el.btnTorch.classList.toggle('active',S.torchOn);
+    }
+    async function switchCamera(){
+        S.facingMode = S.facingMode==='environment'?'user':'environment';
+        await startCamera();
+    }
+
+    /* ── Detector ── */
+    function initDetector(){
+        if('BarcodeDetector' in window){
+            S.detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','code_93','itf','codabar','qr_code','data_matrix']});
+            return true;
+        }
+        return false;
+    }
+    function startScanning(){ if(!S.detector) return; stopScanning(); S.scanInterval=setInterval(scanFrame,300); }
+    function stopScanning(){ if(S.scanInterval){ clearInterval(S.scanInterval); S.scanInterval=null; } }
+    async function scanFrame(){
+        if(!S.scanning||el.video.readyState<2||el.video.paused) return;
+        try{
+            const codes=await S.detector.detect(el.video);
+            if(codes.length>0){ const r=codes[0].rawValue; if(r&&r!==S.lockBarcode) handleBarcode(r); }
+        }catch(_){}
+    }
+    function handleBarcode(barcode){
+        if(!S.scanning) return;
+        S.lockBarcode=barcode;
+        clearTimeout(S.lockClearTimer);
+        S.lockClearTimer=setTimeout(()=>{S.lockBarcode=null;},3000);
+        const result=findProduct(barcode);
+        if(result) showProductPopup(result.product,barcode,result.isPack);
+        else showNotFoundPopup(barcode);
+        if(navigator.vibrate) navigator.vibrate(30);
+    }
+
+    /* ── Popup ── */
+    const RING_C=2*Math.PI*22;
+    function showProductPopup(product,rawBarcode,isPack){
+        S.scanning=false; clearCountdown();
+        const price=isPack?(product.packPrice||product.price):product.price;
+        el.popupName.textContent=product.name;
+        el.popupBarcode.textContent=rawBarcode||product.barcode;
+        el.popupPriceVal.textContent=fmt(price);
+        el.popupImg.innerHTML='';
+        if(product.image&&product.image.startsWith('data:image')){
+            const img=document.createElement('img'); img.src=product.image; el.popupImg.appendChild(img);
+        }else{
+            const ic=document.createElement('span'); ic.className='material-symbols-rounded';
+            ic.textContent='category'; ic.style.cssText='font-size:28px;color:var(--text-muted);';
+            el.popupImg.appendChild(ic);
+        }
+        el.popupFound.style.display='block'; el.popupNotFound.style.display='none';
+        el.popup.className='visible';
+        startCountdown(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
+    }
+    function showNotFoundPopup(barcode){
+        S.scanning=false; clearCountdown();
+        el.popupNFBarcode.textContent=barcode;
+        el.popupFound.style.display='none'; el.popupNotFound.style.display='block';
+        el.popup.className='visible not-found';
+        clearTimeout(S.popupTimeout);
+        S.popupTimeout=setTimeout(hidePopup,2500);
+    }
+    function hidePopup(){
+        el.popup.classList.remove('visible','not-found'); clearCountdown();
+        setTimeout(()=>{ S.scanning=true; S.lockBarcode=null; },400);
+    }
+    function startCountdown(seconds,onComplete){
+        clearCountdown();
+        const start=performance.now(), dur=seconds*1000;
+        function tick(now){
+            const rem=Math.max(0,dur-(now-start));
+            el.cdRing.style.strokeDashoffset=RING_C*(1-rem/dur);
+            el.cdNum.textContent=Math.ceil(rem/1000)||1;
+            if(rem>0){ S.countdownRAF=requestAnimationFrame(tick); }
+            else onComplete();
+        }
+        S.countdownRAF=requestAnimationFrame(tick);
+    }
+    function clearCountdown(){
+        if(S.countdownRAF){ cancelAnimationFrame(S.countdownRAF); S.countdownRAF=null; }
+        clearTimeout(S.popupTimeout);
+        el.cdRing.style.strokeDashoffset=0; el.cdNum.textContent='2';
+    }
+
+    /* ── Cart ── */
+    function addToCart(product,price,isPack){
+        const cid=product.id+(isPack?'_pack':'');
+        const existing=S.cart.find(i=>i.id===cid);
+        if(existing){ existing.qty++; }
+        else{ S.cart.push({id:cid,barcode:isPack?product.packBarcode:product.barcode,name:product.name,price,qty:1,image:product.image||null}); }
+        renderCart();
+        showToast('เพิ่ม: '+product.name,'success');
+        el.cartBadge.classList.remove('bump'); void el.cartBadge.offsetWidth;
+        el.cartBadge.classList.add('bump'); setTimeout(()=>el.cartBadge.classList.remove('bump'),200);
+    }
+    function changeQty(id,delta){
+        const item=S.cart.find(i=>i.id===id); if(!item) return;
+        item.qty+=delta;
+        if(item.qty<=0) S.cart=S.cart.filter(i=>i.id!==id);
+        renderCart();
+    }
+    function removeFromCart(id){ S.cart=S.cart.filter(i=>i.id!==id); renderCart(); }
+    function clearCart(){ if(!S.cart.length) return; S.cart=[]; renderCart(); }
+
+    function fmt(n){ return Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function escH(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escA(s){ return String(s).replace(/'/g,"\\'"); }
+
+    function renderCart(){
+        const count=S.cart.reduce((s,i)=>s+i.qty,0);
+        const total=S.cart.reduce((s,i)=>s+(i.price*i.qty),0);
+        el.cartBadge.textContent=count;
+        el.totalVal.textContent=fmt(total);
+        el.btnPrint.disabled=S.cart.length===0;
+        if(!S.cart.length){
+            el.cartItems.innerHTML='';
+            el.cartItems.appendChild(el.cartEmpty);
+            el.cartEmpty.style.display='flex';
+            return;
+        }
+        el.cartItems.innerHTML='';
+        S.cart.forEach(item=>{
+            const row=document.createElement('div');
+            row.className='cart-item';
+            row.innerHTML=
+                '<div class="item-name">'+escH(item.name)+'</div>'+
+                '<div class="item-price-line">&#x0E3F;'+fmt(item.price)+' &times; '+item.qty+' = <strong>&#x0E3F;'+fmt(item.price*item.qty)+'</strong></div>'+
+                '<div class="item-controls">'+
+                '<button class="qty-btn del" onclick="App.removeItem(\''+escA(item.id)+'\')">'+
+                '<span class="material-symbols-rounded" style="font-size:16px;">delete</span></button>'+
+                '<button class="qty-btn minus" onclick="App.changeQty(\''+escA(item.id)+'\',-1)">&#x2212;</button>'+
+                '<span class="qty-num">'+item.qty+'</span>'+
+                '<button class="qty-btn plus" onclick="App.changeQty(\''+escA(item.id)+'\',1)">&#x2B;</button>'+
+                '</div>';
+            el.cartItems.appendChild(row);
+        });
+    }
+
+    /* ── Print ── */
+    function generateBillId(){
+        const d=new Date();
+        const prefix='B'+d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+        const key='counter_'+prefix;
+        let cnt=parseInt(localStorage.getItem(key)||'0')+1;
+        localStorage.setItem(key,cnt);
+        return prefix+'-'+String(cnt).padStart(3,'0');
+    }
+    function printReceipt(){
+        if(!S.cart.length) return;
+        const cfg={
+            storeName:S.settings.storeName||'ร้านชำ POS',
+            address:S.settings.address||'', phone:S.settings.phone||'',
+            logo:S.settings.logo||null, qrCode:S.settings.qrCode||null,
+            printLogo:S.settings.printLogo!==false, printQr:S.settings.printQr!==false,
+            feedLines:S.settings.printerFeedLines||5
+        };
+        const total=S.cart.reduce((a,i)=>a+i.price*i.qty,0);
+        const billId=generateBillId();
+        const dateStr=new Date().toLocaleString('th-TH');
+        const feed=Array(cfg.feedLines).fill('<div style="color:white!important;font-size:14px;">.</div>').join('');
+        const items=S.cart.map(item=>
+            '<div class="receipt-item" style="display:block;margin-bottom:0;">'+
+            '<div style="font-weight:bold;text-align:left;width:100%;line-height:1.2;word-break:break-word;">'+escH(item.name)+'</div>'+
+            '<div style="display:flex;justify-content:space-between;font-weight:normal;font-size:16px;">'+
+            '<span>'+item.qty+' x &#x0E3F;'+fmt(item.price)+'</span>'+
+            '<span style="font-weight:bold;">&#x0E3F;'+fmt(item.price*item.qty)+'</span></div></div>'
+        ).join('');
+        el.receiptArea.innerHTML=
+            (cfg.printLogo&&cfg.logo?'<div class="receipt-logo"><img src="'+cfg.logo+'"></div>':'')+
+            '<div class="receipt-header">'+
+            '<h2>'+escH(cfg.storeName)+'</h2>'+
+            (cfg.address?'<div style="font-size:14px;margin-bottom:2px;">'+escH(cfg.address)+'</div>':'')+
+            (cfg.phone?'<div>Tel: '+escH(cfg.phone)+'</div>':'')+
+            '<div style="margin-top:5px;font-size:14px;">Bill ID: '+billId+'<br>Date: '+dateStr+'</div></div>'+
+            '<div class="receipt-divider"></div>'+
+            '<div style="display:flex;flex-direction:column;gap:8px;">'+items+'</div>'+
+            '<div class="receipt-divider"></div>'+
+            '<div class="receipt-total"><span>ยอดรวมสุทธิ</span><span>&#x0E3F;'+fmt(total)+'</span></div>'+
+            (cfg.printQr&&cfg.qrCode?'<div class="receipt-qr"><img src="'+cfg.qrCode+'"><div style="font-size:12px;margin-top:2px;">Scan to Pay</div></div>':'')+
+            '<div class="receipt-footer"><br><p>ขอบคุณที่อุดหนุน</p>'+feed+'</div>';
+        el.receiptArea.style.display='block';
+        const appEl=document.getElementById('app');
+        appEl.style.setProperty('display','none','important');
+        setTimeout(()=>{
+            window.print();
+            setTimeout(()=>{ el.receiptArea.style.display='none'; el.receiptArea.innerHTML=''; appEl.style.removeProperty('display'); },5000);
+        },300);
+    }
+
+    /* ── Toast ── */
+    let toastTimer=null;
+    function showToast(msg,type='success'){
+        el.toastMsg.textContent=msg;
+        el.toastIcon.textContent=type==='success'?'check_circle':'error';
+        el.toast.className='show '+type;
+        clearTimeout(toastTimer);
+        toastTimer=setTimeout(()=>{ el.toast.className=''; },2200);
+    }
+
+    /* ── Init ── */
+    async function init(){
+        await loadDB(); renderCart();
+        if(!initDetector()) el.hint.textContent='เบราว์เซอร์นี้ไม่รองรับสแกนอัตโนมัติ — ใช้ช่องบาร์โค้ดด้านล่างแทน';
+        if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia) await startCamera();
+        else{ el.video.style.display='none'; el.noCamera.style.display='flex'; }
+        el.btnTorch.addEventListener('click',toggleTorch);
+        el.btnCamSwitch.addEventListener('click',switchCamera);
+        el.btnClear.addEventListener('click',clearCart);
+        el.btnPrint.addEventListener('click',printReceipt);
+        el.btnManual.addEventListener('click',()=>{ const v=el.manualInput.value.trim(); if(v){ handleBarcode(v); el.manualInput.value=''; } });
+        el.manualInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const v=el.manualInput.value.trim(); if(v){ handleBarcode(v); el.manualInput.value=''; } } });
+        el.popup.addEventListener('click',hidePopup);
+        document.addEventListener('visibilitychange',()=>{ if(document.hidden) stopScanning(); else if(S.stream) startScanning(); });
+    }
+
+    return { init, changeQty:(id,d)=>changeQty(id,d), removeItem:(id)=>removeFromCart(id) };
+})();
+
+document.addEventListener('DOMContentLoaded', App.init);
+</script>
+</body>
+</html>
