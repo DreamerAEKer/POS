@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>สแกนสินค้า — ร้านชำ POS</title>
-    <meta name="description" content="แอปเสริมสแกน QR/Barcode สินค้า ดึงราคาจากฐานข้อมูล POS และสร้างใบเสร็จพิมพ์ได้">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,7 +13,7 @@
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root{
             --green:#00e676;--green-dim:#00c853;--green-glow:rgba(0,230,118,.35);
-            --red:#ff5252;--red-glow:rgba(255,82,82,.3);
+            --red:#ff5252;--orange:#ffab40;
             --bg:#0d0f14;--surface:#161921;--surface2:#1e2230;--surface3:#252b3a;
             --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.13);
             --text:#e8eaf0;--text-dim:#8892a4;--text-muted:#4e596e;
@@ -22,14 +21,12 @@
             --font:'Sarabun',sans-serif;--transition:.2s cubic-bezier(.4,0,.2,1)
         }
         html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
-
-        /* Layout */
         #app{display:grid;grid-template-rows:1fr auto;height:100dvh;max-width:480px;margin:0 auto;position:relative}
 
         /* ── Scanner Section ── */
         #scanner-section{position:relative;overflow:hidden;background:#000;flex-shrink:0}
         #camera-video{width:100%;height:100%;object-fit:cover;display:block}
-        #scanner-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+        #scanner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
         .vf-shade{position:absolute;background:rgba(0,0,0,.55)}
         .vf-shade.top{top:0;left:0;right:0;height:calc(50% - 90px)}
         .vf-shade.bottom{bottom:0;left:0;right:0;height:calc(50% - 90px)}
@@ -43,36 +40,49 @@
         #viewfinder .vf-br::after{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
         #scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--green),transparent);box-shadow:0 0 8px var(--green-glow);top:0;animation:scan-sweep 2s ease-in-out infinite}
         @keyframes scan-sweep{0%{top:0;opacity:1}50%{top:calc(100% - 2px);opacity:1}100%{top:0;opacity:.4}}
+
+        /* ── HUD ── */
         #scanner-hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent)}
         #hud-title{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
         .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse-dot 1.5s ease-in-out infinite}
         @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
-        #btn-torch,#btn-camera-switch{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;backdrop-filter:blur(6px);transition:var(--transition)}
-        #btn-torch:active,#btn-camera-switch:active{transform:scale(.9)}
-        #btn-torch.active{background:rgba(255,220,0,.3);border-color:#ffd600;color:#ffd600}
-        #scanner-hint{position:absolute;bottom:0;left:0;right:0;text-align:center;padding:10px 16px 14px;background:linear-gradient(to top,rgba(0,0,0,.7),transparent);font-size:13px;color:rgba(255,255,255,.65)}
-        #no-camera-msg{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--surface);text-align:center;padding:30px;color:var(--text-dim)}
-        #manual-input-wrap{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:260px;display:flex;gap:6px}
-        #manual-barcode{flex:1;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:rgba(255,255,255,.08);color:#fff;font-family:var(--font);font-size:15px;outline:none;backdrop-filter:blur(8px)}
-        #manual-barcode::placeholder{color:rgba(255,255,255,.4)}
+        .hud-btns{display:flex;gap:8px}
+        .hud-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;backdrop-filter:blur(6px);transition:var(--transition)}
+        .hud-btn:active{transform:scale(.9)}
+        .hud-btn.active{background:rgba(255,220,0,.3);border-color:#ffd600;color:#ffd600}
+
+        /* ── Status bar under HUD ── */
+        #scan-status{position:absolute;top:58px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(0,0,0,.55);border:1px solid var(--border2);border-radius:9999px;padding:4px 14px;font-size:12px;color:rgba(255,255,255,.7);backdrop-filter:blur(6px)}
+        #scan-status.ok{border-color:var(--green);color:var(--green)}
+        #scan-status.err{border-color:var(--red);color:var(--red)}
+
+        /* ── Manual input ── */
+        #manual-input-wrap{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:270px;display:flex;gap:6px}
+        #manual-barcode{flex:1;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:rgba(255,255,255,.1);color:#fff;font-family:var(--font);font-size:15px;outline:none;backdrop-filter:blur(8px)}
+        #manual-barcode::placeholder{color:rgba(255,255,255,.45)}
         #manual-barcode:focus{border-color:var(--green);box-shadow:0 0 0 2px var(--green-glow)}
-        #btn-manual-search{background:var(--green);border:none;border-radius:var(--radius-sm);width:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#000;transition:var(--transition);flex-shrink:0}
+        #btn-manual-search{background:var(--green);border:none;border-radius:var(--radius-sm);width:42px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#000;transition:var(--transition);flex-shrink:0}
         #btn-manual-search:active{transform:scale(.92)}
+        #scanner-hint{position:absolute;bottom:0;left:0;right:0;text-align:center;padding:8px 16px 12px;background:linear-gradient(to top,rgba(0,0,0,.65),transparent);font-size:12px;color:rgba(255,255,255,.6)}
+
+        /* ── No camera ── */
+        #no-camera-msg{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--surface);text-align:center;padding:30px;color:var(--text-dim)}
 
         /* ── Product Popup ── */
-        #product-popup{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(135deg,var(--surface2) 0%,var(--surface3) 100%);border-top:1px solid var(--border2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:20px 20px 24px;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);z-index:20}
+        #product-popup{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(135deg,var(--surface2),var(--surface3));border-top:1px solid var(--border2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:18px 20px 22px;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);z-index:20}
         #product-popup.visible{transform:translateY(0)}
         #product-popup.not-found{border-top-color:var(--red)}
-        #popup-pill{width:40px;height:4px;border-radius:9999px;background:var(--border2);margin:0 auto 18px}
+        #popup-pill{width:40px;height:4px;border-radius:9999px;background:var(--border2);margin:0 auto 16px}
         #popup-content{display:flex;align-items:center;gap:16px}
         #popup-img{width:64px;height:64px;border-radius:var(--radius-sm);background:var(--surface3);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);overflow:hidden}
         #popup-img img{width:100%;height:100%;object-fit:cover}
         #popup-info{flex:1;min-width:0}
-        #popup-name{font-size:17px;font-weight:700;line-height:1.3;margin-bottom:4px;word-break:break-word}
-        #popup-barcode{font-size:12px;color:var(--text-muted);margin-bottom:8px;font-family:monospace;letter-spacing:.5px}
+        #popup-name{font-size:17px;font-weight:700;line-height:1.3;margin-bottom:3px;word-break:break-word}
+        #popup-barcode-disp{font-size:12px;color:var(--text-muted);margin-bottom:8px;font-family:monospace;letter-spacing:.5px}
         #popup-price{font-size:28px;font-weight:800;color:var(--green);letter-spacing:-.5px}
         #popup-price .currency{font-size:16px;font-weight:600;margin-right:2px}
-        #popup-not-found-msg{text-align:center;padding:10px 0 4px}
+        #popup-not-found-msg{text-align:center;padding:8px 0 2px}
+        #popup-nf-code{font-size:13px;font-family:monospace;color:var(--orange);background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.3);border-radius:6px;padding:4px 10px;margin-top:6px;display:inline-block}
         #countdown-wrap{position:relative;width:52px;height:52px;flex-shrink:0}
         #countdown-svg{transform:rotate(-90deg)}
         #countdown-ring{fill:none;stroke:var(--green);stroke-width:3;stroke-linecap:round;stroke-dasharray:138.2;stroke-dashoffset:0}
@@ -81,15 +91,15 @@
         /* ── Cart Panel ── */
         #bottom-panel{display:flex;flex-direction:column;background:var(--surface);border-top:1px solid var(--border);max-height:55vh;overflow:hidden}
         #cart-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
-        #cart-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--text)}
+        #cart-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700}
         #cart-count-badge{background:var(--green);color:#000;font-size:11px;font-weight:800;border-radius:9999px;padding:2px 8px;min-width:22px;text-align:center;transition:transform .15s}
         #cart-count-badge.bump{transform:scale(1.35)}
         #btn-clear-cart{background:none;border:1px solid rgba(255,82,82,.3);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;color:var(--red);cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:4px;transition:var(--transition)}
         #btn-clear-cart:active{transform:scale(.95)}
         #cart-items{overflow-y:auto;flex:1;scrollbar-width:thin;scrollbar-color:var(--surface3) transparent}
-        #cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:32px 20px;color:var(--text-muted)}
-        .cart-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);animation:slide-in .25s ease}
-        @keyframes slide-in{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}
+        #cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 20px;color:var(--text-muted)}
+        .cart-item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--border);animation:slide-in .22s ease}
+        @keyframes slide-in{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
         .cart-item:last-child{border-bottom:none}
         .item-name{font-size:14px;font-weight:600;line-height:1.3;color:var(--text);grid-column:1}
         .item-price-line{font-size:12px;color:var(--text-dim);grid-column:1}
@@ -98,21 +108,22 @@
         .qty-btn:active{transform:scale(.88)}
         .qty-btn.del{border-color:rgba(255,82,82,.4);color:var(--red);font-size:16px}
         .qty-btn.del:active{background:rgba(255,82,82,.15)}
-        .qty-num{min-width:32px;text-align:center;font-size:16px;font-weight:800;color:var(--text)}
+        .qty-num{min-width:32px;text-align:center;font-size:16px;font-weight:800}
         #cart-footer{padding:14px 18px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0}
         #total-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
         #total-label{font-size:15px;color:var(--text-dim);font-weight:500}
         #total-amount{font-size:30px;font-weight:800;color:var(--green);letter-spacing:-1px}
         #total-amount .curr{font-size:16px;margin-right:2px;color:var(--text-dim);font-weight:600}
-        #btn-print{width:100%;padding:14px;background:linear-gradient(135deg,var(--green-dim) 0%,#00e676 100%);color:#000;border:none;border-radius:var(--radius-md);font-family:var(--font);font-size:17px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:var(--transition);box-shadow:0 4px 20px var(--green-glow)}
+        #btn-print{width:100%;padding:14px;background:linear-gradient(135deg,var(--green-dim),#00e676);color:#000;border:none;border-radius:var(--radius-md);font-family:var(--font);font-size:17px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:var(--transition);box-shadow:0 4px 20px var(--green-glow)}
         #btn-print:active{transform:scale(.97)}
         #btn-print:disabled{background:var(--surface3);color:var(--text-muted);box-shadow:none;cursor:not-allowed}
 
         /* ── Toast ── */
-        #toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-md);padding:12px 20px;font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
+        #toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-90px);background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-md);padding:11px 18px;font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;z-index:9999;transition:transform .28s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
         #toast.show{transform:translateX(-50%) translateY(0)}
         #toast.success{border-color:var(--green)}
         #toast.error{border-color:var(--red)}
+        #toast.warn{border-color:var(--orange)}
         #receipt-print-area{display:none}
 
         /* ── Print ── */
@@ -141,10 +152,10 @@
 </head>
 <body>
 <div id="app">
-
     <!-- Scanner -->
     <section id="scanner-section">
         <video id="camera-video" autoplay muted playsinline></video>
+
         <div id="scanner-overlay">
             <div class="vf-shade top"></div>
             <div class="vf-shade bottom"></div>
@@ -155,35 +166,45 @@
                 <div id="scan-line"></div>
             </div>
         </div>
+
+        <!-- HUD top -->
         <div id="scanner-hud">
             <div id="hud-title">
                 <div class="logo-dot"></div>
                 สแกนสินค้า
             </div>
-            <div style="display:flex;gap:8px;">
-                <button id="btn-camera-switch" title="สลับกล้อง">
+            <div class="hud-btns">
+                <button class="hud-btn" id="btn-camera-switch" title="สลับกล้อง">
                     <span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span>
                 </button>
-                <button id="btn-torch" title="ไฟฉาย">
+                <button class="hud-btn" id="btn-torch" title="ไฟฉาย">
                     <span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span>
                 </button>
             </div>
         </div>
+
+        <!-- Scan status -->
+        <div id="scan-status">กำลังเริ่มกล้อง...</div>
+
+        <!-- No camera fallback -->
         <div id="no-camera-msg">
             <span class="material-symbols-rounded" style="font-size:52px;color:var(--text-muted);">no_photography</span>
-            <p style="font-size:15px;line-height:1.6;">ไม่พบกล้อง หรือไม่ได้รับอนุญาต<br>กรุณาใส่บาร์โค้ดด้วยตัวเอง</p>
+            <p style="font-size:15px;line-height:1.6;">ไม่พบกล้อง หรือไม่ได้รับอนุญาต<br>กรุณาใส่บาร์โค้ดในช่องด้านล่าง</p>
         </div>
+
+        <!-- Manual input -->
         <div id="manual-input-wrap">
-            <input type="text" id="manual-barcode" placeholder="ใส่บาร์โค้ด..." inputmode="numeric" autocomplete="off">
+            <input type="text" id="manual-barcode" placeholder="พิมพ์บาร์โค้ด แล้วกด Enter..." inputmode="numeric" autocomplete="off">
             <button id="btn-manual-search">
                 <span class="material-symbols-rounded" style="font-size:20px;">search</span>
             </button>
         </div>
-        <div id="scanner-hint">จ่อบาร์โค้ดสินค้าที่กรอบด้านบน</div>
+        <div id="scanner-hint">จ่อบาร์โค้ดสินค้าที่กรอบสีเขียว</div>
 
         <!-- Product Popup -->
         <div id="product-popup">
             <div id="popup-pill"></div>
+            <!-- Found -->
             <div id="popup-found" style="display:none;">
                 <div id="popup-content">
                     <div id="popup-img">
@@ -191,7 +212,7 @@
                     </div>
                     <div id="popup-info">
                         <div id="popup-name">—</div>
-                        <div id="popup-barcode">—</div>
+                        <div id="popup-barcode-disp">—</div>
                         <div id="popup-price"><span class="currency">฿</span><span id="popup-price-val">0.00</span></div>
                     </div>
                     <div id="countdown-wrap">
@@ -203,13 +224,13 @@
                     </div>
                 </div>
             </div>
+            <!-- Not found -->
             <div id="popup-not-found" style="display:none;">
                 <div id="popup-not-found-msg">
-                    <span class="material-symbols-rounded" style="font-size:40px;color:var(--red);">search_off</span>
-                    <p style="color:var(--text-dim);font-size:15px;margin-top:6px;">
-                        ไม่พบสินค้าในระบบ<br>
-                        <small id="popup-nf-barcode" style="font-family:monospace;color:var(--text-muted);"></small>
-                    </p>
+                    <span class="material-symbols-rounded" style="font-size:36px;color:var(--red);">search_off</span>
+                    <p style="color:var(--text-dim);font-size:15px;margin-top:8px;">ไม่พบสินค้านี้ในระบบ</p>
+                    <div id="popup-nf-code">—</div>
+                    <p style="color:var(--text-muted);font-size:12px;margin-top:6px;">กรุณาเพิ่มสินค้าในแอป POS ก่อน</p>
                 </div>
             </div>
         </div>
@@ -253,14 +274,18 @@
     <span id="toast-msg">—</span>
 </div>
 
+<!-- ZXing: cross-browser barcode scanner (iOS Safari supported) -->
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<!-- localforage: shared IndexedDB with main POS app -->
 <script src="js/localforage.min.js"></script>
 <script>
 const App = (() => {
     const S = {
         cart:[], products:[], settings:{}, scanning:true,
         lockBarcode:null, lockClearTimer:null,
-        stream:null, facingMode:'environment', torchOn:false,
-        detector:null, scanInterval:null, countdownRAF:null, popupTimeout:null
+        codeReader:null, selectedDeviceId:null, devices:[],
+        currentDeviceIndex:0, torchOn:false,
+        countdownRAF:null, popupTimeout:null
     };
     const $=id=>document.getElementById(id);
     const el = {
@@ -268,152 +293,204 @@ const App = (() => {
         manualInput:$('manual-barcode'), btnManual:$('btn-manual-search'),
         btnTorch:$('btn-torch'), btnCamSwitch:$('btn-camera-switch'),
         popup:$('product-popup'), popupFound:$('popup-found'), popupNotFound:$('popup-not-found'),
-        popupName:$('popup-name'), popupBarcode:$('popup-barcode'), popupPriceVal:$('popup-price-val'),
-        popupImg:$('popup-img'), popupNFBarcode:$('popup-nf-barcode'),
+        popupName:$('popup-name'), popupBarcodeDisp:$('popup-barcode-disp'),
+        popupPriceVal:$('popup-price-val'), popupImg:$('popup-img'),
+        popupNfCode:$('popup-nf-code'),
         cdRing:$('countdown-ring'), cdNum:$('countdown-num'),
         cartItems:$('cart-items'), cartEmpty:$('cart-empty'),
         cartBadge:$('cart-count-badge'), totalVal:$('total-val'),
         btnPrint:$('btn-print'), btnClear:$('btn-clear-cart'),
         receiptArea:$('receipt-print-area'),
         toast:$('toast'), toastMsg:$('toast-msg'), toastIcon:document.querySelector('#toast .t-icon'),
-        hint:$('scanner-hint')
+        hint:$('scanner-hint'), scanStatus:$('scan-status')
     };
 
-    /* ── DB ── */
+    /* ─── DB ─── */
     async function loadDB(){
         try{
             S.products = await localforage.getItem('store_products') || [];
             S.settings = await localforage.getItem('store_settings') || {};
+            console.log('[Scanner] Loaded products:', S.products.length);
         }catch(e){ S.products=[]; S.settings={}; }
     }
 
     function findProduct(barcode){
         const b=String(barcode).trim();
-        const main=S.products.find(p=>String(p.barcode)===b);
+        const main=S.products.find(p=>String(p.barcode)===b || String(p.id)===b);
         if(main) return {product:main,isPack:false};
         const pack=S.products.find(p=>p.packBarcode&&String(p.packBarcode)===b);
         if(pack) return {product:pack,isPack:true};
         return null;
     }
 
-    /* ── Camera ── */
-    async function startCamera(){
+    /* ─── ZXing Camera Scanner ─── */
+    async function startZXingScanner(){
+        if(!window.ZXing){ setScanStatus('ZXing โหลดไม่ได้ ใช้ช่อง input แทน','err'); return; }
+
         try{
-            if(S.stream) stopCamera();
-            const stream=await navigator.mediaDevices.getUserMedia({
-                video:{facingMode:S.facingMode,width:{ideal:1280},height:{ideal:720}}
-            });
-            S.stream=stream;
-            el.video.srcObject=stream;
-            await el.video.play();
-            el.video.style.display='block';
-            el.noCamera.style.display='none';
-            el.hint.style.display='block';
-            startScanning();
+            S.codeReader = new ZXing.BrowserMultiFormatReader();
+
+            // Get list of cameras
+            const devices = await S.codeReader.listVideoInputDevices();
+            S.devices = devices;
+            console.log('[Scanner] Cameras found:', devices.length, devices.map(d=>d.label));
+
+            if(!devices || devices.length === 0){
+                throw new Error('No camera found');
+            }
+
+            // Prefer back camera
+            let idx = devices.findIndex(d => /back|rear|environment/i.test(d.label));
+            if(idx === -1) idx = devices.length > 1 ? 1 : 0; // fallback: last device
+            S.currentDeviceIndex = idx;
+            S.selectedDeviceId = devices[idx].deviceId;
+
+            await startDecoding();
         }catch(err){
+            console.warn('[Scanner] ZXing start error:', err);
             el.video.style.display='none';
             el.noCamera.style.display='flex';
-            el.hint.style.display='none';
+            setScanStatus('ไม่สามารถเปิดกล้องได้','err');
         }
-    }
-    function stopCamera(){
-        if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
-        stopScanning();
-    }
-    async function toggleTorch(){
-        if(!S.stream) return;
-        const track=S.stream.getVideoTracks()[0];
-        if(!track||!track.getCapabilities) return;
-        if(!track.getCapabilities().torch){ showToast('กล้องนี้ไม่มีไฟฉาย','error'); return; }
-        S.torchOn=!S.torchOn;
-        await track.applyConstraints({advanced:[{torch:S.torchOn}]});
-        el.btnTorch.classList.toggle('active',S.torchOn);
-    }
-    async function switchCamera(){
-        S.facingMode = S.facingMode==='environment'?'user':'environment';
-        await startCamera();
     }
 
-    /* ── Detector ── */
-    function initDetector(){
-        if('BarcodeDetector' in window){
-            S.detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','code_93','itf','codabar','qr_code','data_matrix']});
-            return true;
-        }
-        return false;
-    }
-    function startScanning(){ if(!S.detector) return; stopScanning(); S.scanInterval=setInterval(scanFrame,300); }
-    function stopScanning(){ if(S.scanInterval){ clearInterval(S.scanInterval); S.scanInterval=null; } }
-    async function scanFrame(){
-        if(!S.scanning||el.video.readyState<2||el.video.paused) return;
+    async function startDecoding(){
+        if(!S.codeReader || !S.selectedDeviceId) return;
         try{
-            const codes=await S.detector.detect(el.video);
-            if(codes.length>0){ const r=codes[0].rawValue; if(r&&r!==S.lockBarcode) handleBarcode(r); }
-        }catch(_){}
+            await S.codeReader.decodeFromVideoDevice(
+                S.selectedDeviceId,
+                'camera-video',
+                (result, err) => {
+                    if(result && S.scanning){
+                        const raw = result.getText();
+                        if(raw && raw !== S.lockBarcode){
+                            handleBarcode(raw);
+                        }
+                    }
+                    // ignore errors (they fire on every frame without result)
+                }
+            );
+            el.video.style.display='block';
+            el.noCamera.style.display='none';
+            setScanStatus('พร้อมสแกน ✓','ok');
+        }catch(err){
+            console.warn('[Scanner] decodeFromVideoDevice error:', err);
+            el.video.style.display='none';
+            el.noCamera.style.display='flex';
+            setScanStatus('เปิดกล้องไม่ได้','err');
+        }
     }
+
+    async function switchCamera(){
+        if(!S.devices || S.devices.length < 2){
+            showToast('มีกล้องเดียว สลับไม่ได้','warn');
+            return;
+        }
+        S.currentDeviceIndex = (S.currentDeviceIndex + 1) % S.devices.length;
+        S.selectedDeviceId = S.devices[S.currentDeviceIndex].deviceId;
+
+        // Reset reader
+        if(S.codeReader) S.codeReader.reset();
+        setScanStatus('กำลังสลับกล้อง...','');
+        await startDecoding();
+    }
+
+    async function toggleTorch(){
+        // Torch via MediaStream track constraints
+        const stream = el.video.srcObject;
+        if(!stream){ showToast('กล้องยังไม่พร้อม','err'); return; }
+        const track = stream.getVideoTracks()[0];
+        if(!track){ return; }
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if(!caps.torch){ showToast('กล้องนี้ไม่มีไฟฉาย','warn'); return; }
+        S.torchOn = !S.torchOn;
+        try{
+            await track.applyConstraints({advanced:[{torch:S.torchOn}]});
+            el.btnTorch.classList.toggle('active', S.torchOn);
+        }catch(e){ showToast('เปิดไฟฉายไม่ได้','err'); S.torchOn=false; }
+    }
+
+    function setScanStatus(msg, cls=''){
+        el.scanStatus.textContent = msg;
+        el.scanStatus.className = cls;
+    }
+
+    /* ─── Barcode Handler ─── */
     function handleBarcode(barcode){
         if(!S.scanning) return;
-        S.lockBarcode=barcode;
+        S.lockBarcode = barcode;
         clearTimeout(S.lockClearTimer);
-        S.lockClearTimer=setTimeout(()=>{S.lockBarcode=null;},3000);
-        const result=findProduct(barcode);
-        if(result) showProductPopup(result.product,barcode,result.isPack);
+        S.lockClearTimer = setTimeout(()=>{ S.lockBarcode=null; }, 3000);
+
+        console.log('[Scanner] Barcode detected:', barcode);
+        setScanStatus('อ่านได้: ' + barcode,'ok');
+
+        const result = findProduct(barcode);
+        if(result) showProductPopup(result.product, barcode, result.isPack);
         else showNotFoundPopup(barcode);
-        if(navigator.vibrate) navigator.vibrate(30);
+
+        if(navigator.vibrate) navigator.vibrate(40);
     }
 
-    /* ── Popup ── */
-    const RING_C=2*Math.PI*22;
-    function showProductPopup(product,rawBarcode,isPack){
+    /* ─── Popup ─── */
+    const RING_C = 2*Math.PI*22;
+
+    function showProductPopup(product, rawBarcode, isPack){
         S.scanning=false; clearCountdown();
-        const price=isPack?(product.packPrice||product.price):product.price;
-        el.popupName.textContent=product.name;
-        el.popupBarcode.textContent=rawBarcode||product.barcode;
-        el.popupPriceVal.textContent=fmt(price);
+        const price = isPack ? (product.packPrice||product.price) : product.price;
+        el.popupName.textContent = product.name;
+        el.popupBarcodeDisp.textContent = rawBarcode || product.barcode;
+        el.popupPriceVal.textContent = fmt(price);
         el.popupImg.innerHTML='';
-        if(product.image&&product.image.startsWith('data:image')){
+        if(product.image && product.image.startsWith('data:image')){
             const img=document.createElement('img'); img.src=product.image; el.popupImg.appendChild(img);
         }else{
             const ic=document.createElement('span'); ic.className='material-symbols-rounded';
             ic.textContent='category'; ic.style.cssText='font-size:28px;color:var(--text-muted);';
             el.popupImg.appendChild(ic);
         }
-        el.popupFound.style.display='block'; el.popupNotFound.style.display='none';
+        el.popupFound.style.display='block';
+        el.popupNotFound.style.display='none';
         el.popup.className='visible';
-        startCountdown(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
+        startCountdown(2, ()=>{ addToCart(product,price,isPack); hidePopup(); });
     }
+
     function showNotFoundPopup(barcode){
         S.scanning=false; clearCountdown();
-        el.popupNFBarcode.textContent=barcode;
-        el.popupFound.style.display='none'; el.popupNotFound.style.display='block';
+        el.popupNfCode.textContent = barcode;
+        el.popupFound.style.display='none';
+        el.popupNotFound.style.display='block';
         el.popup.className='visible not-found';
         clearTimeout(S.popupTimeout);
-        S.popupTimeout=setTimeout(hidePopup,2500);
+        S.popupTimeout=setTimeout(hidePopup, 3000);
     }
+
     function hidePopup(){
         el.popup.classList.remove('visible','not-found'); clearCountdown();
-        setTimeout(()=>{ S.scanning=true; S.lockBarcode=null; },400);
+        setTimeout(()=>{ S.scanning=true; S.lockBarcode=null; setScanStatus('พร้อมสแกน ✓','ok'); }, 400);
     }
-    function startCountdown(seconds,onComplete){
+
+    function startCountdown(seconds, onComplete){
         clearCountdown();
         const start=performance.now(), dur=seconds*1000;
         function tick(now){
-            const rem=Math.max(0,dur-(now-start));
-            el.cdRing.style.strokeDashoffset=RING_C*(1-rem/dur);
-            el.cdNum.textContent=Math.ceil(rem/1000)||1;
+            const rem=Math.max(0, dur-(now-start));
+            el.cdRing.style.strokeDashoffset = RING_C*(1-rem/dur);
+            el.cdNum.textContent = Math.ceil(rem/1000)||1;
             if(rem>0){ S.countdownRAF=requestAnimationFrame(tick); }
             else onComplete();
         }
         S.countdownRAF=requestAnimationFrame(tick);
     }
+
     function clearCountdown(){
         if(S.countdownRAF){ cancelAnimationFrame(S.countdownRAF); S.countdownRAF=null; }
         clearTimeout(S.popupTimeout);
         el.cdRing.style.strokeDashoffset=0; el.cdNum.textContent='2';
     }
 
-    /* ── Cart ── */
-    function addToCart(product,price,isPack){
+    /* ─── Cart ─── */
+    function addToCart(product, price, isPack){
         const cid=product.id+(isPack?'_pack':'');
         const existing=S.cart.find(i=>i.id===cid);
         if(existing){ existing.qty++; }
@@ -466,7 +543,7 @@ const App = (() => {
         });
     }
 
-    /* ── Print ── */
+    /* ─── Print ─── */
     function generateBillId(){
         const d=new Date();
         const prefix='B'+d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
@@ -475,6 +552,7 @@ const App = (() => {
         localStorage.setItem(key,cnt);
         return prefix+'-'+String(cnt).padStart(3,'0');
     }
+
     function printReceipt(){
         if(!S.cart.length) return;
         const cfg={
@@ -497,8 +575,7 @@ const App = (() => {
         ).join('');
         el.receiptArea.innerHTML=
             (cfg.printLogo&&cfg.logo?'<div class="receipt-logo"><img src="'+cfg.logo+'"></div>':'')+
-            '<div class="receipt-header">'+
-            '<h2>'+escH(cfg.storeName)+'</h2>'+
+            '<div class="receipt-header"><h2>'+escH(cfg.storeName)+'</h2>'+
             (cfg.address?'<div style="font-size:14px;margin-bottom:2px;">'+escH(cfg.address)+'</div>':'')+
             (cfg.phone?'<div>Tel: '+escH(cfg.phone)+'</div>':'')+
             '<div style="margin-top:5px;font-size:14px;">Bill ID: '+billId+'<br>Date: '+dateStr+'</div></div>'+
@@ -517,30 +594,47 @@ const App = (() => {
         },300);
     }
 
-    /* ── Toast ── */
+    /* ─── Toast ─── */
     let toastTimer=null;
     function showToast(msg,type='success'){
+        const icons={success:'check_circle',error:'error',warn:'warning'};
         el.toastMsg.textContent=msg;
-        el.toastIcon.textContent=type==='success'?'check_circle':'error';
-        el.toast.className='show '+type;
+        el.toastIcon.textContent=icons[type]||'info';
+        el.toast.className='show '+(type||'');
         clearTimeout(toastTimer);
-        toastTimer=setTimeout(()=>{ el.toast.className=''; },2200);
+        toastTimer=setTimeout(()=>{ el.toast.className=''; },2500);
     }
 
-    /* ── Init ── */
+    /* ─── Init ─── */
     async function init(){
-        await loadDB(); renderCart();
-        if(!initDetector()) el.hint.textContent='เบราว์เซอร์นี้ไม่รองรับสแกนอัตโนมัติ — ใช้ช่องบาร์โค้ดด้านล่างแทน';
-        if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia) await startCamera();
-        else{ el.video.style.display='none'; el.noCamera.style.display='flex'; }
-        el.btnTorch.addEventListener('click',toggleTorch);
-        el.btnCamSwitch.addEventListener('click',switchCamera);
-        el.btnClear.addEventListener('click',clearCart);
-        el.btnPrint.addEventListener('click',printReceipt);
-        el.btnManual.addEventListener('click',()=>{ const v=el.manualInput.value.trim(); if(v){ handleBarcode(v); el.manualInput.value=''; } });
-        el.manualInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const v=el.manualInput.value.trim(); if(v){ handleBarcode(v); el.manualInput.value=''; } } });
-        el.popup.addEventListener('click',hidePopup);
-        document.addEventListener('visibilitychange',()=>{ if(document.hidden) stopScanning(); else if(S.stream) startScanning(); });
+        await loadDB();
+        renderCart();
+        setScanStatus('กำลังเริ่มกล้อง...','');
+
+        // Start ZXing scanner
+        await startZXingScanner();
+
+        // Events
+        el.btnTorch.addEventListener('click', toggleTorch);
+        el.btnCamSwitch.addEventListener('click', switchCamera);
+        el.btnClear.addEventListener('click', clearCart);
+        el.btnPrint.addEventListener('click', printReceipt);
+
+        el.btnManual.addEventListener('click', ()=>{
+            const v=el.manualInput.value.trim();
+            if(v){ handleBarcode(v); el.manualInput.value=''; }
+        });
+        el.manualInput.addEventListener('keydown', e=>{
+            if(e.key==='Enter'){ const v=el.manualInput.value.trim(); if(v){ handleBarcode(v); el.manualInput.value=''; } }
+        });
+
+        el.popup.addEventListener('click', hidePopup);
+
+        // Pause/resume on tab switch
+        document.addEventListener('visibilitychange', ()=>{
+            if(document.hidden){ if(S.codeReader) S.codeReader.reset(); }
+            else{ if(S.codeReader) startDecoding(); }
+        });
     }
 
     return { init, changeQty:(id,d)=>changeQty(id,d), removeItem:(id)=>removeFromCart(id) };
