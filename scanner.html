@@ -478,6 +478,11 @@ const App = (() => {
   /* ─── DB ─── */
   async function loadDB(){
     try{
+      // Configure localforage to use the exact same DB store as the main POS app
+      localforage.config({
+        name: 'DreamerPOS_DB',
+        storeName: 'keyval'
+      });
       S.products = await localforage.getItem('store_products') || [];
       S.settings = await localforage.getItem('store_settings') || {};
       S.quickItems = await localforage.getItem('scanner_quick_items') || [];
