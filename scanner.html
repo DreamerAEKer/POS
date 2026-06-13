@@ -651,10 +651,8 @@ const App = (() => {
   }
 
   function renderCategoryChips(query = ''){
-    const DEFAULTS = ['ของกิน', 'เครื่องดื่ม', 'ขนม', 'ของใช้', 'ยา', 'อื่นๆ'];
-    
-    // Gather all unique groups in the database
-    const allGroupsSet = new Set(DEFAULTS);
+    // Gather all unique groups in the database (no default hardcoded groups)
+    const allGroupsSet = new Set();
     S.products.forEach(p => { if(p.group) allGroupsSet.add(p.group); });
     if(S.settings.categories && Array.isArray(S.settings.categories)){
       S.settings.categories.forEach(c => { if(c && c.name) allGroupsSet.add(c.name); });
@@ -665,16 +663,16 @@ const App = (() => {
     const cleanQuery = query.trim().toLowerCase();
     
     if(!cleanQuery){
-      // Show default groups + latest 3 groups from S.products (most recently added)
+      // Show ONLY the latest 3 groups from S.products (most recently added)
       const latestGroups = [];
       for (let i = S.products.length - 1; i >= 0; i--) {
         const grp = S.products[i].group;
-        if (grp && !DEFAULTS.includes(grp) && !latestGroups.includes(grp)) {
+        if (grp && !latestGroups.includes(grp)) {
           latestGroups.push(grp);
           if (latestGroups.length >= 3) break;
         }
       }
-      groupsToShow = [...DEFAULTS, ...latestGroups];
+      groupsToShow = latestGroups;
     } else {
       // Filter all unique groups by query
       groupsToShow = allGroups.filter(grp => grp.toLowerCase().includes(cleanQuery));
