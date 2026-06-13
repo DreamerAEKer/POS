@@ -340,7 +340,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     </div>
     <div class="form-grp">
       <label>หมวดสินค้า</label>
-      <div class="chips" id="aps-chips">
+      <div class="chips" id="aps-chips" style="margin-bottom:8px;">
         <button class="chip" data-val="ของกิน">🍜 ของกิน</button>
         <button class="chip" data-val="เครื่องดื่ม">🥤 เครื่องดื่ม</button>
         <button class="chip" data-val="ขนม">🍬 ขนม</button>
@@ -348,6 +348,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
         <button class="chip" data-val="ยา/สุขภาพ">💊 ยา</button>
         <button class="chip" data-val="อื่นๆ">📦 อื่นๆ</button>
       </div>
+      <input class="form-input" type="text" id="aps-group-input" placeholder="พิมพ์เพิ่มหมวดหมู่ใหม่ หรือเลือกจากด้านบน...">
     </div>
     <div class="form-grp">
       <label>ชื่อสินค้า <span style="color:var(--r);">*</span></label>
@@ -463,7 +464,7 @@ const App = (() => {
     // Add Product Sheet
     apsSheet:$('add-product-sheet'), apsBarcode:$('aps-barcode'),
     apsName:$('aps-name'), apsPrice:$('aps-price'),
-    apsChips:$('aps-chips'), apsCancel:$('aps-cancel'), apsSave:$('aps-save'),
+    apsChips:$('aps-chips'), apsGroupInput:$('aps-group-input'), apsCancel:$('aps-cancel'), apsSave:$('aps-save'),
     // Add Quick Sheet
     aqsSheet:$('add-quick-sheet'), aqsName:$('aqs-name'),
     aqsPrice:$('aqs-price'), aqsGroup:$('aqs-group'),
@@ -655,6 +656,7 @@ const App = (() => {
     el.apsBarcode.value=barcode||'';
     el.apsName.value=''; el.apsPrice.value='';
     S.apsGroup='';
+    el.apsGroupInput.value='';
     
     // Render dynamic category chips from DB settings if exists, or collect from current products
     const uniqueGroups = new Set();
@@ -678,6 +680,7 @@ const App = (() => {
         el.apsName.value = prod.name || '';
         el.apsPrice.value = found.isPack ? (prod.packPrice || prod.price) : (prod.price || '');
         S.apsGroup = prod.group || '';
+        el.apsGroupInput.value = S.apsGroup;
         showToast('ดึงข้อมูลสินค้าสำเร็จ', 'info');
       }
     }
@@ -699,6 +702,7 @@ const App = (() => {
         el.apsChips.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
         btn.classList.add('sel');
         S.apsGroup = grp;
+        el.apsGroupInput.value = grp;
       });
       el.apsChips.appendChild(btn);
     });
@@ -1045,6 +1049,17 @@ const App = (() => {
       chip.addEventListener('click',()=>{
         el.apsChips.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
         chip.classList.add('sel'); S.apsGroup=chip.dataset.val;
+        el.apsGroupInput.value=chip.dataset.val;
+      });
+    });
+    el.apsGroupInput.addEventListener('input', (e) => {
+      S.apsGroup = e.target.value.trim();
+      el.apsChips.querySelectorAll('.chip').forEach(c => {
+        if(c.dataset.val === S.apsGroup){
+          c.classList.add('sel');
+        } else {
+          c.classList.remove('sel');
+        }
       });
     });
     el.apsBarcode.addEventListener('input', (e) => {
@@ -1056,6 +1071,7 @@ const App = (() => {
           el.apsName.value = prod.name || '';
           el.apsPrice.value = found.isPack ? (prod.packPrice || prod.price) : (prod.price || '');
           S.apsGroup = prod.group || '';
+          el.apsGroupInput.value = S.apsGroup;
           el.apsChips.querySelectorAll('.chip').forEach(c => {
             if(c.dataset.val === S.apsGroup){
               c.classList.add('sel');
