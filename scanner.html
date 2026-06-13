@@ -650,48 +650,43 @@ const App = (() => {
     clearTimeout(S.popupTimeout); el.cdRing.style.strokeDashoffset=0; el.cdNum.textContent='2';
   }
 
-  /* ─── Add Product Sheet ─── */
-  function openAddProductSheet(barcode){
-    hidePopup();
-    el.apsBarcode.value=barcode||'';
-    el.apsName.value=''; el.apsPrice.value='';
-    S.apsGroup='';
-    el.apsGroupInput.value='';
+  function renderCategoryChips(query = ''){
+    const DEFAULTS = ['ของกิน', 'เครื่องดื่ม', 'ขนม', 'ของใช้', 'ยา', 'อื่นๆ'];
     
-    // Render dynamic category chips from DB settings if exists, or collect from current products
-    const uniqueGroups = new Set();
-    
-    // Add default groups
-    ['ของกิน', 'เครื่องดื่ม', 'ขนม', 'ของใช้', 'ยา', 'อื่นๆ'].forEach(g => uniqueGroups.add(g));
-    
-    // Add groups from products
-    S.products.forEach(p => { if(p.group) uniqueGroups.add(p.group); });
-    
-    // If settings has custom groups
+    // Gather all unique groups in the database
+    const allGroupsSet = new Set(DEFAULTS);
+    S.products.forEach(p => { if(p.group) allGroupsSet.add(p.group); });
     if(S.settings.categories && Array.isArray(S.settings.categories)){
-      S.settings.categories.forEach(c => { if(c && c.name) uniqueGroups.add(c.name); });
+      S.settings.categories.forEach(c => { if(c && c.name) allGroupsSet.add(c.name); });
     }
+    const allGroups = Array.from(allGroupsSet);
+
+    let groupsToShow = [];
+    const cleanQuery = query.trim().toLowerCase();
     
-    // Pre-fill fields if product exists with this barcode
-    if(barcode){
-      const found = findProduct(barcode);
-      if(found && found.product){
-        const prod = found.product;
-        el.apsName.value = prod.name || '';
-        el.apsPrice.value = found.isPack ? (prod.packPrice || prod.price) : (prod.price || '');
-        S.apsGroup = prod.group || '';
-        el.apsGroupInput.value = S.apsGroup;
-        showToast('ดึงข้อมูลสินค้าสำเร็จ', 'info');
+    if(!cleanQuery){
+      // Show default groups + latest 3 groups from S.products (most recently added)
+      const latestGroups = [];
+      for (let i = S.products.length - 1; i >= 0; i--) {
+        const grp = S.products[i].group;
+        if (grp && !DEFAULTS.includes(grp) && !latestGroups.includes(grp)) {
+          latestGroups.push(grp);
+          if (latestGroups.length >= 3) break;
+        }
       }
+      groupsToShow = [...DEFAULTS, ...latestGroups];
+    } else {
+      // Filter all unique groups by query
+      groupsToShow = allGroups.filter(grp => grp.toLowerCase().includes(cleanQuery));
     }
-    
+
     el.apsChips.innerHTML = '';
     const emojis = {
       'ของกิน': '🍜 ', 'เครื่องดื่ม': '🥤 ', 'ขนม': '🍬 ',
       'ของใช้': '🧴 ', 'ยา': '💊 ', 'ยา/สุขภาพ': '💊 ', 'อื่นๆ': '📦 '
     };
     
-    uniqueGroups.forEach(grp => {
+    groupsToShow.forEach(grp => {
       const btn = document.createElement('button');
       btn.className = 'chip';
       if(S.apsGroup === grp) btn.classList.add('sel');
@@ -706,6 +701,30 @@ const App = (() => {
       });
       el.apsChips.appendChild(btn);
     });
+  }
+
+  /* ─── Add Product Sheet ─── */
+  function openAddProductSheet(barcode){
+    hidePopup();
+    el.apsBarcode.value=barcode||'';
+    el.apsName.value=''; el.apsPrice.value='';
+    S.apsGroup='';
+    el.apsGroupInput.value='';
+    
+    // Pre-fill fields if product exists with this barcode
+    if(barcode){
+      const found = findProduct(barcode);
+      if(found && found.product){
+        const prod = found.product;
+        el.apsName.value = prod.name || '';
+        el.apsPrice.value = found.isPack ? (prod.packPrice || prod.price) : (prod.price || '');
+        S.apsGroup = prod.group || '';
+        el.apsGroupInput.value = S.apsGroup;
+        showToast('ดึงข้อมูลสินค้าสำเร็จ', 'info');
+      }
+    }
+    
+    renderCategoryChips('');
     
     el.apsSheet.classList.add('open');
     setTimeout(()=>el.apsName.focus(),400);
@@ -1053,14 +1072,9 @@ const App = (() => {
       });
     });
     el.apsGroupInput.addEventListener('input', (e) => {
-      S.apsGroup = e.target.value.trim();
-      el.apsChips.querySelectorAll('.chip').forEach(c => {
-        if(c.dataset.val === S.apsGroup){
-          c.classList.add('sel');
-        } else {
-          c.classList.remove('sel');
-        }
-      });
+      const val = e.target.value;
+      S.apsGroup = val.trim();
+      renderCategoryChips(val);
     });
     el.apsBarcode.addEventListener('input', (e) => {
       const barcode = e.target.value.trim();
@@ -1072,13 +1086,7 @@ const App = (() => {
           el.apsPrice.value = found.isPack ? (prod.packPrice || prod.price) : (prod.price || '');
           S.apsGroup = prod.group || '';
           el.apsGroupInput.value = S.apsGroup;
-          el.apsChips.querySelectorAll('.chip').forEach(c => {
-            if(c.dataset.val === S.apsGroup){
-              c.classList.add('sel');
-            } else {
-              c.classList.remove('sel');
-            }
-          });
+          renderCategoryChips('');
           showToast('ดึงข้อมูลสินค้าสำเร็จ', 'info');
         }
       }
