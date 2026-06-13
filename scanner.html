@@ -1416,7 +1416,13 @@ const App = (() => {
   }
   function changeQty(id,d){ const i=S.cart.find(x=>x.id===id); if(!i) return; i.qty+=d; if(i.qty<=0) S.cart=S.cart.filter(x=>x.id!==id); renderCart(); }
   function removeItem(id){ S.cart=S.cart.filter(i=>i.id!==id); renderCart(); }
-  function clearCart(){ if(!S.cart.length) return; S.cart=[]; renderCart(); }
+  function clearCart(){
+    if(!S.cart.length) return;
+    showConfirm('⚠️', 'ยืนยันการล้างตะกร้า', 'ต้องการล้างตะกร้าสินค้าทั้งหมดหรือไม่?', () => {
+      S.cart=[];
+      renderCart();
+    });
+  }
 
   function fmt(n){ return Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function escH(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
