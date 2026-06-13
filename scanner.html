@@ -527,7 +527,12 @@ const App = (() => {
       await S.codeReader.reset();
       
       const constraints = {
-        video: { facingMode: S.facingEnvironment ? 'environment' : 'user' }
+        video: {
+          facingMode: S.facingEnvironment ? 'environment' : 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          focusMode: 'continuous'
+        }
       };
       
       await S.codeReader.decodeFromConstraints(constraints, 'camera-video', (res) => {
@@ -642,8 +647,41 @@ const App = (() => {
     el.apsBarcode.value=barcode||'';
     el.apsName.value=''; el.apsPrice.value='';
     S.apsGroup='';
-    // reset chips
-    el.apsChips.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+    
+    // Render dynamic category chips from DB settings if exists, or collect from current products
+    const uniqueGroups = new Set();
+    
+    // Add default groups
+    ['ของกิน', 'เครื่องดื่ม', 'ขนม', 'ของใช้', 'ยา', 'อื่นๆ'].forEach(g => uniqueGroups.add(g));
+    
+    // Add groups from products
+    S.products.forEach(p => { if(p.group) uniqueGroups.add(p.group); });
+    
+    // If settings has custom groups
+    if(S.settings.categories && Array.isArray(S.settings.categories)){
+      S.settings.categories.forEach(c => { if(c && c.name) uniqueGroups.add(c.name); });
+    }
+    
+    el.apsChips.innerHTML = '';
+    const emojis = {
+      'ของกิน': '🍜 ', 'เครื่องดื่ม': '🥤 ', 'ขนม': '🍬 ',
+      'ของใช้': '🧴 ', 'ยา': '💊 ', 'ยา/สุขภาพ': '💊 ', 'อื่นๆ': '📦 '
+    };
+    
+    uniqueGroups.forEach(grp => {
+      const btn = document.createElement('button');
+      btn.className = 'chip';
+      btn.dataset.val = grp;
+      const emo = emojis[grp] || '📦 ';
+      btn.textContent = emo + grp;
+      btn.addEventListener('click', () => {
+        el.apsChips.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+        btn.classList.add('sel');
+        S.apsGroup = grp;
+      });
+      el.apsChips.appendChild(btn);
+    });
+    
     el.apsSheet.classList.add('open');
     setTimeout(()=>el.apsName.focus(),400);
   }
