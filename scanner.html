@@ -251,6 +251,35 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 #quick-item-options-modal.open .sheet-panel {
   transform: scale(1);
 }
+#btn-open-camera {
+  display: none;
+  background: rgba(0,230,118,.12);
+  border: 1px solid rgba(0,230,118,.3);
+  border-radius: var(--rs);
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--g);
+  cursor: pointer;
+  font-family: var(--f);
+  align-items: center;
+  gap: 4px;
+  transition: var(--tr);
+  white-space: nowrap;
+}
+#btn-open-camera:active {
+  transform: scale(0.95);
+}
+#app.camera-closed #btn-open-camera {
+  display: flex !important;
+}
+#app.camera-closed #scanner-section {
+  display: none !important;
+}
+#app.camera-closed #bottom-panel {
+  max-height: 100dvh !important;
+  height: 100dvh !important;
+}
 </style>
 </head>
 <body>
@@ -265,7 +294,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
   </div>
   <div id="hud">
-    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.93.0 (13/06/2026)</span></div>
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.93.1 (13/06/2026)</span></div>
     <div style="display:flex;gap:8px;">
       <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
       <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
@@ -326,6 +355,9 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
       รายการสินค้า
       <span id="cart-badge">0</span>
     </div>
+    <button id="btn-open-camera">
+      <span class="material-symbols-rounded" style="font-size:15px;">photo_camera</span>เปิดกล้อง
+    </button>
     <button id="btn-quick-toggle">
       <span class="material-symbols-rounded" style="font-size:15px;">bolt</span>ด่วน
     </button>
@@ -526,6 +558,8 @@ const App = (() => {
     cartView:$('cart-view'), quickView:$('quick-view'),
     quickGrid:$('quick-grid'),
     cartTitle:$('cart-title'),
+    btnOpenCam:$('btn-open-camera'),
+    cartHeader:$('cart-header'),
     scanStatus:$('scan-status'), hint:$('hint'),
     // Add Product Sheet
     apsSheet:$('add-product-sheet'), apsBarcode:$('aps-barcode'),
@@ -830,6 +864,25 @@ const App = (() => {
     showConfirm('✅','บันทึกสินค้าแล้ว!','"'+name+'" เพิ่มเข้าระบบแล้ว\nต้องการใส่ตะกร้าเลยไหม?',()=>{
       if(S.pendingNewProduct){ addToCart(S.pendingNewProduct.product,S.pendingNewProduct.price,false); S.pendingNewProduct=null; }
     });
+  }
+
+  /* ─── Camera Open/Close toggling ─── */
+  function closeCameraMode(){
+    document.getElementById('app').classList.add('camera-closed');
+    if(S.codeReader){
+      try {
+        S.codeReader.reset();
+      }catch(e){}
+    }
+    S.scanning = false;
+    S.torchOn = false;
+    el.btnTorch.classList.remove('active');
+  }
+
+  async function openCameraMode(){
+    document.getElementById('app').classList.remove('camera-closed');
+    S.scanning = true;
+    await startDecode();
   }
 
   /* ─── Quick List ─── */
@@ -1402,7 +1455,23 @@ const App = (() => {
     el.btnPrint.addEventListener('click',printReceipt);
     el.btnShare.addEventListener('click',shareReceiptImage);
     el.btnQuickToggle.addEventListener('click',()=>showQuickView(true));
-    el.cartTitle.addEventListener('click',()=>{ if(S.viewMode==='quick') showCartView(); });
+    el.cartTitle.addEventListener('click',()=>{ showCartView(); closeCameraMode(); });
+    el.btnOpenCam.addEventListener('click',openCameraMode);
+
+    // Swipe gestures on header
+    let touchStartY = 0;
+    el.cartHeader.addEventListener('touchstart', e => {
+      touchStartY = e.touches[0].clientY;
+    }, {passive: true});
+    el.cartHeader.addEventListener('touchend', e => {
+      const touchEndY = e.changedTouches[0].clientY;
+      const diffY = touchStartY - touchEndY;
+      if (diffY > 45) {
+        closeCameraMode();
+      } else if (diffY < -45) {
+        openCameraMode();
+      }
+    }, {passive: true});
 
     // Options modal
     el.qomBtnEdit.addEventListener('click',editQuickItemFromOptions);
