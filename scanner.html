@@ -436,7 +436,7 @@ const App = (() => {
   const S = {
     cart:[], products:[], settings:{}, quickItems:[],
     scanning:true, lockBarcode:null, lockClearTimer:null,
-    codeReader:null, devices:[], devIdx:0, selectedDev:null, torchOn:false,
+    codeReader:null, devices:[], devIdx:0, selectedDev:null, torchOn:false, facingEnvironment:true,
     countdownRAF:null, popupTimeout:null,
     pendingNewProduct:null,   // product to add to cart after save
     viewMode:'cart',          // 'cart' | 'quick'
@@ -507,12 +507,7 @@ const App = (() => {
     if(!window.ZXing){ setStat('ZXing โหลดไม่ได้ ใช้ช่อง input แทน','err'); return; }
     try{
       S.codeReader = new ZXing.BrowserMultiFormatReader();
-      const devs = await S.codeReader.listVideoInputDevices();
-      S.devices = devs || [];
-      if(!S.devices.length) throw new Error('no camera');
-      let idx = S.devices.findIndex(d=>/back|rear|environment/i.test(d.label));
-      if(idx===-1) idx = S.devices.length>1 ? 1 : 0;
-      S.devIdx=idx; S.selectedDev=S.devices[idx].deviceId;
+      // Try initializing with environment-facing camera first to request permission and start stream directly
       await startDecode();
     }catch(err){
       el.video.style.display='none'; el.noCam.style.display='flex';
@@ -521,24 +516,44 @@ const App = (() => {
   }
 
   async function startDecode(){
-    if(!S.codeReader||!S.selectedDev) return;
+    if(!S.codeReader) return;
     try{
-      await S.codeReader.decodeFromVideoDevice(S.selectedDev,'camera-video',(res)=>{
-        if(res&&S.scanning){ const r=res.getText(); if(r&&r!==S.lockBarcode) handleBarcode(r); }
+      // Stop previous decoding if running
+      await S.codeReader.reset();
+      
+      const constraints = {
+        video: { facingMode: S.facingEnvironment ? 'environment' : 'user' }
+      };
+      
+      await S.codeReader.decodeFromConstraints(constraints, 'camera-video', (res) => {
+        if(res && S.scanning){ const r=res.getText(); if(r && r!==S.lockBarcode) handleBarcode(r); }
       });
+      
+      // Let's populate the devices list post-stream initialization (permission granted)
+      try {
+        const devs = await S.codeReader.listVideoInputDevices();
+        S.devices = devs || [];
+      } catch(e){}
+      
       el.video.style.display='block'; el.noCam.style.display='none';
       setStat('พร้อมสแกน ✓','ok');
     }catch(err){
-      el.video.style.display='none'; el.noCam.style.display='flex';
-      setStat('เปิดกล้องไม่ได้','err');
+      // Try fallback to standard decode if constraint fails
+      try {
+        await S.codeReader.decodeFromVideoDevice(undefined, 'camera-video', (res) => {
+          if(res && S.scanning){ const r=res.getText(); if(r && r!==S.lockBarcode) handleBarcode(r); }
+        });
+        el.video.style.display='block'; el.noCam.style.display='none';
+        setStat('พร้อมสแกน (โหมดสำรอง) ✓','ok');
+      } catch (fallbackErr) {
+        el.video.style.display='none'; el.noCam.style.display='flex';
+        setStat('เปิดกล้องไม่ได้: ' + (err.message || err),'err');
+      }
     }
   }
 
   async function switchCam(){
-    if(S.devices.length<2){ showToast('มีกล้องเดียว สลับไม่ได้','warn'); return; }
-    S.devIdx=(S.devIdx+1)%S.devices.length;
-    S.selectedDev=S.devices[S.devIdx].deviceId;
-    if(S.codeReader) S.codeReader.reset();
+    S.facingEnvironment = !S.facingEnvironment;
     setStat('กำลังสลับกล้อง...','');
     await startDecode();
   }
