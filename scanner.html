@@ -184,7 +184,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 
 /* ══ RECEIPT AREAS ══ */
 #receipt-print-area{display:none}
-#receipt-img-area{position:fixed;top:0;left:-9999px;width:390px;background:#fff;color:#000;font-family:'Sarabun',sans-serif;padding:24px 20px;line-height:1.4;visibility:visible}
+#receipt-img-area{position:fixed;top:0;left:-9999px;width:395px;visibility:visible;box-sizing:border-box}
 
 /* ══ PRINT ══ */
 @media print{
@@ -1135,7 +1135,7 @@ const App = (() => {
     el.receiptImg.style.left='-9999px';
     el.receiptImg.style.top='0';
     el.receiptImg.innerHTML=`
-      <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 20px;width:390px;min-height:100px;">
+      <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 24px;width:100%;box-sizing:border-box;min-height:100px;">
         <div style="text-align:center;margin-bottom:16px;">
           <div style="font-size:22px;font-weight:900;">${escH(sale.storeName||S.settings.storeName||'ร้านชำ POS')}</div>
           ${S.settings.address?'<div style="font-size:13px;color:#555;margin-top:2px;">'+escH(S.settings.address)+'</div>':''}
@@ -1522,7 +1522,7 @@ const App = (() => {
     el.receiptImg.style.left='-9999px';
     el.receiptImg.style.top='0';
     el.receiptImg.innerHTML=`
-      <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 20px;width:390px;min-height:100px;">
+      <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 24px;width:100%;box-sizing:border-box;min-height:100px;">
         <div style="text-align:center;margin-bottom:16px;">
           <div style="font-size:22px;font-weight:900;">${escH(S.settings.storeName||'ร้านชำ POS')}</div>
           ${S.settings.address?'<div style="font-size:13px;color:#555;margin-top:2px;">'+escH(S.settings.address)+'</div>':''}
