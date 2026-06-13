@@ -208,6 +208,49 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   #scanner-section{grid-column:1;grid-row:1}
   #bottom-panel{grid-column:2;grid-row:1;max-height:100vh;border-top:none;border-left:1px solid var(--br)}
 }
+.q-card.dragging {
+  position: fixed !important;
+  z-index: 1000 !important;
+  pointer-events: none !important;
+  transform: scale(1.08) !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+  opacity: 0.85;
+  transition: none !important;
+}
+.q-card-placeholder {
+  border: 1px dashed var(--br3);
+  border-radius: var(--rm);
+  background: rgba(255,255,255,0.02);
+}
+#cart-title.clickable-tab {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--rs);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--br);
+  transition: var(--tr);
+}
+#cart-title.clickable-tab:active {
+  transform: scale(0.95);
+  background: rgba(255,255,255,0.1);
+}
+#quick-item-options-modal {
+  justify-content: center;
+  align-items: center;
+}
+#quick-item-options-modal .sheet-panel {
+  max-width: 320px;
+  width: 90%;
+  margin: auto;
+  border-radius: var(--rm);
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  transform: scale(0.9);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#quick-item-options-modal.open .sheet-panel {
+  transform: scale(1);
+}
 </style>
 </head>
 <body>
@@ -222,7 +265,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
   </div>
   <div id="hud">
-    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.92.1 (13/06/2026)</span></div>
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.93.0 (13/06/2026)</span></div>
     <div style="display:flex;gap:8px;">
       <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
       <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
@@ -399,6 +442,27 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   </div>
 </div>
 
+<!-- ══════ QUICK ITEM OPTIONS MODAL ══════ -->
+<div class="sheet-overlay" id="quick-item-options-modal">
+  <div class="sheet-panel">
+    <div style="font-size:16px; font-weight:800; margin-bottom:18px; text-align:center; display:flex; align-items:center; justify-content:center; gap:8px;" id="qom-title">
+      <span class="material-symbols-rounded" style="color:var(--o); font-size:22px;">settings_suggest</span>ตัวเลือกรายการ
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <button class="form-input" id="qom-btn-edit" style="background:var(--s3); border:1px solid var(--br2); text-align:center; color:var(--g); font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; height:45px;">
+        <span class="material-symbols-rounded">edit</span>แก้ไขข้อมูล
+      </button>
+      <button class="form-input" id="qom-btn-delete" style="background:var(--s3); border:1px solid rgba(255,82,82,0.2); text-align:center; color:var(--r); font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; height:45px;">
+        <span class="material-symbols-rounded">delete</span>ลบรายการด่วน
+      </button>
+      <button class="btn-cancel" id="qom-btn-cancel" style="width:100%; height:45px; display:flex; align-items:center; justify-content:center;">
+        ยกเลิก
+      </button>
+    </div>
+  </div>
+</div>
+
+
 <!-- ══════ CONFIRM DIALOG ══════ -->
 <div id="confirm-dialog">
   <div id="confirm-box">
@@ -444,6 +508,7 @@ const App = (() => {
     pendingNewProduct:null,   // product to add to cart after save
     viewMode:'cart',          // 'cart' | 'quick'
     apsGroup:'',              // selected group in add-product sheet
+    editingQuickId:null,      // ID of quick item being edited
   };
   const $=id=>document.getElementById(id);
   const el={
@@ -460,6 +525,7 @@ const App = (() => {
     btnClear:$('btn-clear'), btnQuickToggle:$('btn-quick-toggle'),
     cartView:$('cart-view'), quickView:$('quick-view'),
     quickGrid:$('quick-grid'),
+    cartTitle:$('cart-title'),
     scanStatus:$('scan-status'), hint:$('hint'),
     // Add Product Sheet
     apsSheet:$('add-product-sheet'), apsBarcode:$('aps-barcode'),
@@ -473,6 +539,9 @@ const App = (() => {
     confirmDlg:$('confirm-dialog'), confirmIcon:$('confirm-icon'),
     confirmTitle:$('confirm-title'), confirmMsg:$('confirm-msg'),
     cdlgNo:$('cdlg-no'), cdlgYes:$('cdlg-yes'),
+    // Options menu
+    qomModal:$('quick-item-options-modal'),
+    qomBtnEdit:$('qom-btn-edit'), qomBtnDelete:$('qom-btn-delete'), qomBtnCancel:$('qom-btn-cancel'),
     // Receipt
     receiptPrint:$('receipt-print-area'), receiptImg:$('receipt-img-area'),
     toast:$('toast'), toastMsg:$('toast-msg'), toastIcon:document.querySelector('#toast .ti'),
@@ -764,37 +833,48 @@ const App = (() => {
   }
 
   /* ─── Quick List ─── */
-  function toggleQuickView(){
-    S.viewMode = S.viewMode==='cart'?'quick':'cart';
-    el.cartView.style.display = S.viewMode==='cart'?'flex':'none';
-    el.quickView.style.display = S.viewMode==='quick'?'flex':'none';
-    el.btnQuickToggle.classList.toggle('active', S.viewMode==='quick');
-    if(S.viewMode==='quick') renderQuickGrid();
+  function showCartView(){
+    S.viewMode = 'cart';
+    el.cartView.style.display = 'flex';
+    el.quickView.style.display = 'none';
+    el.btnQuickToggle.classList.remove('active');
+    el.cartTitle.classList.remove('clickable-tab');
+  }
+
+  function showQuickView(openForm = false){
+    S.viewMode = 'quick';
+    el.cartView.style.display = 'none';
+    el.quickView.style.display = 'flex';
+    el.btnQuickToggle.classList.add('active');
+    el.cartTitle.classList.add('clickable-tab');
+    renderQuickGrid();
+    if(openForm) openQuickForm();
   }
 
   function renderQuickGrid(){
-    const sorted=[...S.quickItems].sort((a,b)=>(b.useCount||0)-(a.useCount||0));
     let html='';
-    sorted.forEach(item=>{
-      html+=`<div class="q-card" onclick="App.quickAdd('${escA(item.id)}')">
-        <button class="qc-del" onclick="event.stopPropagation();App.quickDel('${escA(item.id)}')">✕</button>
+    S.quickItems.forEach(item=>{
+      html+=`<div class="q-card" data-id="${escA(item.id)}" onclick="App.quickAdd('${escA(item.id)}')">
         <div class="qc-name">${escH(item.name)}</div>
         <div class="qc-price">฿${fmt(item.price)}</div>
       </div>`;
     });
-    html+=`<div class="q-card-add" onclick="App.openQuickForm()">
-      <span class="material-symbols-rounded" style="font-size:24px;">add</span>
-      <span>เพิ่มรายการ</span>
-    </div>`;
+    if(!S.quickItems.length){
+      html = `<div class="q-empty">
+        <span class="material-symbols-rounded" style="font-size:32px;">bolt</span>
+        <p>ยังไม่มีรายการด่วน<br>กดปุ่ม ⚡ ด่วน เพื่อเพิ่มรายการแรก</p>
+      </div>`;
+    }
     el.quickGrid.innerHTML=html;
   }
 
+  let blockNextClick = false;
   function quickAddItem(id){
+    if(blockNextClick){ blockNextClick = false; return; }
     const item=S.quickItems.find(i=>i.id===id); if(!item) return;
     item.useCount=(item.useCount||0)+1;
     saveQuickItems();
     addToCart({id:'Q_'+item.id,barcode:'',name:item.name,price:item.price},item.price,false);
-    renderQuickGrid();
   }
 
   function quickDelItem(id){
@@ -804,6 +884,9 @@ const App = (() => {
   }
 
   function openQuickForm(){
+    S.editingQuickId = null;
+    document.querySelector('#add-quick-sheet .sheet-title').innerHTML = `<span class="material-symbols-rounded" style="color:var(--o);font-size:22px;">bolt</span>เพิ่มรายการด่วน`;
+    document.querySelector('#aqs-save').innerHTML = `<span class="material-symbols-rounded" style="font-size:18px;vertical-align:middle;">bolt</span>เพิ่มรายการด่วน`;
     el.aqsName.value=''; el.aqsPrice.value=''; el.aqsGroup.value='';
     el.aqsSheet.classList.add('open');
     setTimeout(()=>el.aqsName.focus(),400);
@@ -815,10 +898,222 @@ const App = (() => {
     const price=parseFloat(el.aqsPrice.value)||0;
     if(!name){ showToast('กรุณาใส่ชื่อ','error'); return; }
     if(price<=0){ showToast('กรุณาใส่ราคา','error'); return; }
-    S.quickItems.push({id:'q'+Date.now(),name,price,group:(el.aqsGroup.value||'').trim(),useCount:0});
-    await saveQuickItems();
-    closeQuickForm(); renderQuickGrid();
-    showToast('เพิ่มรายการด่วนแล้ว','success');
+    
+    if (S.editingQuickId) {
+      const idx = S.quickItems.findIndex(i => i.id === S.editingQuickId);
+      if (idx !== -1) {
+        S.quickItems[idx].name = name;
+        S.quickItems[idx].price = price;
+        S.quickItems[idx].group = (el.aqsGroup.value||'').trim();
+      }
+      S.editingQuickId = null;
+      await saveQuickItems();
+      closeQuickForm(); renderQuickGrid();
+      showToast('แก้ไขรายการด่วนแล้ว','success');
+    } else {
+      S.quickItems.push({id:'q'+Date.now(),name,price,group:(el.aqsGroup.value||'').trim(),useCount:0});
+      await saveQuickItems();
+      closeQuickForm(); renderQuickGrid();
+      showToast('เพิ่มรายการด่วนแล้ว','success');
+    }
+  }
+
+  /* ─── Drag & Drop + Options Modal ─── */
+  let dragEl = null;
+  let dragPlaceholder = null;
+  let startX = 0, startY = 0;
+  let offsetX = 0, offsetY = 0;
+  let isDraggingMode = false;
+  let longPressTimer = null;
+  let dragTimer = null;
+  let activeItemId = null;
+  let activeOptionsItemId = null;
+
+  function initDragHandlers(){
+    const grid = el.quickGrid;
+    grid.addEventListener('mousedown', handlePressStart);
+    grid.addEventListener('touchstart', handlePressStart, {passive: false});
+
+    window.addEventListener('mousemove', handlePressMove);
+    window.addEventListener('touchmove', handlePressMove, {passive: false});
+
+    window.addEventListener('mouseup', handlePressEnd);
+    window.addEventListener('touchend', handlePressEnd);
+    window.addEventListener('touchcancel', handlePressEnd);
+  }
+
+  function handlePressStart(e) {
+    const card = e.target.closest('.q-card');
+    if (!card) return;
+    
+    const itemId = card.dataset.id;
+    activeItemId = itemId;
+    dragEl = card;
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    startX = clientX;
+    startY = clientY;
+    isDraggingMode = false;
+    blockNextClick = false;
+
+    clearTimeout(longPressTimer);
+    clearTimeout(dragTimer);
+
+    longPressTimer = setTimeout(() => {
+      if (navigator.vibrate) navigator.vibrate(50);
+      showQuickItemOptions(itemId);
+    }, 500);
+
+    dragTimer = setTimeout(() => {
+      clearTimeout(longPressTimer);
+      hideQuickItemOptions();
+      
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      isDraggingMode = true;
+      blockNextClick = true;
+      
+      const rect = card.getBoundingClientRect();
+      offsetX = clientX - rect.left;
+      offsetY = clientY - rect.top;
+
+      dragPlaceholder = document.createElement('div');
+      dragPlaceholder.className = 'q-card-placeholder';
+      dragPlaceholder.style.width = card.offsetWidth + 'px';
+      dragPlaceholder.style.height = card.offsetHeight + 'px';
+      
+      card.parentNode.insertBefore(dragPlaceholder, card);
+      
+      card.style.width = rect.width + 'px';
+      card.style.height = rect.height + 'px';
+      card.style.left = rect.left + 'px';
+      card.style.top = rect.top + 'px';
+      card.classList.add('dragging');
+    }, 1500);
+  }
+
+  function handlePressMove(e) {
+    if (!dragEl) return;
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    if (!isDraggingMode) {
+      if (Math.abs(clientX - startX) > 8 || Math.abs(clientY - startY) > 8) {
+        clearTimeout(longPressTimer);
+        clearTimeout(dragTimer);
+        dragEl = null;
+      }
+    } else {
+      e.preventDefault();
+      
+      dragEl.style.left = (clientX - offsetX) + 'px';
+      dragEl.style.top = (clientY - offsetY) + 'px';
+
+      let closestCard = null;
+      let minDistance = Infinity;
+      const cards = el.quickGrid.querySelectorAll('.q-card:not(.dragging)');
+      cards.forEach(otherCard => {
+        const rect = otherCard.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dist = Math.hypot(clientX - centerX, clientY - centerY);
+        if (dist < minDistance && dist < 120) {
+          minDistance = dist;
+          closestCard = otherCard;
+        }
+      });
+
+      if (closestCard) {
+        const parent = closestCard.parentNode;
+        const rect = closestCard.getBoundingClientRect();
+        const isAfter = clientX > rect.left + rect.width / 2;
+        if (isAfter) {
+          parent.insertBefore(dragPlaceholder, closestCard.nextSibling);
+        } else {
+          parent.insertBefore(dragPlaceholder, closestCard);
+        }
+      }
+    }
+  }
+
+  function handlePressEnd(e) {
+    clearTimeout(longPressTimer);
+    clearTimeout(dragTimer);
+
+    if (dragEl) {
+      if (isDraggingMode) {
+        dragEl.classList.remove('dragging');
+        dragEl.style.position = '';
+        dragEl.style.zIndex = '';
+        dragEl.style.pointerEvents = '';
+        dragEl.style.transform = '';
+        dragEl.style.width = '';
+        dragEl.style.height = '';
+        dragEl.style.left = '';
+        dragEl.style.top = '';
+
+        if (dragPlaceholder && dragPlaceholder.parentNode) {
+          dragPlaceholder.parentNode.insertBefore(dragEl, dragPlaceholder);
+          dragPlaceholder.remove();
+        }
+
+        const newOrderIds = Array.from(el.quickGrid.querySelectorAll('.q-card')).map(c => c.dataset.id);
+        const newItems = [];
+        newOrderIds.forEach(id => {
+          const item = S.quickItems.find(i => i.id === id);
+          if (item) newItems.push(item);
+        });
+        S.quickItems = newItems;
+        saveQuickItems();
+        
+        if (navigator.vibrate) navigator.vibrate(40);
+        renderQuickGrid();
+      }
+    }
+
+    dragEl = null;
+    dragPlaceholder = null;
+    isDraggingMode = false;
+  }
+
+  function showQuickItemOptions(itemId) {
+    blockNextClick = true;
+    activeOptionsItemId = itemId;
+    el.qomModal.classList.add('open');
+  }
+
+  function hideQuickItemOptions() {
+    el.qomModal.classList.remove('open');
+    activeOptionsItemId = null;
+  }
+
+  function editQuickItemFromOptions() {
+    if (!activeOptionsItemId) return;
+    const item = S.quickItems.find(i => i.id === activeOptionsItemId);
+    if (item) {
+      S.editingQuickId = item.id;
+      el.aqsName.value = item.name;
+      el.aqsPrice.value = item.price;
+      el.aqsGroup.value = item.group || '';
+      
+      document.querySelector('#add-quick-sheet .sheet-title').innerHTML = `<span class="material-symbols-rounded" style="color:var(--g);font-size:22px;">edit</span>แก้ไขรายการด่วน`;
+      document.querySelector('#aqs-save').innerHTML = `<span class="material-symbols-rounded" style="font-size:18px;vertical-align:middle;">save</span>บันทึกรายการ`;
+      
+      el.aqsSheet.classList.add('open');
+      setTimeout(()=>el.aqsName.focus(),400);
+    }
+    hideQuickItemOptions();
+  }
+
+  function deleteQuickItemFromOptions() {
+    if (!activeOptionsItemId) return;
+    const itemId = activeOptionsItemId;
+    hideQuickItemOptions();
+    showConfirm('⚠️', 'ยืนยันการลบ', 'คุณต้องการลบรายการนี้ใช่หรือไม่?', () => {
+      quickDelItem(itemId);
+    });
   }
 
   /* ─── Cart ─── */
@@ -1106,7 +1401,17 @@ const App = (() => {
     el.btnClear.addEventListener('click',clearCart);
     el.btnPrint.addEventListener('click',printReceipt);
     el.btnShare.addEventListener('click',shareReceiptImage);
-    el.btnQuickToggle.addEventListener('click',toggleQuickView);
+    el.btnQuickToggle.addEventListener('click',()=>showQuickView(true));
+    el.cartTitle.addEventListener('click',()=>{ if(S.viewMode==='quick') showCartView(); });
+
+    // Options modal
+    el.qomBtnEdit.addEventListener('click',editQuickItemFromOptions);
+    el.qomBtnDelete.addEventListener('click',deleteQuickItemFromOptions);
+    el.qomBtnCancel.addEventListener('click',hideQuickItemOptions);
+    el.qomModal.addEventListener('click',(e)=>{ if(e.target===el.qomModal) hideQuickItemOptions(); });
+
+    // Drag and drop initialization
+    initDragHandlers();
 
     // Visibility
     document.addEventListener('visibilitychange',()=>{
