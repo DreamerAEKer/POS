@@ -222,7 +222,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
   </div>
   <div id="hud">
-    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า</div>
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.92.1 (13/06/2026)</span></div>
     <div style="display:flex;gap:8px;">
       <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
       <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
@@ -239,36 +239,38 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   </div>
   <div id="hint">จ่อบาร์โค้ดสินค้าที่กรอบสีเขียว</div>
 
-  <!-- Product Popup -->
-  <div id="popup">
-    <div id="popup-pill"></div>
-    <!-- Found -->
-    <div id="popup-found">
-      <div class="pop-row">
-        <div id="pop-img"><span class="material-symbols-rounded" style="font-size:28px;color:var(--tm);">category</span></div>
-        <div id="pop-info">
-          <div id="pop-name">—</div>
-          <div id="pop-bc">—</div>
-          <div id="pop-price"><span class="cur">฿</span><span id="pop-price-val">0.00</span></div>
-        </div>
-        <div id="cd-wrap">
-          <svg id="cd-svg" width="52" height="52" viewBox="0 0 52 52">
-            <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
-            <circle id="cd-ring" cx="26" cy="26" r="22"/>
-          </svg>
-          <div id="cd-num">2</div>
+  <!-- Product Popup Overlay -->
+  <div id="popup-overlay" style="position:absolute;inset:0;z-index:19;background:rgba(0,0,0,0.55);opacity:0;pointer-events:none;transition:opacity 0.3s;backdrop-filter:blur(3px);">
+    <div id="popup">
+      <div id="popup-pill"></div>
+      <!-- Found -->
+      <div id="popup-found">
+        <div class="pop-row">
+          <div id="pop-img"><span class="material-symbols-rounded" style="font-size:28px;color:var(--tm);">category</span></div>
+          <div id="pop-info">
+            <div id="pop-name">—</div>
+            <div id="pop-bc">—</div>
+            <div id="pop-price"><span class="cur">฿</span><span id="pop-price-val">0.00</span></div>
+          </div>
+          <div id="cd-wrap">
+            <svg id="cd-svg" width="52" height="52" viewBox="0 0 52 52">
+              <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+              <circle id="cd-ring" cx="26" cy="26" r="22"/>
+            </svg>
+            <div id="cd-num">2</div>
+          </div>
         </div>
       </div>
-    </div>
-    <!-- Not Found -->
-    <div id="popup-nf">
-      <span class="material-symbols-rounded" style="font-size:36px;color:var(--r);">search_off</span>
-      <p style="color:var(--td);font-size:15px;margin-top:6px;">ไม่พบสินค้านี้ในระบบ</p>
-      <div id="nf-code">—</div>
-      <button id="btn-add-product">
-        <span class="material-symbols-rounded" style="font-size:18px;">add_circle</span>
-        เพิ่มสินค้านี้เข้าร้าน
-      </button>
+      <!-- Not Found -->
+      <div id="popup-nf">
+        <span class="material-symbols-rounded" style="font-size:36px;color:var(--r);">search_off</span>
+        <p style="color:var(--td);font-size:15px;margin-top:6px;">ไม่พบสินค้านี้ในระบบ</p>
+        <div id="nf-code">—</div>
+        <button id="btn-add-product">
+          <span class="material-symbols-rounded" style="font-size:18px;">add_circle</span>
+          เพิ่มสินค้านี้เข้าร้าน
+        </button>
+      </div>
     </div>
   </div>
 </section>
@@ -480,8 +482,8 @@ const App = (() => {
     try{
       // Configure localforage to use the exact same DB store as the main POS app
       localforage.config({
-        name: 'DreamerPOS_DB',
-        storeName: 'keyval'
+        name: 'localforage',
+        storeName: 'keyvaluepairs'
       });
       S.products = await localforage.getItem('store_products') || [];
       S.settings = await localforage.getItem('store_settings') || {};
@@ -613,6 +615,8 @@ const App = (() => {
     }
     el.popFound.style.display='block'; el.popNF.style.display='none';
     el.popup.className='show';
+    const ov=document.getElementById('popup-overlay');
+    if(ov){ ov.style.opacity='1'; ov.style.pointerEvents='auto'; }
     startCD(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
   }
 
@@ -622,12 +626,16 @@ const App = (() => {
     el.btnAddProd.dataset.bc=barcode;
     el.popFound.style.display='none'; el.popNF.style.display='block';
     el.popup.className='show nf';
+    const ov=document.getElementById('popup-overlay');
+    if(ov){ ov.style.opacity='1'; ov.style.pointerEvents='auto'; }
     clearTimeout(S.popupTimeout);
     S.popupTimeout=setTimeout(hidePopup,4000);
   }
 
   function hidePopup(){
     el.popup.classList.remove('show','nf'); clearCD();
+    const ov=document.getElementById('popup-overlay');
+    if(ov){ ov.style.opacity='0'; ov.style.pointerEvents='none'; }
     setTimeout(()=>{ S.scanning=true; S.lockBarcode=null; setStat('พร้อมสแกน ✓','ok'); },400);
   }
 
@@ -662,6 +670,18 @@ const App = (() => {
       S.settings.categories.forEach(c => { if(c && c.name) uniqueGroups.add(c.name); });
     }
     
+    // Pre-fill fields if product exists with this barcode
+    if(barcode){
+      const found = findProduct(barcode);
+      if(found && found.product){
+        const prod = found.product;
+        el.apsName.value = prod.name || '';
+        el.apsPrice.value = found.isPack ? (prod.packPrice || prod.price) : (prod.price || '');
+        S.apsGroup = prod.group || '';
+        showToast('ดึงข้อมูลสินค้าสำเร็จ', 'info');
+      }
+    }
+    
     el.apsChips.innerHTML = '';
     const emojis = {
       'ของกิน': '🍜 ', 'เครื่องดื่ม': '🥤 ', 'ขนม': '🍬 ',
@@ -671,6 +691,7 @@ const App = (() => {
     uniqueGroups.forEach(grp => {
       const btn = document.createElement('button');
       btn.className = 'chip';
+      if(S.apsGroup === grp) btn.classList.add('sel');
       btn.dataset.val = grp;
       const emo = emojis[grp] || '📦 ';
       btn.textContent = emo + grp;
@@ -1006,6 +1027,12 @@ const App = (() => {
 
     // Popup
     el.popup.addEventListener('click',(e)=>{ if(!e.target.closest('#btn-add-product')) hidePopup(); });
+    const ov=document.getElementById('popup-overlay');
+    if(ov){
+      ov.addEventListener('click',(e)=>{
+        if(e.target===ov) hidePopup();
+      });
+    }
 
     // Add Product from scan
     el.btnAddProd.addEventListener('click',()=>{ const bc=el.btnAddProd.dataset.bc||''; openAddProductSheet(bc); });
@@ -1020,6 +1047,26 @@ const App = (() => {
         chip.classList.add('sel'); S.apsGroup=chip.dataset.val;
       });
     });
+    el.apsBarcode.addEventListener('input', (e) => {
+      const barcode = e.target.value.trim();
+      if(barcode){
+        const found = findProduct(barcode);
+        if(found && found.product){
+          const prod = found.product;
+          el.apsName.value = prod.name || '';
+          el.apsPrice.value = found.isPack ? (prod.packPrice || prod.price) : (prod.price || '');
+          S.apsGroup = prod.group || '';
+          el.apsChips.querySelectorAll('.chip').forEach(c => {
+            if(c.dataset.val === S.apsGroup){
+              c.classList.add('sel');
+            } else {
+              c.classList.remove('sel');
+            }
+          });
+          showToast('ดึงข้อมูลสินค้าสำเร็จ', 'info');
+        }
+      }
+    });
 
     // Add Quick Sheet
     el.aqsCancel.addEventListener('click',closeQuickForm);
@@ -1029,6 +1076,9 @@ const App = (() => {
     // Confirm dialog
     el.cdlgNo.addEventListener('click',closeConfirm);
     el.cdlgYes.addEventListener('click',()=>{ if(confirmYesCb) confirmYesCb(); closeConfirm(); });
+    el.confirmDlg.addEventListener('click',(e)=>{
+      if(e.target===el.confirmDlg) closeConfirm();
+    });
 
     // Cart controls
     el.btnClear.addEventListener('click',clearCart);

@@ -838,7 +838,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.92.0', // Update Version
+    VERSION: '0.92.1 (13/06/2026)', // Update Version
 
     // --- Settings View ---
     renderSettingsView: (container) => {
