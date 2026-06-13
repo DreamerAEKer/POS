@@ -1203,7 +1203,7 @@ const App = (() => {
       await saveSales();
       renderHistoryList();
       showToast('ลบประวัติบิลแล้ว','warn');
-    });
+    }, '<span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">delete</span>ลบ', 'ยกเลิก');
   }
 
   /* ─── Drag & Drop + Options Modal ─── */
@@ -1401,7 +1401,7 @@ const App = (() => {
     hideQuickItemOptions();
     showConfirm('⚠️', 'ยืนยันการลบ', 'คุณต้องการลบรายการนี้ใช่หรือไม่?', () => {
       quickDelItem(itemId);
-    });
+    }, '<span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">delete</span>ลบ', 'ยกเลิก');
   }
 
   /* ─── Cart ─── */
@@ -1421,7 +1421,7 @@ const App = (() => {
     showConfirm('⚠️', 'ยืนยันการล้างตะกร้า', 'ต้องการล้างตะกร้าสินค้าทั้งหมดหรือไม่?', () => {
       S.cart=[];
       renderCart();
-    });
+    }, '<span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">delete_sweep</span>ล้างตะกร้า', 'ยกเลิก');
   }
 
   function fmt(n){ return Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -1455,10 +1455,12 @@ const App = (() => {
 
   /* ─── Confirm Dialog ─── */
   let confirmYesCb=null;
-  function showConfirm(icon,title,msg,onYes){
+  function showConfirm(icon,title,msg,onYes,yesHtml,noText){
     el.confirmIcon.textContent=icon;
     el.confirmTitle.textContent=title;
     el.confirmMsg.textContent=msg;
+    el.cdlgYes.innerHTML = yesHtml || '<span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">add_shopping_cart</span>เพิ่มตะกร้า';
+    el.cdlgNo.textContent = noText || 'ไม่ใช่';
     confirmYesCb=onYes;
     el.confirmDlg.classList.add('open');
   }
