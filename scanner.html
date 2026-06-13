@@ -280,6 +280,29 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   max-height: 100dvh !important;
   height: 100dvh !important;
 }
+#btn-history-toggle {
+  background: rgba(68,138,255,.12);
+  border: 1px solid rgba(68,138,255,.3);
+  border-radius: var(--rs);
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--b);
+  cursor: pointer;
+  font-family: var(--f);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: var(--tr);
+  white-space: nowrap;
+}
+#btn-history-toggle.active {
+  background: rgba(68,138,255,.25);
+  border-color: var(--b);
+}
+#btn-history-toggle:active {
+  transform: scale(.95);
+}
 </style>
 </head>
 <body>
@@ -294,7 +317,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
   </div>
   <div id="hud">
-    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.93.1 (13/06/2026)</span></div>
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.94.0 (13/06/2026)</span></div>
     <div style="display:flex;gap:8px;">
       <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
       <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
@@ -361,6 +384,9 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <button id="btn-quick-toggle">
       <span class="material-symbols-rounded" style="font-size:15px;">bolt</span>ด่วน
     </button>
+    <button id="btn-history-toggle">
+      <span class="material-symbols-rounded" style="font-size:15px;">history</span>ประวัติ
+    </button>
     <button id="btn-clear">
       <span class="material-symbols-rounded" style="font-size:15px;">delete_sweep</span>ล้าง
     </button>
@@ -380,6 +406,13 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   <div id="quick-view">
     <div id="quick-items-wrap">
       <div id="quick-grid"></div>
+    </div>
+  </div>
+
+  <!-- History view -->
+  <div id="history-view" style="display:none; flex-direction:column; flex:1; overflow:hidden; min-height:0;">
+    <div id="history-items-wrap" style="overflow-y:auto; flex:1; padding:10px 12px;">
+      <div id="history-list" style="display:flex; flex-direction:column; gap:10px;"></div>
     </div>
   </div>
 
@@ -533,7 +566,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 ═══════════════════════════════════════════ */
 const App = (() => {
   const S = {
-    cart:[], products:[], settings:{}, quickItems:[],
+    cart:[], products:[], settings:{}, quickItems:[], sales:[],
     scanning:true, lockBarcode:null, lockClearTimer:null,
     codeReader:null, devices:[], devIdx:0, selectedDev:null, torchOn:false, facingEnvironment:true,
     countdownRAF:null, popupTimeout:null,
@@ -555,8 +588,9 @@ const App = (() => {
     cartBadge:$('cart-badge'), totalVal:$('total-val'),
     btnPrint:$('btn-print'), btnShare:$('btn-share'),
     btnClear:$('btn-clear'), btnQuickToggle:$('btn-quick-toggle'),
-    cartView:$('cart-view'), quickView:$('quick-view'),
-    quickGrid:$('quick-grid'),
+    btnHistoryToggle:$('btn-history-toggle'),
+    cartView:$('cart-view'), quickView:$('quick-view'), historyView:$('history-view'),
+    quickGrid:$('quick-grid'), historyList:$('history-list'),
     cartTitle:$('cart-title'),
     btnOpenCam:$('btn-open-camera'),
     cartHeader:$('cart-header'),
@@ -592,8 +626,13 @@ const App = (() => {
       S.products = await localforage.getItem('store_products') || [];
       S.settings = await localforage.getItem('store_settings') || {};
       S.quickItems = await localforage.getItem('scanner_quick_items') || [];
-      console.log('[Scanner] products:', S.products.length, 'quick:', S.quickItems.length);
-    }catch(e){ S.products=[]; S.settings={}; S.quickItems=[]; }
+      S.sales = await localforage.getItem('store_sales') || [];
+      console.log('[Scanner] products:', S.products.length, 'quick:', S.quickItems.length, 'sales:', S.sales.length);
+    }catch(e){ S.products=[]; S.settings={}; S.quickItems=[]; S.sales=[]; }
+  }
+
+  async function saveSales(){
+    await localforage.setItem('store_sales', S.sales);
   }
 
   async function saveQuickItems(){
@@ -890,7 +929,9 @@ const App = (() => {
     S.viewMode = 'cart';
     el.cartView.style.display = 'flex';
     el.quickView.style.display = 'none';
+    el.historyView.style.display = 'none';
     el.btnQuickToggle.classList.remove('active');
+    el.btnHistoryToggle.classList.remove('active');
     el.cartTitle.classList.remove('clickable-tab');
   }
 
@@ -898,10 +939,24 @@ const App = (() => {
     S.viewMode = 'quick';
     el.cartView.style.display = 'none';
     el.quickView.style.display = 'flex';
+    el.historyView.style.display = 'none';
     el.btnQuickToggle.classList.add('active');
+    el.btnHistoryToggle.classList.remove('active');
     el.cartTitle.classList.add('clickable-tab');
     renderQuickGrid();
     if(openForm) openQuickForm();
+  }
+
+  function showHistoryView(){
+    S.viewMode = 'history';
+    el.cartView.style.display = 'none';
+    el.quickView.style.display = 'none';
+    el.historyView.style.display = 'flex';
+    el.btnQuickToggle.classList.remove('active');
+    el.btnHistoryToggle.classList.add('active');
+    el.cartTitle.classList.add('clickable-tab');
+    closeCameraMode();
+    renderHistoryList();
   }
 
   function renderQuickGrid(){
@@ -969,6 +1024,200 @@ const App = (() => {
       closeQuickForm(); renderQuickGrid();
       showToast('เพิ่มรายการด่วนแล้ว','success');
     }
+  }
+
+  /* ─── Scanner Sales Recording & History View ─── */
+  async function recordSaleFromScanner(billId, total){
+    if (S.sales.some(s => s.billId === billId)) return;
+    
+    const saleData = {
+      billId: billId,
+      date: new Date().toISOString(),
+      items: S.cart.map(item => ({
+        id: item.id,
+        barcode: item.barcode || '',
+        name: item.name,
+        price: item.price,
+        qty: item.qty,
+        finalLineTotal: item.price * item.qty
+      })),
+      total: total,
+      received: total,
+      change: 0,
+      storeName: S.settings.storeName || 'ร้านชำ POS',
+      source: 'scanner',
+      note: 'เครื่องสแกน'
+    };
+    
+    S.sales.push(saleData);
+    await saveSales();
+  }
+
+  function renderHistoryList(){
+    const scannerSales = S.sales.filter(s => s.source === 'scanner');
+    const sorted = [...scannerSales].sort((a,b) => new Date(b.date) - new Date(a.date));
+    let html = '';
+    sorted.forEach(sale => {
+      const dateStr = new Date(sale.date).toLocaleString('th-TH');
+      const itemsList = sale.items.map(it => `${it.name} (${it.qty}x฿${fmt(it.price)})`).join(', ');
+      
+      html += `
+        <div class="ci" style="border: 1px solid var(--br2); border-radius: var(--rm); padding: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--s2); animation: si .22s ease;">
+          <div style="display: flex; justify-content: space-between; align-items: center; font-weight: bold;">
+            <span style="color: var(--o); font-family: monospace;">${sale.billId}</span>
+            <span style="font-size: 15px; color: var(--g);">฿${fmt(sale.total)}</span>
+          </div>
+          <div style="font-size: 12px; color: var(--td);">${dateStr}</div>
+          <div style="font-size: 13px; color: var(--t); word-break: break-word; line-height: 1.3;">
+            ${escH(itemsList)}
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <button class="form-input" style="flex: 1; height: 32px; font-size: 12px; padding: 0; background: var(--s3); border: 1px solid var(--br2); display: flex; align-items: center; justify-content: center; gap: 4px; color: var(--t); cursor: pointer;" onclick="App.printHistoryBill('${escA(sale.billId)}')">
+              <span class="material-symbols-rounded" style="font-size: 14px;">print</span>พิมพ์อีกครั้ง
+            </button>
+            <button class="form-input" style="flex: 1; height: 32px; font-size: 12px; padding: 0; background: var(--s3); border: 1px solid var(--br2); display: flex; align-items: center; justify-content: center; gap: 4px; color: var(--t); cursor: pointer;" onclick="App.shareHistoryBill('${escA(sale.billId)}')">
+              <span class="material-symbols-rounded" style="font-size: 14px;">share</span>แชร์รูป
+            </button>
+            <button class="form-input" style="width: 40px; height: 32px; font-size: 12px; padding: 0; background: var(--s3); border: 1px solid rgba(255,82,82,0.2); display: flex; align-items: center; justify-content: center; color: var(--r); cursor: pointer;" onclick="App.deleteHistoryBill('${escA(sale.billId)}')">
+              <span class="material-symbols-rounded" style="font-size: 14px;">delete</span>
+            </button>
+          </div>
+        </div>
+      `;
+    });
+    
+    if(!sorted.length){
+      html = `<div class="q-empty">
+        <span class="material-symbols-rounded" style="font-size:32px; color:var(--td);">history</span>
+        <p>ยังไม่มีประวัติบิลของเครื่องสแกน</p>
+      </div>`;
+    }
+    el.historyList.innerHTML = html;
+  }
+
+  function printHistoryBill(billId){
+    const sale = S.sales.find(s => s.billId === billId);
+    if (!sale) return;
+    
+    const cfg={
+      storeName:sale.storeName||S.settings.storeName||'ร้านชำ POS',
+      address:S.settings.address||'', phone:S.settings.phone||'',
+      logo:S.settings.logo||null, qrCode:S.settings.qrCode||null,
+      printLogo:S.settings.printLogo!==false, printQr:S.settings.printQr!==false,
+      feedLines:S.settings.printerFeedLines||5
+    };
+    
+    const items = sale.items.map(item=>
+      '<div class="ri" style="display:block;margin-bottom:0;">'+
+      '<div style="font-weight:bold;text-align:left;width:100%;line-height:1.2;word-break:break-word;">'+escH(item.name)+'</div>'+
+      '<div style="display:flex;justify-content:space-between;font-weight:normal;font-size:16px;">'+
+      '<span>'+item.qty+' x &#x0E3F;'+fmt(item.price)+'</span>'+
+      '<span style="font-weight:bold;">&#x0E3F;'+fmt(item.price*item.qty)+'</span></div></div>'
+    ).join('');
+    
+    const html = 
+      (cfg.printLogo&&cfg.logo?'<div class="r-logo"><img src="'+cfg.logo+'"></div>':'')+
+      '<div class="rh"><h2>'+escH(cfg.storeName)+'</h2>'+
+      (cfg.address?'<div style="font-size:14px;margin-bottom:2px;">'+escH(cfg.address)+'</div>':'')+
+      (cfg.phone?'<div>Tel: '+escH(cfg.phone)+'</div>':'')+
+      '<div style="margin-top:5px;font-size:14px;">Bill ID: '+sale.billId+'<br>Date: '+new Date(sale.date).toLocaleString('th-TH')+'</div></div>'+
+      '<div class="rdiv"></div>'+
+      '<div style="display:flex;flex-direction:column;gap:8px;">'+items+'</div>'+
+      '<div class="rdiv"></div>'+
+      '<div class="rt"><span>ยอดรวมสุทธิ</span><span>&#x0E3F;'+fmt(sale.total)+'</span></div>'+
+      (cfg.printQr&&cfg.qrCode?'<div class="r-qr"><img src="'+cfg.qrCode+'"><div style="font-size:12px;margin-top:2px;">Scan to Pay</div></div>':'')+
+      '<div class="rf"><br><p>ขอบคุณที่อุดหนุน</p></div>';
+
+    const feed=Array(S.settings.printerFeedLines||5).fill('<div style="color:white!important;font-size:14px;">.</div>').join('');
+    el.receiptPrint.innerHTML=html+feed;
+    const appEl=document.getElementById('app');
+    el.receiptPrint.style.display='block';
+    appEl.style.setProperty('display','none','important');
+    setTimeout(()=>{
+      window.print();
+      setTimeout(()=>{ el.receiptPrint.style.display='none'; el.receiptPrint.innerHTML=''; appEl.style.removeProperty('display'); },5000);
+    },300);
+  }
+
+  async function shareHistoryBill(billId){
+    const sale = S.sales.find(s => s.billId === billId);
+    if (!sale) return;
+    if(!window.html2canvas){ showToast('html2canvas โหลดไม่ได้','error'); return; }
+
+    showToast('กำลังสร้างรูปบิล...','info');
+    
+    el.receiptImg.style.visibility='hidden';
+    el.receiptImg.style.top='-9999px';
+    el.receiptImg.innerHTML=`
+      <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 20px;width:390px;min-height:100px;">
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:22px;font-weight:900;">${escH(sale.storeName||S.settings.storeName||'ร้านชำ POS')}</div>
+          ${S.settings.address?'<div style="font-size:13px;color:#555;margin-top:2px;">'+escH(S.settings.address)+'</div>':''}
+          ${S.settings.phone?'<div style="font-size:13px;color:#555;">Tel: '+escH(S.settings.phone)+'</div>':''}
+          <div style="font-size:12px;color:#888;margin-top:4px;">Bill: ${sale.billId}</div>
+          <div style="font-size:12px;color:#888;">${new Date(sale.date).toLocaleString('th-TH')}</div>
+        </div>
+        <div style="border-top:2px dashed #ccc;margin:12px 0;"></div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${sale.items.map(item=>`
+            <div>
+              <div style="font-size:15px;font-weight:700;">${escH(item.name)}</div>
+              <div style="display:flex;justify-content:space-between;font-size:14px;color:#444;margin-top:2px;">
+                <span>${item.qty} x ฿${fmt(item.price)}</span>
+                <span style="font-weight:700;">฿${fmt(item.price*item.qty)}</span>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div style="border-top:3px solid #000;margin:14px 0 10px;"></div>
+        <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:900;">
+          <span>ยอดรวมสุทธิ</span><span>฿${fmt(sale.total)}</span>
+        </div>
+        ${S.settings.qrCode&&S.settings.printQr!==false?`
+        <div style="text-align:center;margin-top:14px;">
+          <img src="${S.settings.qrCode}" style="width:120px;height:120px;object-fit:contain;">
+          <div style="font-size:11px;color:#888;margin-top:4px;">Scan to Pay</div>
+        </div>`:''}
+        <div style="text-align:center;margin-top:16px;font-size:14px;color:#666;">ขอบคุณที่อุดหนุน 🙏</div>
+        <div style="text-align:center;margin-top:6px;font-size:11px;color:#aaa;">ร้านชำ POS Scanner</div>
+      </div>`;
+
+    try{
+      await document.fonts.ready;
+      const canvas=await html2canvas(el.receiptImg,{
+        scale:2, backgroundColor:'#fff', logging:false,
+        useCORS:true, allowTaint:true
+      });
+      el.receiptImg.innerHTML='';
+
+      canvas.toBlob(async(blob)=>{
+        if(!blob){ showToast('สร้างรูปไม่ได้','error'); return; }
+        const file=new File([blob],'receipt_'+sale.billId+'.png',{type:'image/png'});
+
+        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+          try{
+            await navigator.share({files:[file], title:'ใบเสร็จ '+sale.billId, text:'ใบเสร็จจาก '+(sale.storeName||S.settings.storeName||'ร้านชำ')});
+            showToast('แชร์สำเร็จ!','success');
+          }catch(e){
+            if(e.name!=='AbortError') downloadImage(canvas,sale.billId);
+          }
+        }else{
+          downloadImage(canvas,sale.billId);
+        }
+      },'image/png',0.95);
+    }catch(err){
+      console.error('html2canvas error:',err);
+      el.receiptImg.innerHTML='';
+      showToast('สร้างรูปบิลไม่ได้','error');
+    }
+  }
+
+  function deleteHistoryBill(billId){
+    showConfirm('⚠️', 'ยืนยันการลบ', 'คุณต้องการลบประวัติบิลนี้ใช่หรือไม่?<br>(จะลบจากฐานข้อมูลร่วมของร้านค้าด้วย)', async () => {
+      S.sales = S.sales.filter(s => s.billId !== billId);
+      await saveSales();
+      renderHistoryList();
+      showToast('ลบประวัติบิลแล้ว','warn');
+    });
   }
 
   /* ─── Drag & Drop + Options Modal ─── */
@@ -1260,7 +1509,8 @@ const App = (() => {
   /* ─── Print ─── */
   function printReceipt(){
     if(!S.cart.length) return;
-    const {html}=buildReceiptHtml();
+    const {html,billId,total}=buildReceiptHtml();
+    recordSaleFromScanner(billId, total);
     const feed=Array(S.settings.printerFeedLines||5).fill('<div style="color:white!important;font-size:14px;">.</div>').join('');
     el.receiptPrint.innerHTML=html+feed;
     const appEl=document.getElementById('app');
@@ -1279,6 +1529,7 @@ const App = (() => {
 
     showToast('กำลังสร้างรูปบิล...','info');
     const {html,billId,total}=buildReceiptHtml();
+    recordSaleFromScanner(billId, total);
 
     // Build image-friendly receipt
     el.receiptImg.style.visibility='hidden';
@@ -1455,6 +1706,7 @@ const App = (() => {
     el.btnPrint.addEventListener('click',printReceipt);
     el.btnShare.addEventListener('click',shareReceiptImage);
     el.btnQuickToggle.addEventListener('click',()=>showQuickView(true));
+    el.btnHistoryToggle.addEventListener('click', showHistoryView);
     el.cartTitle.addEventListener('click',()=>{ showCartView(); closeCameraMode(); });
     el.btnOpenCam.addEventListener('click',openCameraMode);
 
@@ -1496,6 +1748,9 @@ const App = (() => {
     quickAdd:(id)=>quickAddItem(id),
     quickDel:(id)=>quickDelItem(id),
     openQuickForm,
+    printHistoryBill: (id) => printHistoryBill(id),
+    shareHistoryBill: (id) => shareHistoryBill(id),
+    deleteHistoryBill: (id) => deleteHistoryBill(id),
   };
 })();
 

@@ -554,7 +554,7 @@ const App = {
                                 ${new Date(sale.date).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
                             </td>
                             <td style="padding:15px;">
-                                ${sale.items.length} รายการ
+                                ${sale.items.length} รายการ ${sale.note ? `<span style="font-size:11px; font-weight:bold; padding:2px 6px; border-radius:4px; background:#e0f7fa; color:#006064; margin-left:5px;">${sale.note}</span>` : ''}
                                 <div style="font-size:12px; color:#999;">${sale.items[0].name} ${sale.items.length > 1 ? `และอีก ${sale.items.length - 1} รายการ` : ''}</div>
                             </td>
                             <td style="padding:15px; text-align:right; font-weight:bold; color:var(--primary-color);">
@@ -765,6 +765,7 @@ const App = {
 
         modal.innerHTML = `
             <h2>รายละเอียดบิล</h2>
+            ${sale.note ? `<div style="font-size:13px; color:#006064; background:#e0f7fa; padding:6px 12px; border-radius:8px; margin-bottom:12px; font-weight:bold; display:inline-block;">📝 หมายเหตุ: ${sale.note}</div>` : ''}
             <div style="display:flex; justify-content:space-between; color:#666; font-size:14px; margin-bottom:15px;">
                 <span>${new Date(sale.date).toLocaleString('th-TH')}</span>
                 <span style="font-weight:bold;">${sale.billId}</span>
