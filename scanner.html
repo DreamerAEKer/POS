@@ -1,646 +1,1001 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>สแกนสินค้า — ร้านชำ POS</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,500,1,0" />
-    <style>
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        :root{
-            --green:#00e676;--green-dim:#00c853;--green-glow:rgba(0,230,118,.35);
-            --red:#ff5252;--orange:#ffab40;
-            --bg:#0d0f14;--surface:#161921;--surface2:#1e2230;--surface3:#252b3a;
-            --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.13);
-            --text:#e8eaf0;--text-dim:#8892a4;--text-muted:#4e596e;
-            --radius-sm:10px;--radius-md:16px;--radius-lg:22px;
-            --font:'Sarabun',sans-serif;--transition:.2s cubic-bezier(.4,0,.2,1)
-        }
-        html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
-        #app{display:grid;grid-template-rows:1fr auto;height:100dvh;max-width:480px;margin:0 auto;position:relative}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
+<title>สแกนสินค้า — ร้านชำ POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,500,1,0"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g:#00e676;--gd:#00c853;--gg:rgba(0,230,118,.35);
+  --r:#ff5252;--o:#ffab40;--b:#448aff;
+  --bg:#0d0f14;--s1:#161921;--s2:#1e2230;--s3:#252b3a;--s4:#2e3548;
+  --br:rgba(255,255,255,.07);--br2:rgba(255,255,255,.13);--br3:rgba(255,255,255,.22);
+  --t:#e8eaf0;--td:#8892a4;--tm:#4e596e;
+  --rs:10px;--rm:16px;--rl:22px;
+  --f:'Sarabun',sans-serif;--tr:.2s cubic-bezier(.4,0,.2,1)
+}
+html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none}
+#app{display:grid;grid-template-rows:1fr auto;height:100dvh;max-width:480px;margin:0 auto;position:relative}
 
-        /* ── Scanner Section ── */
-        #scanner-section{position:relative;overflow:hidden;background:#000;flex-shrink:0}
-        #camera-video{width:100%;height:100%;object-fit:cover;display:block}
-        #scanner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-        .vf-shade{position:absolute;background:rgba(0,0,0,.55)}
-        .vf-shade.top{top:0;left:0;right:0;height:calc(50% - 90px)}
-        .vf-shade.bottom{bottom:0;left:0;right:0;height:calc(50% - 90px)}
-        .vf-shade.left{top:calc(50% - 90px);bottom:calc(50% - 90px);left:0;width:calc(50% - 110px)}
-        .vf-shade.right{top:calc(50% - 90px);bottom:calc(50% - 90px);right:0;width:calc(50% - 110px)}
-        #viewfinder{position:absolute;width:220px;height:180px;top:50%;left:50%;transform:translate(-50%,-50%)}
-        #viewfinder::before,#viewfinder::after,#viewfinder .vf-br::before,#viewfinder .vf-br::after{content:'';position:absolute;width:28px;height:28px;border-color:var(--green);border-style:solid}
-        #viewfinder::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
-        #viewfinder::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
-        #viewfinder .vf-br::before{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
-        #viewfinder .vf-br::after{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
-        #scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--green),transparent);box-shadow:0 0 8px var(--green-glow);top:0;animation:scan-sweep 2s ease-in-out infinite}
-        @keyframes scan-sweep{0%{top:0;opacity:1}50%{top:calc(100% - 2px);opacity:1}100%{top:0;opacity:.4}}
+/* ══ SCANNER ══ */
+#scanner-section{position:relative;overflow:hidden;background:#000;flex-shrink:0}
+#camera-video{width:100%;height:100%;object-fit:cover;display:block}
+#scanner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.vf-shade{position:absolute;background:rgba(0,0,0,.55)}
+.vf-shade.top{top:0;left:0;right:0;height:calc(50% - 90px)}
+.vf-shade.bottom{bottom:0;left:0;right:0;height:calc(50% - 90px)}
+.vf-shade.left{top:calc(50% - 90px);bottom:calc(50% - 90px);left:0;width:calc(50% - 110px)}
+.vf-shade.right{top:calc(50% - 90px);bottom:calc(50% - 90px);right:0;width:calc(50% - 110px)}
+#viewfinder{position:absolute;width:220px;height:180px;top:50%;left:50%;transform:translate(-50%,-50%)}
+#viewfinder::before,#viewfinder::after,#viewfinder .vfbr::before,#viewfinder .vfbr::after{content:'';position:absolute;width:28px;height:28px;border-color:var(--g);border-style:solid}
+#viewfinder::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+#viewfinder::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+#viewfinder .vfbr::before{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+#viewfinder .vfbr::after{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+#scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--g),transparent);box-shadow:0 0 8px var(--gg);top:0;animation:sw 2s ease-in-out infinite}
+@keyframes sw{0%{top:0;opacity:1}50%{top:calc(100% - 2px);opacity:1}100%{top:0;opacity:.4}}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(to bottom,rgba(0,0,0,.72),transparent)}
+#hud-title{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--g);box-shadow:0 0 8px var(--g);animation:pd 1.5s ease-in-out infinite}
+@keyframes pd{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.hud-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;backdrop-filter:blur(6px);transition:var(--tr)}
+.hud-btn:active{transform:scale(.88)}
+.hud-btn.active{background:rgba(255,220,0,.3);border-color:#ffd600;color:#ffd600}
+#scan-status{position:absolute;top:58px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(0,0,0,.55);border:1px solid var(--br2);border-radius:9999px;padding:4px 14px;font-size:12px;color:rgba(255,255,255,.7);backdrop-filter:blur(6px);pointer-events:none}
+#scan-status.ok{border-color:var(--g);color:var(--g)}
+#scan-status.err{border-color:var(--r);color:var(--r)}
+#manual-wrap{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:270px;display:flex;gap:6px}
+#manual-input{flex:1;padding:10px 14px;border-radius:var(--rs);border:1px solid var(--br2);background:rgba(255,255,255,.1);color:#fff;font-family:var(--f);font-size:15px;outline:none;backdrop-filter:blur(8px)}
+#manual-input::placeholder{color:rgba(255,255,255,.4)}
+#manual-input:focus{border-color:var(--g);box-shadow:0 0 0 2px var(--gg)}
+#btn-manual{background:var(--g);border:none;border-radius:var(--rs);width:42px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#000;transition:var(--tr);flex-shrink:0}
+#btn-manual:active{transform:scale(.92)}
+#hint{position:absolute;bottom:0;left:0;right:0;text-align:center;padding:8px 16px 12px;background:linear-gradient(to top,rgba(0,0,0,.65),transparent);font-size:12px;color:rgba(255,255,255,.6)}
+#no-cam{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--s1);text-align:center;padding:30px;color:var(--td)}
 
-        /* ── HUD ── */
-        #scanner-hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent)}
-        #hud-title{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
-        .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse-dot 1.5s ease-in-out infinite}
-        @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
-        .hud-btns{display:flex;gap:8px}
-        .hud-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;backdrop-filter:blur(6px);transition:var(--transition)}
-        .hud-btn:active{transform:scale(.9)}
-        .hud-btn.active{background:rgba(255,220,0,.3);border-color:#ffd600;color:#ffd600}
+/* ══ PRODUCT POPUP ══ */
+#popup{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(135deg,var(--s2),var(--s3));border-top:1px solid var(--br2);border-radius:var(--rl) var(--rl) 0 0;padding:18px 20px 22px;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);z-index:20}
+#popup.show{transform:translateY(0)}
+#popup.nf{border-top-color:var(--r)}
+#popup-pill{width:40px;height:4px;border-radius:9999px;background:var(--br2);margin:0 auto 16px}
+#popup-found{display:none}
+.pop-row{display:flex;align-items:center;gap:16px}
+#pop-img{width:64px;height:64px;border-radius:var(--rs);background:var(--s3);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--br);overflow:hidden}
+#pop-img img{width:100%;height:100%;object-fit:cover}
+#pop-info{flex:1;min-width:0}
+#pop-name{font-size:17px;font-weight:700;line-height:1.3;margin-bottom:3px;word-break:break-word}
+#pop-bc{font-size:12px;color:var(--tm);margin-bottom:8px;font-family:monospace;letter-spacing:.5px}
+#pop-price{font-size:28px;font-weight:800;color:var(--g);letter-spacing:-.5px}
+#pop-price .cur{font-size:16px;font-weight:600;margin-right:2px}
+#cd-wrap{position:relative;width:52px;height:52px;flex-shrink:0}
+#cd-svg{transform:rotate(-90deg)}
+#cd-ring{fill:none;stroke:var(--g);stroke-width:3;stroke-linecap:round;stroke-dasharray:138.2;stroke-dashoffset:0}
+#cd-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--g)}
+#popup-nf{display:none;text-align:center;padding:8px 0 2px}
+#nf-code{font-size:13px;font-family:monospace;color:var(--o);background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.3);border-radius:6px;padding:4px 10px;margin:6px auto 10px;display:inline-block}
+#btn-add-product{width:100%;padding:12px;background:linear-gradient(135deg,#1976D2,#42a5f5);color:#fff;border:none;border-radius:var(--rm);font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:var(--tr)}
+#btn-add-product:active{transform:scale(.97)}
 
-        /* ── Status bar under HUD ── */
-        #scan-status{position:absolute;top:58px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(0,0,0,.55);border:1px solid var(--border2);border-radius:9999px;padding:4px 14px;font-size:12px;color:rgba(255,255,255,.7);backdrop-filter:blur(6px)}
-        #scan-status.ok{border-color:var(--green);color:var(--green)}
-        #scan-status.err{border-color:var(--red);color:var(--red)}
+/* ══ BOTTOM PANEL ══ */
+#bottom-panel{display:flex;flex-direction:column;background:var(--s1);border-top:1px solid var(--br);max-height:55vh;overflow:hidden}
+#cart-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid var(--br);flex-shrink:0;gap:8px}
+#cart-title{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:700;flex:1}
+#cart-badge{background:var(--g);color:#000;font-size:11px;font-weight:800;border-radius:9999px;padding:2px 8px;min-width:22px;text-align:center;transition:transform .15s}
+#cart-badge.bump{transform:scale(1.4)}
+#btn-quick-toggle{background:rgba(255,171,64,.12);border:1px solid rgba(255,171,64,.3);border-radius:var(--rs);padding:5px 10px;font-size:13px;font-weight:700;color:var(--o);cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:4px;transition:var(--tr);white-space:nowrap}
+#btn-quick-toggle.active{background:rgba(255,171,64,.25);border-color:var(--o)}
+#btn-quick-toggle:active{transform:scale(.95)}
+#btn-clear{background:none;border:1px solid rgba(255,82,82,.3);border-radius:var(--rs);padding:5px 9px;font-size:13px;color:var(--r);cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:3px;transition:var(--tr)}
+#btn-clear:active{transform:scale(.95)}
 
-        /* ── Manual input ── */
-        #manual-input-wrap{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:270px;display:flex;gap:6px}
-        #manual-barcode{flex:1;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:rgba(255,255,255,.1);color:#fff;font-family:var(--font);font-size:15px;outline:none;backdrop-filter:blur(8px)}
-        #manual-barcode::placeholder{color:rgba(255,255,255,.45)}
-        #manual-barcode:focus{border-color:var(--green);box-shadow:0 0 0 2px var(--green-glow)}
-        #btn-manual-search{background:var(--green);border:none;border-radius:var(--radius-sm);width:42px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#000;transition:var(--transition);flex-shrink:0}
-        #btn-manual-search:active{transform:scale(.92)}
-        #scanner-hint{position:absolute;bottom:0;left:0;right:0;text-align:center;padding:8px 16px 12px;background:linear-gradient(to top,rgba(0,0,0,.65),transparent);font-size:12px;color:rgba(255,255,255,.6)}
+/* ── Cart View ── */
+#cart-view{display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0}
+#cart-items{overflow-y:auto;flex:1;scrollbar-width:thin;scrollbar-color:var(--s3) transparent}
+#cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 20px;color:var(--tm)}
+.ci{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--br);animation:si .22s ease}
+@keyframes si{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
+.ci:last-child{border-bottom:none}
+.ci-name{font-size:14px;font-weight:600;line-height:1.3;grid-column:1}
+.ci-price{font-size:12px;color:var(--td);grid-column:1}
+.ci-ctrl{display:flex;align-items:center;gap:2px;grid-column:2;grid-row:1/span 2}
+.qb{background:var(--s3);border:1px solid var(--br2);color:var(--t);width:30px;height:30px;border-radius:8px;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:var(--tr);font-family:var(--f)}
+.qb:active{transform:scale(.85)}
+.qb.del{border-color:rgba(255,82,82,.4);color:var(--r);font-size:15px}
+.qb.del:active{background:rgba(255,82,82,.15)}
+.qn{min-width:28px;text-align:center;font-size:15px;font-weight:800}
 
-        /* ── No camera ── */
-        #no-camera-msg{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--surface);text-align:center;padding:30px;color:var(--text-dim)}
+/* ── Quick View ── */
+#quick-view{display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0}
+#quick-items-wrap{overflow-y:auto;flex:1;padding:10px 12px}
+#quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.q-card{background:var(--s2);border:1px solid var(--br2);border-radius:var(--rm);padding:10px 8px 10px;text-align:center;cursor:pointer;transition:var(--tr);position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:72px;justify-content:center}
+.q-card:active{transform:scale(.93);background:var(--s3)}
+.q-card .qc-name{font-size:12px;font-weight:700;line-height:1.3;word-break:break-word;color:var(--t)}
+.q-card .qc-price{font-size:14px;font-weight:800;color:var(--g)}
+.q-card .qc-del{position:absolute;top:4px;right:4px;background:rgba(255,82,82,.15);border:none;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--r);font-size:12px;cursor:pointer;opacity:0;transition:var(--tr)}
+.q-card:hover .qc-del{opacity:1}
+.q-card-add{background:rgba(0,230,118,.06);border:1px dashed rgba(0,230,118,.3);border-radius:var(--rm);padding:10px 8px;text-align:center;cursor:pointer;transition:var(--tr);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:72px;color:var(--g);font-size:12px;font-weight:700}
+.q-card-add:active{transform:scale(.93)}
+.q-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:30px;color:var(--tm);text-align:center;font-size:13px}
 
-        /* ── Product Popup ── */
-        #product-popup{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(135deg,var(--surface2),var(--surface3));border-top:1px solid var(--border2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:18px 20px 22px;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);z-index:20}
-        #product-popup.visible{transform:translateY(0)}
-        #product-popup.not-found{border-top-color:var(--red)}
-        #popup-pill{width:40px;height:4px;border-radius:9999px;background:var(--border2);margin:0 auto 16px}
-        #popup-content{display:flex;align-items:center;gap:16px}
-        #popup-img{width:64px;height:64px;border-radius:var(--radius-sm);background:var(--surface3);flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);overflow:hidden}
-        #popup-img img{width:100%;height:100%;object-fit:cover}
-        #popup-info{flex:1;min-width:0}
-        #popup-name{font-size:17px;font-weight:700;line-height:1.3;margin-bottom:3px;word-break:break-word}
-        #popup-barcode-disp{font-size:12px;color:var(--text-muted);margin-bottom:8px;font-family:monospace;letter-spacing:.5px}
-        #popup-price{font-size:28px;font-weight:800;color:var(--green);letter-spacing:-.5px}
-        #popup-price .currency{font-size:16px;font-weight:600;margin-right:2px}
-        #popup-not-found-msg{text-align:center;padding:8px 0 2px}
-        #popup-nf-code{font-size:13px;font-family:monospace;color:var(--orange);background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.3);border-radius:6px;padding:4px 10px;margin-top:6px;display:inline-block}
-        #countdown-wrap{position:relative;width:52px;height:52px;flex-shrink:0}
-        #countdown-svg{transform:rotate(-90deg)}
-        #countdown-ring{fill:none;stroke:var(--green);stroke-width:3;stroke-linecap:round;stroke-dasharray:138.2;stroke-dashoffset:0}
-        #countdown-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--green)}
+/* ── Cart Footer ── */
+#cart-footer{padding:12px 16px;border-top:1px solid var(--br);background:var(--s1);flex-shrink:0}
+#total-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+#total-label{font-size:15px;color:var(--td);font-weight:500}
+#total-amount{font-size:28px;font-weight:800;color:var(--g);letter-spacing:-1px}
+#total-amount .cur{font-size:15px;margin-right:2px;color:var(--td);font-weight:600}
+#footer-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.f-btn{padding:12px 8px;border:none;border-radius:var(--rm);font-family:var(--f);font-size:15px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:var(--tr)}
+#btn-print{background:var(--s3);color:var(--td);border:1px solid var(--br2)}
+#btn-print:not(:disabled):hover{background:var(--s4);color:var(--t)}
+#btn-share{background:linear-gradient(135deg,var(--gd),var(--g));color:#000;box-shadow:0 4px 16px var(--gg)}
+#btn-share:active{transform:scale(.96)}
+.f-btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
 
-        /* ── Cart Panel ── */
-        #bottom-panel{display:flex;flex-direction:column;background:var(--surface);border-top:1px solid var(--border);max-height:55vh;overflow:hidden}
-        #cart-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
-        #cart-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700}
-        #cart-count-badge{background:var(--green);color:#000;font-size:11px;font-weight:800;border-radius:9999px;padding:2px 8px;min-width:22px;text-align:center;transition:transform .15s}
-        #cart-count-badge.bump{transform:scale(1.35)}
-        #btn-clear-cart{background:none;border:1px solid rgba(255,82,82,.3);border-radius:var(--radius-sm);padding:5px 10px;font-size:13px;color:var(--red);cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:4px;transition:var(--transition)}
-        #btn-clear-cart:active{transform:scale(.95)}
-        #cart-items{overflow-y:auto;flex:1;scrollbar-width:thin;scrollbar-color:var(--surface3) transparent}
-        #cart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 20px;color:var(--text-muted)}
-        .cart-item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--border);animation:slide-in .22s ease}
-        @keyframes slide-in{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
-        .cart-item:last-child{border-bottom:none}
-        .item-name{font-size:14px;font-weight:600;line-height:1.3;color:var(--text);grid-column:1}
-        .item-price-line{font-size:12px;color:var(--text-dim);grid-column:1}
-        .item-controls{display:flex;align-items:center;gap:2px;grid-column:2;grid-row:1/span 2}
-        .qty-btn{background:var(--surface3);border:1px solid var(--border2);color:var(--text);width:32px;height:32px;border-radius:8px;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:var(--transition);line-height:1;font-family:var(--font)}
-        .qty-btn:active{transform:scale(.88)}
-        .qty-btn.del{border-color:rgba(255,82,82,.4);color:var(--red);font-size:16px}
-        .qty-btn.del:active{background:rgba(255,82,82,.15)}
-        .qty-num{min-width:32px;text-align:center;font-size:16px;font-weight:800}
-        #cart-footer{padding:14px 18px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0}
-        #total-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
-        #total-label{font-size:15px;color:var(--text-dim);font-weight:500}
-        #total-amount{font-size:30px;font-weight:800;color:var(--green);letter-spacing:-1px}
-        #total-amount .curr{font-size:16px;margin-right:2px;color:var(--text-dim);font-weight:600}
-        #btn-print{width:100%;padding:14px;background:linear-gradient(135deg,var(--green-dim),#00e676);color:#000;border:none;border-radius:var(--radius-md);font-family:var(--font);font-size:17px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:var(--transition);box-shadow:0 4px 20px var(--green-glow)}
-        #btn-print:active{transform:scale(.97)}
-        #btn-print:disabled{background:var(--surface3);color:var(--text-muted);box-shadow:none;cursor:not-allowed}
+/* ══ SHEETS (Add Product / Add Quick) ══ */
+.sheet-overlay{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .3s}
+.sheet-overlay.open{opacity:1;pointer-events:auto}
+.sheet-panel{background:var(--s2);border-radius:var(--rl) var(--rl) 0 0;padding:20px 20px 36px;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);max-height:90vh;overflow-y:auto}
+.sheet-overlay.open .sheet-panel{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;border-radius:9999px;background:var(--br3);margin:0 auto 18px}
+.sheet-title{font-size:18px;font-weight:800;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.form-grp{margin-bottom:14px}
+.form-grp label{display:block;font-size:13px;font-weight:600;color:var(--td);margin-bottom:6px}
+.form-input{width:100%;padding:11px 14px;border-radius:var(--rs);border:1px solid var(--br2);background:var(--s3);color:var(--t);font-family:var(--f);font-size:15px;outline:none;transition:var(--tr)}
+.form-input:focus{border-color:var(--g);box-shadow:0 0 0 2px var(--gg)}
+.form-input::placeholder{color:var(--tm)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:6px 12px;border-radius:9999px;border:1px solid var(--br2);background:var(--s3);color:var(--td);font-family:var(--f);font-size:13px;cursor:pointer;transition:var(--tr)}
+.chip.sel{background:rgba(0,230,118,.15);border-color:var(--g);color:var(--g);font-weight:700}
+.chip:active{transform:scale(.93)}
+.sheet-actions{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-top:18px}
+.btn-cancel{background:var(--s3);border:1px solid var(--br2);border-radius:var(--rm);padding:12px;font-family:var(--f);font-size:15px;font-weight:700;color:var(--td);cursor:pointer;transition:var(--tr)}
+.btn-cancel:active{transform:scale(.96)}
+.btn-save{background:linear-gradient(135deg,#1976D2,#42a5f5);border:none;border-radius:var(--rm);padding:12px;font-family:var(--f);font-size:15px;font-weight:800;color:#fff;cursor:pointer;transition:var(--tr);box-shadow:0 4px 16px rgba(66,165,245,.35)}
+.btn-save:active{transform:scale(.97)}
 
-        /* ── Toast ── */
-        #toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-90px);background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-md);padding:11px 18px;font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;z-index:9999;transition:transform .28s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
-        #toast.show{transform:translateX(-50%) translateY(0)}
-        #toast.success{border-color:var(--green)}
-        #toast.error{border-color:var(--red)}
-        #toast.warn{border-color:var(--orange)}
-        #receipt-print-area{display:none}
+/* ══ CONFIRM DIALOG ══ */
+#confirm-dialog{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .25s;padding:20px}
+#confirm-dialog.open{opacity:1;pointer-events:auto}
+#confirm-box{background:var(--s2);border-radius:var(--rl);padding:24px;width:100%;max-width:320px;border:1px solid var(--br2);transform:scale(.92);transition:transform .25s}
+#confirm-dialog.open #confirm-box{transform:scale(1)}
+#confirm-icon{font-size:42px;text-align:center;margin-bottom:10px}
+#confirm-title{font-size:17px;font-weight:800;text-align:center;margin-bottom:6px}
+#confirm-msg{font-size:14px;color:var(--td);text-align:center;margin-bottom:18px;line-height:1.5}
+#confirm-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cdlg-btn{padding:12px;border-radius:var(--rm);font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;transition:var(--tr);border:none}
+.cdlg-btn.no{background:var(--s3);color:var(--td);border:1px solid var(--br2)}
+.cdlg-btn.yes{background:linear-gradient(135deg,var(--gd),var(--g));color:#000}
+.cdlg-btn:active{transform:scale(.95)}
 
-        /* ── Print ── */
-        @media print{
-            @page{margin:0;size:80mm auto}
-            html,body{visibility:visible!important;background:white!important;overflow:visible!important}
-            #app{display:none!important}
-            #receipt-print-area{display:block!important;position:relative!important;width:100%;max-width:80mm;margin:0 auto;padding:5px 2mm 0 2mm;background:white;color:black;font-family:'Sarabun',sans-serif;font-size:16px;line-height:1.3;font-weight:600;visibility:visible!important}
-            #receipt-print-area *{visibility:visible;color:#000!important}
-            .receipt-header,.receipt-footer{text-align:center;margin-bottom:12px}
-            .receipt-header h2{font-size:24px;margin-bottom:5px;font-weight:900}
-            .receipt-divider{border-top:2px dashed black;margin:10px 0}
-            .receipt-item{display:block;margin-bottom:6px;font-size:18px;font-weight:900}
-            .receipt-total{display:flex;justify-content:space-between;font-weight:900;font-size:22px;margin-top:15px;border-top:3px solid black;padding-top:8px}
-            .receipt-logo{text-align:center;margin-bottom:10px}
-            .receipt-logo img{max-width:80%;height:auto;filter:grayscale(100%) contrast(150%)}
-            .receipt-qr{text-align:center;margin-top:10px;margin-bottom:10px}
-            .receipt-qr img{width:160px;height:160px;max-width:80%;object-fit:contain;image-rendering:pixelated;filter:contrast(200%) grayscale(100%)}
-        }
-        @media(orientation:landscape){
-            #app{grid-template-columns:1fr 320px;grid-template-rows:1fr}
-            #scanner-section{grid-column:1;grid-row:1}
-            #bottom-panel{grid-column:2;grid-row:1;max-height:100vh;border-top:none;border-left:1px solid var(--border)}
-        }
-    </style>
+/* ══ TOAST ══ */
+#toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-90px);background:var(--s3);border:1px solid var(--br2);border-radius:var(--rm);padding:11px 18px;font-size:14px;font-weight:600;color:var(--t);white-space:nowrap;z-index:9999;transition:transform .28s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(12px);box-shadow:0 8px 30px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:var(--g)}
+#toast.error{border-color:var(--r)}
+#toast.warn{border-color:var(--o)}
+#toast.info{border-color:var(--b)}
+
+/* ══ RECEIPT AREAS ══ */
+#receipt-print-area{display:none}
+#receipt-img-area{position:fixed;top:-9999px;left:0;width:390px;background:#fff;color:#000;font-family:'Sarabun',sans-serif;padding:24px 20px;line-height:1.4;visibility:hidden}
+
+/* ══ PRINT ══ */
+@media print{
+  @page{margin:0;size:80mm auto}
+  html,body{visibility:visible!important;background:white!important;overflow:visible!important}
+  #app,#toast,.sheet-overlay,#confirm-dialog{display:none!important}
+  #receipt-print-area{display:block!important;position:relative!important;width:100%;max-width:80mm;margin:0 auto;padding:5px 2mm 0 2mm;background:white;color:black;font-family:'Sarabun',sans-serif;font-size:16px;line-height:1.3;font-weight:600;visibility:visible!important}
+  #receipt-print-area *{visibility:visible;color:#000!important}
+  .rh,.rf{text-align:center;margin-bottom:12px}
+  .rh h2{font-size:24px;margin-bottom:5px;font-weight:900}
+  .rdiv{border-top:2px dashed black;margin:10px 0}
+  .ri{display:block;margin-bottom:6px;font-size:18px;font-weight:900}
+  .rt{display:flex;justify-content:space-between;font-weight:900;font-size:22px;margin-top:15px;border-top:3px solid black;padding-top:8px}
+  .r-logo{text-align:center;margin-bottom:10px}
+  .r-logo img{max-width:80%;height:auto;filter:grayscale(100%) contrast(150%)}
+  .r-qr{text-align:center;margin-top:10px;margin-bottom:10px}
+  .r-qr img{width:160px;height:160px;max-width:80%;object-fit:contain;image-rendering:pixelated;filter:contrast(200%) grayscale(100%)}
+}
+@media(orientation:landscape){
+  #app{grid-template-columns:1fr 320px;grid-template-rows:1fr}
+  #scanner-section{grid-column:1;grid-row:1}
+  #bottom-panel{grid-column:2;grid-row:1;max-height:100vh;border-top:none;border-left:1px solid var(--br)}
+}
+</style>
 </head>
 <body>
 <div id="app">
-    <!-- Scanner -->
-    <section id="scanner-section">
-        <video id="camera-video" autoplay muted playsinline></video>
 
-        <div id="scanner-overlay">
-            <div class="vf-shade top"></div>
-            <div class="vf-shade bottom"></div>
-            <div class="vf-shade left"></div>
-            <div class="vf-shade right"></div>
-            <div id="viewfinder">
-                <div class="vf-br"></div>
-                <div id="scan-line"></div>
-            </div>
-        </div>
-
-        <!-- HUD top -->
-        <div id="scanner-hud">
-            <div id="hud-title">
-                <div class="logo-dot"></div>
-                สแกนสินค้า
-            </div>
-            <div class="hud-btns">
-                <button class="hud-btn" id="btn-camera-switch" title="สลับกล้อง">
-                    <span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span>
-                </button>
-                <button class="hud-btn" id="btn-torch" title="ไฟฉาย">
-                    <span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Scan status -->
-        <div id="scan-status">กำลังเริ่มกล้อง...</div>
-
-        <!-- No camera fallback -->
-        <div id="no-camera-msg">
-            <span class="material-symbols-rounded" style="font-size:52px;color:var(--text-muted);">no_photography</span>
-            <p style="font-size:15px;line-height:1.6;">ไม่พบกล้อง หรือไม่ได้รับอนุญาต<br>กรุณาใส่บาร์โค้ดในช่องด้านล่าง</p>
-        </div>
-
-        <!-- Manual input -->
-        <div id="manual-input-wrap">
-            <input type="text" id="manual-barcode" placeholder="พิมพ์บาร์โค้ด แล้วกด Enter..." inputmode="numeric" autocomplete="off">
-            <button id="btn-manual-search">
-                <span class="material-symbols-rounded" style="font-size:20px;">search</span>
-            </button>
-        </div>
-        <div id="scanner-hint">จ่อบาร์โค้ดสินค้าที่กรอบสีเขียว</div>
-
-        <!-- Product Popup -->
-        <div id="product-popup">
-            <div id="popup-pill"></div>
-            <!-- Found -->
-            <div id="popup-found" style="display:none;">
-                <div id="popup-content">
-                    <div id="popup-img">
-                        <span class="material-symbols-rounded" style="font-size:28px;color:var(--text-muted);">category</span>
-                    </div>
-                    <div id="popup-info">
-                        <div id="popup-name">—</div>
-                        <div id="popup-barcode-disp">—</div>
-                        <div id="popup-price"><span class="currency">฿</span><span id="popup-price-val">0.00</span></div>
-                    </div>
-                    <div id="countdown-wrap">
-                        <svg id="countdown-svg" width="52" height="52" viewBox="0 0 52 52">
-                            <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
-                            <circle id="countdown-ring" cx="26" cy="26" r="22"/>
-                        </svg>
-                        <div id="countdown-num">2</div>
-                    </div>
-                </div>
-            </div>
-            <!-- Not found -->
-            <div id="popup-not-found" style="display:none;">
-                <div id="popup-not-found-msg">
-                    <span class="material-symbols-rounded" style="font-size:36px;color:var(--red);">search_off</span>
-                    <p style="color:var(--text-dim);font-size:15px;margin-top:8px;">ไม่พบสินค้านี้ในระบบ</p>
-                    <div id="popup-nf-code">—</div>
-                    <p style="color:var(--text-muted);font-size:12px;margin-top:6px;">กรุณาเพิ่มสินค้าในแอป POS ก่อน</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Cart -->
-    <div id="bottom-panel">
-        <div id="cart-header">
-            <div id="cart-title">
-                <span class="material-symbols-rounded" style="font-size:20px;color:var(--green);">shopping_cart</span>
-                รายการสินค้า
-                <span id="cart-count-badge">0</span>
-            </div>
-            <button id="btn-clear-cart">
-                <span class="material-symbols-rounded" style="font-size:15px;">delete_sweep</span>
-                ล้าง
-            </button>
-        </div>
-        <div id="cart-items">
-            <div id="cart-empty">
-                <span class="material-symbols-rounded" style="font-size:40px;">shopping_cart_off</span>
-                <p>ยังไม่มีสินค้า — สแกนเพื่อเริ่มต้น</p>
-            </div>
-        </div>
-        <div id="cart-footer">
-            <div id="total-row">
-                <span id="total-label">ยอดรวม</span>
-                <span id="total-amount"><span class="curr">฿</span><span id="total-val">0.00</span></span>
-            </div>
-            <button id="btn-print" disabled>
-                <span class="material-symbols-rounded">print</span>
-                พิมพ์ใบเสร็จ
-            </button>
-        </div>
+<!-- ══════ SCANNER ══════ -->
+<section id="scanner-section">
+  <video id="camera-video" autoplay muted playsinline></video>
+  <div id="scanner-overlay">
+    <div class="vf-shade top"></div><div class="vf-shade bottom"></div>
+    <div class="vf-shade left"></div><div class="vf-shade right"></div>
+    <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
+  </div>
+  <div id="hud">
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า</div>
+    <div style="display:flex;gap:8px;">
+      <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
+      <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
     </div>
+  </div>
+  <div id="scan-status">กำลังเริ่มกล้อง...</div>
+  <div id="no-cam">
+    <span class="material-symbols-rounded" style="font-size:52px;color:var(--tm);">no_photography</span>
+    <p style="font-size:15px;line-height:1.6;">ไม่พบกล้อง หรือไม่ได้รับอนุญาต<br>กรุณาใส่บาร์โค้ดในช่องด้านล่าง</p>
+  </div>
+  <div id="manual-wrap">
+    <input type="text" id="manual-input" placeholder="พิมพ์บาร์โค้ด แล้วกด Enter..." inputmode="numeric" autocomplete="off">
+    <button id="btn-manual"><span class="material-symbols-rounded" style="font-size:20px;">search</span></button>
+  </div>
+  <div id="hint">จ่อบาร์โค้ดสินค้าที่กรอบสีเขียว</div>
+
+  <!-- Product Popup -->
+  <div id="popup">
+    <div id="popup-pill"></div>
+    <!-- Found -->
+    <div id="popup-found">
+      <div class="pop-row">
+        <div id="pop-img"><span class="material-symbols-rounded" style="font-size:28px;color:var(--tm);">category</span></div>
+        <div id="pop-info">
+          <div id="pop-name">—</div>
+          <div id="pop-bc">—</div>
+          <div id="pop-price"><span class="cur">฿</span><span id="pop-price-val">0.00</span></div>
+        </div>
+        <div id="cd-wrap">
+          <svg id="cd-svg" width="52" height="52" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+            <circle id="cd-ring" cx="26" cy="26" r="22"/>
+          </svg>
+          <div id="cd-num">2</div>
+        </div>
+      </div>
+    </div>
+    <!-- Not Found -->
+    <div id="popup-nf">
+      <span class="material-symbols-rounded" style="font-size:36px;color:var(--r);">search_off</span>
+      <p style="color:var(--td);font-size:15px;margin-top:6px;">ไม่พบสินค้านี้ในระบบ</p>
+      <div id="nf-code">—</div>
+      <button id="btn-add-product">
+        <span class="material-symbols-rounded" style="font-size:18px;">add_circle</span>
+        เพิ่มสินค้านี้เข้าร้าน
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ BOTTOM PANEL ══════ -->
+<div id="bottom-panel">
+  <div id="cart-header">
+    <div id="cart-title">
+      <span class="material-symbols-rounded" style="font-size:20px;color:var(--g);">shopping_cart</span>
+      รายการสินค้า
+      <span id="cart-badge">0</span>
+    </div>
+    <button id="btn-quick-toggle">
+      <span class="material-symbols-rounded" style="font-size:15px;">bolt</span>ด่วน
+    </button>
+    <button id="btn-clear">
+      <span class="material-symbols-rounded" style="font-size:15px;">delete_sweep</span>ล้าง
+    </button>
+  </div>
+
+  <!-- Cart view -->
+  <div id="cart-view">
+    <div id="cart-items">
+      <div id="cart-empty">
+        <span class="material-symbols-rounded" style="font-size:40px;">shopping_cart_off</span>
+        <p>ยังไม่มีสินค้า — สแกนเพื่อเริ่มต้น</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick List view -->
+  <div id="quick-view">
+    <div id="quick-items-wrap">
+      <div id="quick-grid"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div id="cart-footer">
+    <div id="total-row">
+      <span id="total-label">ยอดรวม</span>
+      <span id="total-amount"><span class="cur">฿</span><span id="total-val">0.00</span></span>
+    </div>
+    <div id="footer-btns">
+      <button class="f-btn" id="btn-print" disabled>
+        <span class="material-symbols-rounded" style="font-size:18px;">print</span>พิมพ์
+      </button>
+      <button class="f-btn" id="btn-share" disabled>
+        <span class="material-symbols-rounded" style="font-size:18px;">share</span>แชร์บิล (Line)
+      </button>
+    </div>
+  </div>
+</div>
+</div><!-- #app -->
+
+<!-- ══════ ADD PRODUCT SHEET ══════ -->
+<div class="sheet-overlay" id="add-product-sheet">
+  <div class="sheet-panel">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">
+      <span class="material-symbols-rounded" style="color:var(--b);font-size:22px;">add_circle</span>
+      เพิ่มสินค้าใหม่
+    </div>
+    <div class="form-grp">
+      <label>บาร์โค้ด</label>
+      <input class="form-input" type="text" id="aps-barcode" inputmode="numeric" placeholder="รหัสบาร์โค้ด">
+    </div>
+    <div class="form-grp">
+      <label>หมวดสินค้า</label>
+      <div class="chips" id="aps-chips">
+        <button class="chip" data-val="ของกิน">🍜 ของกิน</button>
+        <button class="chip" data-val="เครื่องดื่ม">🥤 เครื่องดื่ม</button>
+        <button class="chip" data-val="ขนม">🍬 ขนม</button>
+        <button class="chip" data-val="ของใช้">🧴 ของใช้</button>
+        <button class="chip" data-val="ยา/สุขภาพ">💊 ยา</button>
+        <button class="chip" data-val="อื่นๆ">📦 อื่นๆ</button>
+      </div>
+    </div>
+    <div class="form-grp">
+      <label>ชื่อสินค้า <span style="color:var(--r);">*</span></label>
+      <input class="form-input" type="text" id="aps-name" placeholder="ชื่อสินค้า">
+    </div>
+    <div class="form-grp">
+      <label>ราคาขาย (฿) <span style="color:var(--r);">*</span></label>
+      <input class="form-input" type="number" id="aps-price" inputmode="decimal" placeholder="0.00" min="0" step="0.5">
+    </div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" id="aps-cancel">ยกเลิก</button>
+      <button class="btn-save" id="aps-save">
+        <span class="material-symbols-rounded" style="font-size:18px;vertical-align:middle;">save</span>
+        บันทึกสินค้า
+      </button>
+    </div>
+  </div>
 </div>
 
+<!-- ══════ ADD QUICK ITEM SHEET ══════ -->
+<div class="sheet-overlay" id="add-quick-sheet">
+  <div class="sheet-panel">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">
+      <span class="material-symbols-rounded" style="color:var(--o);font-size:22px;">bolt</span>
+      เพิ่มรายการด่วน
+    </div>
+    <p style="font-size:13px;color:var(--td);margin-bottom:14px;">สำหรับสินค้าที่ไม่มีบาร์โค้ด เช่น ผัก ของสด บริการ</p>
+    <div class="form-grp">
+      <label>ชื่อรายการ <span style="color:var(--r);">*</span></label>
+      <input class="form-input" type="text" id="aqs-name" placeholder="ชื่อสินค้า/บริการ">
+    </div>
+    <div class="form-grp">
+      <label>ราคา (฿) <span style="color:var(--r);">*</span></label>
+      <input class="form-input" type="number" id="aqs-price" inputmode="decimal" placeholder="0.00" min="0" step="0.5">
+    </div>
+    <div class="form-grp">
+      <label>หมวด (ไม่บังคับ)</label>
+      <input class="form-input" type="text" id="aqs-group" placeholder="เช่น ผักสด, ของสด">
+    </div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" id="aqs-cancel">ยกเลิก</button>
+      <button class="btn-save" id="aqs-save" style="background:linear-gradient(135deg,#E65100,var(--o));">
+        <span class="material-symbols-rounded" style="font-size:18px;vertical-align:middle;">bolt</span>
+        เพิ่มรายการด่วน
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ CONFIRM DIALOG ══════ -->
+<div id="confirm-dialog">
+  <div id="confirm-box">
+    <div id="confirm-icon">✅</div>
+    <div id="confirm-title">บันทึกสำเร็จ!</div>
+    <div id="confirm-msg">ต้องการเพิ่มสินค้านี้เข้าตะกร้าเลยไหม?</div>
+    <div id="confirm-btns">
+      <button class="cdlg-btn no" id="cdlg-no">ไม่ใช่</button>
+      <button class="cdlg-btn yes" id="cdlg-yes">
+        <span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">add_shopping_cart</span>
+        เพิ่มตะกร้า
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden areas -->
 <div id="receipt-print-area"></div>
+<div id="receipt-img-area"></div>
+
+<!-- Toast -->
 <div id="toast">
-    <span class="t-icon material-symbols-rounded">check_circle</span>
-    <span id="toast-msg">—</span>
+  <span class="ti material-symbols-rounded">check_circle</span>
+  <span id="toast-msg">—</span>
 </div>
 
 <!-- ZXing: cross-browser barcode scanner (iOS Safari supported) -->
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<!-- html2canvas: generate receipt image -->
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <!-- localforage: shared IndexedDB with main POS app -->
 <script src="js/localforage.min.js"></script>
 <script>
+/* ═══════════════════════════════════════════
+   SCANNER APP v3 — Quick Add + Quick List + Share Image
+═══════════════════════════════════════════ */
 const App = (() => {
-    const S = {
-        cart:[], products:[], settings:{}, scanning:true,
-        lockBarcode:null, lockClearTimer:null,
-        codeReader:null, selectedDeviceId:null, devices:[],
-        currentDeviceIndex:0, torchOn:false,
-        countdownRAF:null, popupTimeout:null
+  const S = {
+    cart:[], products:[], settings:{}, quickItems:[],
+    scanning:true, lockBarcode:null, lockClearTimer:null,
+    codeReader:null, devices:[], devIdx:0, selectedDev:null, torchOn:false,
+    countdownRAF:null, popupTimeout:null,
+    pendingNewProduct:null,   // product to add to cart after save
+    viewMode:'cart',          // 'cart' | 'quick'
+    apsGroup:'',              // selected group in add-product sheet
+  };
+  const $=id=>document.getElementById(id);
+  const el={
+    video:$('camera-video'), noCam:$('no-cam'),
+    manInp:$('manual-input'), btnManual:$('btn-manual'),
+    btnTorch:$('btn-torch'), btnCamSw:$('btn-cam-sw'),
+    popup:$('popup'), popFound:$('popup-found'), popNF:$('popup-nf'),
+    popName:$('pop-name'), popBc:$('pop-bc'), popPriceVal:$('pop-price-val'), popImg:$('pop-img'),
+    nfCode:$('nf-code'), btnAddProd:$('btn-add-product'),
+    cdRing:$('cd-ring'), cdNum:$('cd-num'),
+    cartItems:$('cart-items'), cartEmpty:$('cart-empty'),
+    cartBadge:$('cart-badge'), totalVal:$('total-val'),
+    btnPrint:$('btn-print'), btnShare:$('btn-share'),
+    btnClear:$('btn-clear'), btnQuickToggle:$('btn-quick-toggle'),
+    cartView:$('cart-view'), quickView:$('quick-view'),
+    quickGrid:$('quick-grid'),
+    scanStatus:$('scan-status'), hint:$('hint'),
+    // Add Product Sheet
+    apsSheet:$('add-product-sheet'), apsBarcode:$('aps-barcode'),
+    apsName:$('aps-name'), apsPrice:$('aps-price'),
+    apsChips:$('aps-chips'), apsCancel:$('aps-cancel'), apsSave:$('aps-save'),
+    // Add Quick Sheet
+    aqsSheet:$('add-quick-sheet'), aqsName:$('aqs-name'),
+    aqsPrice:$('aqs-price'), aqsGroup:$('aqs-group'),
+    aqsCancel:$('aqs-cancel'), aqsSave:$('aqs-save'),
+    // Confirm
+    confirmDlg:$('confirm-dialog'), confirmIcon:$('confirm-icon'),
+    confirmTitle:$('confirm-title'), confirmMsg:$('confirm-msg'),
+    cdlgNo:$('cdlg-no'), cdlgYes:$('cdlg-yes'),
+    // Receipt
+    receiptPrint:$('receipt-print-area'), receiptImg:$('receipt-img-area'),
+    toast:$('toast'), toastMsg:$('toast-msg'), toastIcon:document.querySelector('#toast .ti'),
+  };
+
+  /* ─── DB ─── */
+  async function loadDB(){
+    try{
+      S.products = await localforage.getItem('store_products') || [];
+      S.settings = await localforage.getItem('store_settings') || {};
+      S.quickItems = await localforage.getItem('scanner_quick_items') || [];
+      console.log('[Scanner] products:', S.products.length, 'quick:', S.quickItems.length);
+    }catch(e){ S.products=[]; S.settings={}; S.quickItems=[]; }
+  }
+
+  async function saveQuickItems(){
+    await localforage.setItem('scanner_quick_items', S.quickItems);
+  }
+
+  async function saveProducts(){
+    await localforage.setItem('store_products', S.products);
+  }
+
+  function findProduct(barcode){
+    const b=String(barcode).trim();
+    const main=S.products.find(p=>String(p.barcode)===b || String(p.id)===b);
+    if(main) return {product:main,isPack:false};
+    const pack=S.products.find(p=>p.packBarcode&&String(p.packBarcode)===b);
+    if(pack) return {product:pack,isPack:true};
+    return null;
+  }
+
+  /* ─── Camera / ZXing ─── */
+  async function startCamera(){
+    if(!window.ZXing){ setStat('ZXing โหลดไม่ได้ ใช้ช่อง input แทน','err'); return; }
+    try{
+      S.codeReader = new ZXing.BrowserMultiFormatReader();
+      const devs = await S.codeReader.listVideoInputDevices();
+      S.devices = devs || [];
+      if(!S.devices.length) throw new Error('no camera');
+      let idx = S.devices.findIndex(d=>/back|rear|environment/i.test(d.label));
+      if(idx===-1) idx = S.devices.length>1 ? 1 : 0;
+      S.devIdx=idx; S.selectedDev=S.devices[idx].deviceId;
+      await startDecode();
+    }catch(err){
+      el.video.style.display='none'; el.noCam.style.display='flex';
+      setStat('ไม่สามารถเปิดกล้องได้','err');
+    }
+  }
+
+  async function startDecode(){
+    if(!S.codeReader||!S.selectedDev) return;
+    try{
+      await S.codeReader.decodeFromVideoDevice(S.selectedDev,'camera-video',(res)=>{
+        if(res&&S.scanning){ const r=res.getText(); if(r&&r!==S.lockBarcode) handleBarcode(r); }
+      });
+      el.video.style.display='block'; el.noCam.style.display='none';
+      setStat('พร้อมสแกน ✓','ok');
+    }catch(err){
+      el.video.style.display='none'; el.noCam.style.display='flex';
+      setStat('เปิดกล้องไม่ได้','err');
+    }
+  }
+
+  async function switchCam(){
+    if(S.devices.length<2){ showToast('มีกล้องเดียว สลับไม่ได้','warn'); return; }
+    S.devIdx=(S.devIdx+1)%S.devices.length;
+    S.selectedDev=S.devices[S.devIdx].deviceId;
+    if(S.codeReader) S.codeReader.reset();
+    setStat('กำลังสลับกล้อง...','');
+    await startDecode();
+  }
+
+  async function toggleTorch(){
+    const stream=el.video.srcObject;
+    if(!stream){ showToast('กล้องยังไม่พร้อม','err'); return; }
+    const track=stream.getVideoTracks()[0]; if(!track) return;
+    const caps=track.getCapabilities?track.getCapabilities():{};
+    if(!caps.torch){ showToast('กล้องนี้ไม่มีไฟฉาย','warn'); return; }
+    S.torchOn=!S.torchOn;
+    try{ await track.applyConstraints({advanced:[{torch:S.torchOn}]}); el.btnTorch.classList.toggle('active',S.torchOn); }
+    catch(e){ showToast('เปิดไฟฉายไม่ได้','err'); S.torchOn=false; }
+  }
+
+  function setStat(msg,cls){ el.scanStatus.textContent=msg; el.scanStatus.className=cls||''; }
+
+  /* ─── Barcode Handler ─── */
+  function handleBarcode(barcode){
+    if(!S.scanning) return;
+    S.lockBarcode=barcode;
+    clearTimeout(S.lockClearTimer);
+    S.lockClearTimer=setTimeout(()=>{ S.lockBarcode=null; },3000);
+    setStat('อ่านได้: '+barcode,'ok');
+    const result=findProduct(barcode);
+    if(result) showFoundPopup(result.product,barcode,result.isPack);
+    else showNFPopup(barcode);
+    if(navigator.vibrate) navigator.vibrate(40);
+  }
+
+  /* ─── Popups ─── */
+  const RING_C=2*Math.PI*22;
+
+  function showFoundPopup(product,bc,isPack){
+    S.scanning=false; clearCD();
+    const price=isPack?(product.packPrice||product.price):product.price;
+    el.popName.textContent=product.name;
+    el.popBc.textContent=bc||product.barcode;
+    el.popPriceVal.textContent=fmt(price);
+    el.popImg.innerHTML='';
+    if(product.image&&product.image.startsWith('data:image')){
+      const img=document.createElement('img'); img.src=product.image; el.popImg.appendChild(img);
+    }else{
+      const ic=document.createElement('span'); ic.className='material-symbols-rounded';
+      ic.textContent='category'; ic.style.cssText='font-size:28px;color:var(--tm);';
+      el.popImg.appendChild(ic);
+    }
+    el.popFound.style.display='block'; el.popNF.style.display='none';
+    el.popup.className='show';
+    startCD(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
+  }
+
+  function showNFPopup(barcode){
+    S.scanning=false; clearCD();
+    el.nfCode.textContent=barcode;
+    el.btnAddProd.dataset.bc=barcode;
+    el.popFound.style.display='none'; el.popNF.style.display='block';
+    el.popup.className='show nf';
+    clearTimeout(S.popupTimeout);
+    S.popupTimeout=setTimeout(hidePopup,4000);
+  }
+
+  function hidePopup(){
+    el.popup.classList.remove('show','nf'); clearCD();
+    setTimeout(()=>{ S.scanning=true; S.lockBarcode=null; setStat('พร้อมสแกน ✓','ok'); },400);
+  }
+
+  function startCD(sec,onDone){
+    clearCD(); const start=performance.now(),dur=sec*1000;
+    function tick(now){ const rem=Math.max(0,dur-(now-start)); el.cdRing.style.strokeDashoffset=RING_C*(1-rem/dur); el.cdNum.textContent=Math.ceil(rem/1000)||1; if(rem>0){S.countdownRAF=requestAnimationFrame(tick);}else onDone(); }
+    S.countdownRAF=requestAnimationFrame(tick);
+  }
+  function clearCD(){
+    if(S.countdownRAF){cancelAnimationFrame(S.countdownRAF);S.countdownRAF=null;}
+    clearTimeout(S.popupTimeout); el.cdRing.style.strokeDashoffset=0; el.cdNum.textContent='2';
+  }
+
+  /* ─── Add Product Sheet ─── */
+  function openAddProductSheet(barcode){
+    hidePopup();
+    el.apsBarcode.value=barcode||'';
+    el.apsName.value=''; el.apsPrice.value='';
+    S.apsGroup='';
+    // reset chips
+    el.apsChips.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+    el.apsSheet.classList.add('open');
+    setTimeout(()=>el.apsName.focus(),400);
+  }
+
+  function closeAddProductSheet(){ el.apsSheet.classList.remove('open'); }
+
+  async function saveNewProduct(){
+    const barcode=(el.apsBarcode.value||'').trim();
+    const name=(el.apsName.value||'').trim();
+    const price=parseFloat(el.apsPrice.value)||0;
+    if(!name){ showToast('กรุณาใส่ชื่อสินค้า','error'); return; }
+    if(price<=0){ showToast('กรุณาใส่ราคา','error'); return; }
+
+    const pid = barcode || ('Q'+Date.now());
+    const newProd = {
+      id: pid,
+      barcode: barcode || '',
+      name: name,
+      price: price,
+      cost: null,
+      stock: null,
+      group: S.apsGroup || '',
+      image: null,
     };
-    const $=id=>document.getElementById(id);
-    const el = {
-        video:$('camera-video'), noCamera:$('no-camera-msg'),
-        manualInput:$('manual-barcode'), btnManual:$('btn-manual-search'),
-        btnTorch:$('btn-torch'), btnCamSwitch:$('btn-camera-switch'),
-        popup:$('product-popup'), popupFound:$('popup-found'), popupNotFound:$('popup-not-found'),
-        popupName:$('popup-name'), popupBarcodeDisp:$('popup-barcode-disp'),
-        popupPriceVal:$('popup-price-val'), popupImg:$('popup-img'),
-        popupNfCode:$('popup-nf-code'),
-        cdRing:$('countdown-ring'), cdNum:$('countdown-num'),
-        cartItems:$('cart-items'), cartEmpty:$('cart-empty'),
-        cartBadge:$('cart-count-badge'), totalVal:$('total-val'),
-        btnPrint:$('btn-print'), btnClear:$('btn-clear-cart'),
-        receiptArea:$('receipt-print-area'),
-        toast:$('toast'), toastMsg:$('toast-msg'), toastIcon:document.querySelector('#toast .t-icon'),
-        hint:$('scanner-hint'), scanStatus:$('scan-status')
+
+    // Check duplicate
+    const existing=S.products.findIndex(p=>p.id===pid || (barcode&&p.barcode===barcode));
+    if(existing>=0){ S.products[existing]=newProd; }
+    else{ S.products.push(newProd); }
+
+    await saveProducts();
+    closeAddProductSheet();
+
+    S.pendingNewProduct={product:newProd,price:price,isPack:false};
+    showConfirm('✅','บันทึกสินค้าแล้ว!','"'+name+'" เพิ่มเข้าระบบแล้ว\nต้องการใส่ตะกร้าเลยไหม?',()=>{
+      if(S.pendingNewProduct){ addToCart(S.pendingNewProduct.product,S.pendingNewProduct.price,false); S.pendingNewProduct=null; }
+    });
+  }
+
+  /* ─── Quick List ─── */
+  function toggleQuickView(){
+    S.viewMode = S.viewMode==='cart'?'quick':'cart';
+    el.cartView.style.display = S.viewMode==='cart'?'flex':'none';
+    el.quickView.style.display = S.viewMode==='quick'?'flex':'none';
+    el.btnQuickToggle.classList.toggle('active', S.viewMode==='quick');
+    if(S.viewMode==='quick') renderQuickGrid();
+  }
+
+  function renderQuickGrid(){
+    const sorted=[...S.quickItems].sort((a,b)=>(b.useCount||0)-(a.useCount||0));
+    let html='';
+    sorted.forEach(item=>{
+      html+=`<div class="q-card" onclick="App.quickAdd('${escA(item.id)}')">
+        <button class="qc-del" onclick="event.stopPropagation();App.quickDel('${escA(item.id)}')">✕</button>
+        <div class="qc-name">${escH(item.name)}</div>
+        <div class="qc-price">฿${fmt(item.price)}</div>
+      </div>`;
+    });
+    html+=`<div class="q-card-add" onclick="App.openQuickForm()">
+      <span class="material-symbols-rounded" style="font-size:24px;">add</span>
+      <span>เพิ่มรายการ</span>
+    </div>`;
+    el.quickGrid.innerHTML=html;
+  }
+
+  function quickAddItem(id){
+    const item=S.quickItems.find(i=>i.id===id); if(!item) return;
+    item.useCount=(item.useCount||0)+1;
+    saveQuickItems();
+    addToCart({id:'Q_'+item.id,barcode:'',name:item.name,price:item.price},item.price,false);
+    renderQuickGrid();
+  }
+
+  function quickDelItem(id){
+    S.quickItems=S.quickItems.filter(i=>i.id!==id);
+    saveQuickItems(); renderQuickGrid();
+    showToast('ลบรายการด่วนแล้ว','warn');
+  }
+
+  function openQuickForm(){
+    el.aqsName.value=''; el.aqsPrice.value=''; el.aqsGroup.value='';
+    el.aqsSheet.classList.add('open');
+    setTimeout(()=>el.aqsName.focus(),400);
+  }
+  function closeQuickForm(){ el.aqsSheet.classList.remove('open'); }
+
+  async function saveQuickItem(){
+    const name=(el.aqsName.value||'').trim();
+    const price=parseFloat(el.aqsPrice.value)||0;
+    if(!name){ showToast('กรุณาใส่ชื่อ','error'); return; }
+    if(price<=0){ showToast('กรุณาใส่ราคา','error'); return; }
+    S.quickItems.push({id:'q'+Date.now(),name,price,group:(el.aqsGroup.value||'').trim(),useCount:0});
+    await saveQuickItems();
+    closeQuickForm(); renderQuickGrid();
+    showToast('เพิ่มรายการด่วนแล้ว','success');
+  }
+
+  /* ─── Cart ─── */
+  function addToCart(product,price,isPack){
+    const cid=product.id+(isPack?'_pack':'');
+    const ex=S.cart.find(i=>i.id===cid);
+    if(ex){ ex.qty++; }
+    else{ S.cart.push({id:cid,barcode:product.barcode||'',name:product.name,price,qty:1,image:product.image||null}); }
+    renderCart(); showToast('เพิ่ม: '+product.name,'success');
+    el.cartBadge.classList.remove('bump'); void el.cartBadge.offsetWidth;
+    el.cartBadge.classList.add('bump'); setTimeout(()=>el.cartBadge.classList.remove('bump'),200);
+  }
+  function changeQty(id,d){ const i=S.cart.find(x=>x.id===id); if(!i) return; i.qty+=d; if(i.qty<=0) S.cart=S.cart.filter(x=>x.id!==id); renderCart(); }
+  function removeItem(id){ S.cart=S.cart.filter(i=>i.id!==id); renderCart(); }
+  function clearCart(){ if(!S.cart.length) return; S.cart=[]; renderCart(); }
+
+  function fmt(n){ return Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function escH(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escA(s){ return String(s).replace(/'/g,"\\'"); }
+
+  function renderCart(){
+    const count=S.cart.reduce((s,i)=>s+i.qty,0);
+    const total=S.cart.reduce((s,i)=>s+(i.price*i.qty),0);
+    el.cartBadge.textContent=count;
+    el.totalVal.textContent=fmt(total);
+    el.btnPrint.disabled=el.btnShare.disabled=!S.cart.length;
+    if(!S.cart.length){
+      el.cartItems.innerHTML=''; el.cartItems.appendChild(el.cartEmpty); el.cartEmpty.style.display='flex'; return;
+    }
+    el.cartItems.innerHTML='';
+    S.cart.forEach(item=>{
+      const row=document.createElement('div'); row.className='ci';
+      row.innerHTML=
+        '<div class="ci-name">'+escH(item.name)+'</div>'+
+        '<div class="ci-price">&#x0E3F;'+fmt(item.price)+' &times; '+item.qty+' = <strong>&#x0E3F;'+fmt(item.price*item.qty)+'</strong></div>'+
+        '<div class="ci-ctrl">'+
+        '<button class="qb del" onclick="App.removeItem(\''+escA(item.id)+'\')"><span class="material-symbols-rounded" style="font-size:15px;">delete</span></button>'+
+        '<button class="qb" onclick="App.changeQty(\''+escA(item.id)+'\',-1)">&#x2212;</button>'+
+        '<span class="qn">'+item.qty+'</span>'+
+        '<button class="qb" onclick="App.changeQty(\''+escA(item.id)+'\',1)">&#x2B;</button>'+
+        '</div>';
+      el.cartItems.appendChild(row);
+    });
+  }
+
+  /* ─── Confirm Dialog ─── */
+  let confirmYesCb=null;
+  function showConfirm(icon,title,msg,onYes){
+    el.confirmIcon.textContent=icon;
+    el.confirmTitle.textContent=title;
+    el.confirmMsg.textContent=msg;
+    confirmYesCb=onYes;
+    el.confirmDlg.classList.add('open');
+  }
+  function closeConfirm(){ el.confirmDlg.classList.remove('open'); confirmYesCb=null; }
+
+  /* ─── Receipt Builder ─── */
+  function buildReceiptHtml(){
+    const cfg={
+      storeName:S.settings.storeName||'ร้านชำ POS',
+      address:S.settings.address||'', phone:S.settings.phone||'',
+      logo:S.settings.logo||null, qrCode:S.settings.qrCode||null,
+      printLogo:S.settings.printLogo!==false, printQr:S.settings.printQr!==false,
+      feedLines:S.settings.printerFeedLines||5
     };
+    const total=S.cart.reduce((a,i)=>a+i.price*i.qty,0);
+    const billId=genBillId();
+    const dateStr=new Date().toLocaleString('th-TH');
+    const items=S.cart.map(item=>
+      '<div class="ri" style="display:block;margin-bottom:0;">'+
+      '<div style="font-weight:bold;text-align:left;width:100%;line-height:1.2;word-break:break-word;">'+escH(item.name)+'</div>'+
+      '<div style="display:flex;justify-content:space-between;font-weight:normal;font-size:16px;">'+
+      '<span>'+item.qty+' x &#x0E3F;'+fmt(item.price)+'</span>'+
+      '<span style="font-weight:bold;">&#x0E3F;'+fmt(item.price*item.qty)+'</span></div></div>'
+    ).join('');
+    return {billId, total, html:
+      (cfg.printLogo&&cfg.logo?'<div class="r-logo"><img src="'+cfg.logo+'"></div>':'')+
+      '<div class="rh"><h2>'+escH(cfg.storeName)+'</h2>'+
+      (cfg.address?'<div style="font-size:14px;margin-bottom:2px;">'+escH(cfg.address)+'</div>':'')+
+      (cfg.phone?'<div>Tel: '+escH(cfg.phone)+'</div>':'')+
+      '<div style="margin-top:5px;font-size:14px;">Bill ID: '+billId+'<br>Date: '+dateStr+'</div></div>'+
+      '<div class="rdiv"></div>'+
+      '<div style="display:flex;flex-direction:column;gap:8px;">'+items+'</div>'+
+      '<div class="rdiv"></div>'+
+      '<div class="rt"><span>ยอดรวมสุทธิ</span><span>&#x0E3F;'+fmt(total)+'</span></div>'+
+      (cfg.printQr&&cfg.qrCode?'<div class="r-qr"><img src="'+cfg.qrCode+'"><div style="font-size:12px;margin-top:2px;">Scan to Pay</div></div>':'')+
+      '<div class="rf"><br><p>ขอบคุณที่อุดหนุน</p></div>'
+    };
+  }
 
-    /* ─── DB ─── */
-    async function loadDB(){
-        try{
-            S.products = await localforage.getItem('store_products') || [];
-            S.settings = await localforage.getItem('store_settings') || {};
-            console.log('[Scanner] Loaded products:', S.products.length);
-        }catch(e){ S.products=[]; S.settings={}; }
-    }
+  /* ─── Print ─── */
+  function printReceipt(){
+    if(!S.cart.length) return;
+    const {html}=buildReceiptHtml();
+    const feed=Array(S.settings.printerFeedLines||5).fill('<div style="color:white!important;font-size:14px;">.</div>').join('');
+    el.receiptPrint.innerHTML=html+feed;
+    const appEl=document.getElementById('app');
+    el.receiptPrint.style.display='block';
+    appEl.style.setProperty('display','none','important');
+    setTimeout(()=>{
+      window.print();
+      setTimeout(()=>{ el.receiptPrint.style.display='none'; el.receiptPrint.innerHTML=''; appEl.style.removeProperty('display'); },5000);
+    },300);
+  }
 
-    function findProduct(barcode){
-        const b=String(barcode).trim();
-        const main=S.products.find(p=>String(p.barcode)===b || String(p.id)===b);
-        if(main) return {product:main,isPack:false};
-        const pack=S.products.find(p=>p.packBarcode&&String(p.packBarcode)===b);
-        if(pack) return {product:pack,isPack:true};
-        return null;
-    }
+  /* ─── Share as Image (html2canvas) ─── */
+  async function shareReceiptImage(){
+    if(!S.cart.length) return;
+    if(!window.html2canvas){ showToast('html2canvas โหลดไม่ได้','error'); return; }
 
-    /* ─── ZXing Camera Scanner ─── */
-    async function startZXingScanner(){
-        if(!window.ZXing){ setScanStatus('ZXing โหลดไม่ได้ ใช้ช่อง input แทน','err'); return; }
+    showToast('กำลังสร้างรูปบิล...','info');
+    const {html,billId,total}=buildReceiptHtml();
 
-        try{
-            S.codeReader = new ZXing.BrowserMultiFormatReader();
+    // Build image-friendly receipt
+    el.receiptImg.style.visibility='hidden';
+    el.receiptImg.style.top='-9999px';
+    el.receiptImg.innerHTML=`
+      <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 20px;width:390px;min-height:100px;">
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:22px;font-weight:900;">${escH(S.settings.storeName||'ร้านชำ POS')}</div>
+          ${S.settings.address?'<div style="font-size:13px;color:#555;margin-top:2px;">'+escH(S.settings.address)+'</div>':''}
+          ${S.settings.phone?'<div style="font-size:13px;color:#555;">Tel: '+escH(S.settings.phone)+'</div>':''}
+          <div style="font-size:12px;color:#888;margin-top:4px;">Bill: ${billId}</div>
+          <div style="font-size:12px;color:#888;">${new Date().toLocaleString('th-TH')}</div>
+        </div>
+        <div style="border-top:2px dashed #ccc;margin:12px 0;"></div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${S.cart.map(item=>`
+            <div>
+              <div style="font-size:15px;font-weight:700;">${escH(item.name)}</div>
+              <div style="display:flex;justify-content:space-between;font-size:14px;color:#444;margin-top:2px;">
+                <span>${item.qty} x ฿${fmt(item.price)}</span>
+                <span style="font-weight:700;">฿${fmt(item.price*item.qty)}</span>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div style="border-top:3px solid #000;margin:14px 0 10px;"></div>
+        <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:900;">
+          <span>ยอดรวมสุทธิ</span><span>฿${fmt(total)}</span>
+        </div>
+        ${S.settings.qrCode&&S.settings.printQr!==false?`
+        <div style="text-align:center;margin-top:14px;">
+          <img src="${S.settings.qrCode}" style="width:120px;height:120px;object-fit:contain;">
+          <div style="font-size:11px;color:#888;margin-top:4px;">Scan to Pay</div>
+        </div>`:''}
+        <div style="text-align:center;margin-top:16px;font-size:14px;color:#666;">ขอบคุณที่อุดหนุน 🙏</div>
+        <div style="text-align:center;margin-top:6px;font-size:11px;color:#aaa;">ร้านชำ POS Scanner</div>
+      </div>`;
 
-            // Get list of cameras
-            const devices = await S.codeReader.listVideoInputDevices();
-            S.devices = devices;
-            console.log('[Scanner] Cameras found:', devices.length, devices.map(d=>d.label));
+    try{
+      // Wait for fonts
+      await document.fonts.ready;
+      const canvas=await html2canvas(el.receiptImg,{
+        scale:2, backgroundColor:'#fff', logging:false,
+        useCORS:true, allowTaint:true
+      });
+      el.receiptImg.innerHTML='';
 
-            if(!devices || devices.length === 0){
-                throw new Error('No camera found');
-            }
+      canvas.toBlob(async(blob)=>{
+        if(!blob){ showToast('สร้างรูปไม่ได้','error'); return; }
+        const file=new File([blob],'receipt_'+billId+'.png',{type:'image/png'});
 
-            // Prefer back camera
-            let idx = devices.findIndex(d => /back|rear|environment/i.test(d.label));
-            if(idx === -1) idx = devices.length > 1 ? 1 : 0; // fallback: last device
-            S.currentDeviceIndex = idx;
-            S.selectedDeviceId = devices[idx].deviceId;
-
-            await startDecoding();
-        }catch(err){
-            console.warn('[Scanner] ZXing start error:', err);
-            el.video.style.display='none';
-            el.noCamera.style.display='flex';
-            setScanStatus('ไม่สามารถเปิดกล้องได้','err');
-        }
-    }
-
-    async function startDecoding(){
-        if(!S.codeReader || !S.selectedDeviceId) return;
-        try{
-            await S.codeReader.decodeFromVideoDevice(
-                S.selectedDeviceId,
-                'camera-video',
-                (result, err) => {
-                    if(result && S.scanning){
-                        const raw = result.getText();
-                        if(raw && raw !== S.lockBarcode){
-                            handleBarcode(raw);
-                        }
-                    }
-                    // ignore errors (they fire on every frame without result)
-                }
-            );
-            el.video.style.display='block';
-            el.noCamera.style.display='none';
-            setScanStatus('พร้อมสแกน ✓','ok');
-        }catch(err){
-            console.warn('[Scanner] decodeFromVideoDevice error:', err);
-            el.video.style.display='none';
-            el.noCamera.style.display='flex';
-            setScanStatus('เปิดกล้องไม่ได้','err');
-        }
-    }
-
-    async function switchCamera(){
-        if(!S.devices || S.devices.length < 2){
-            showToast('มีกล้องเดียว สลับไม่ได้','warn');
-            return;
-        }
-        S.currentDeviceIndex = (S.currentDeviceIndex + 1) % S.devices.length;
-        S.selectedDeviceId = S.devices[S.currentDeviceIndex].deviceId;
-
-        // Reset reader
-        if(S.codeReader) S.codeReader.reset();
-        setScanStatus('กำลังสลับกล้อง...','');
-        await startDecoding();
-    }
-
-    async function toggleTorch(){
-        // Torch via MediaStream track constraints
-        const stream = el.video.srcObject;
-        if(!stream){ showToast('กล้องยังไม่พร้อม','err'); return; }
-        const track = stream.getVideoTracks()[0];
-        if(!track){ return; }
-        const caps = track.getCapabilities ? track.getCapabilities() : {};
-        if(!caps.torch){ showToast('กล้องนี้ไม่มีไฟฉาย','warn'); return; }
-        S.torchOn = !S.torchOn;
-        try{
-            await track.applyConstraints({advanced:[{torch:S.torchOn}]});
-            el.btnTorch.classList.toggle('active', S.torchOn);
-        }catch(e){ showToast('เปิดไฟฉายไม่ได้','err'); S.torchOn=false; }
-    }
-
-    function setScanStatus(msg, cls=''){
-        el.scanStatus.textContent = msg;
-        el.scanStatus.className = cls;
-    }
-
-    /* ─── Barcode Handler ─── */
-    function handleBarcode(barcode){
-        if(!S.scanning) return;
-        S.lockBarcode = barcode;
-        clearTimeout(S.lockClearTimer);
-        S.lockClearTimer = setTimeout(()=>{ S.lockBarcode=null; }, 3000);
-
-        console.log('[Scanner] Barcode detected:', barcode);
-        setScanStatus('อ่านได้: ' + barcode,'ok');
-
-        const result = findProduct(barcode);
-        if(result) showProductPopup(result.product, barcode, result.isPack);
-        else showNotFoundPopup(barcode);
-
-        if(navigator.vibrate) navigator.vibrate(40);
-    }
-
-    /* ─── Popup ─── */
-    const RING_C = 2*Math.PI*22;
-
-    function showProductPopup(product, rawBarcode, isPack){
-        S.scanning=false; clearCountdown();
-        const price = isPack ? (product.packPrice||product.price) : product.price;
-        el.popupName.textContent = product.name;
-        el.popupBarcodeDisp.textContent = rawBarcode || product.barcode;
-        el.popupPriceVal.textContent = fmt(price);
-        el.popupImg.innerHTML='';
-        if(product.image && product.image.startsWith('data:image')){
-            const img=document.createElement('img'); img.src=product.image; el.popupImg.appendChild(img);
+        // Try Web Share API (iOS + Android)
+        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+          try{
+            await navigator.share({files:[file], title:'ใบเสร็จ '+billId, text:'ใบเสร็จจาก '+( S.settings.storeName||'ร้านชำ')});
+            showToast('แชร์สำเร็จ!','success');
+          }catch(e){
+            if(e.name!=='AbortError') downloadImage(canvas,billId);
+          }
         }else{
-            const ic=document.createElement('span'); ic.className='material-symbols-rounded';
-            ic.textContent='category'; ic.style.cssText='font-size:28px;color:var(--text-muted);';
-            el.popupImg.appendChild(ic);
+          // Fallback: download
+          downloadImage(canvas,billId);
         }
-        el.popupFound.style.display='block';
-        el.popupNotFound.style.display='none';
-        el.popup.className='visible';
-        startCountdown(2, ()=>{ addToCart(product,price,isPack); hidePopup(); });
+      },'image/png',0.95);
+    }catch(err){
+      console.error('html2canvas error:',err);
+      el.receiptImg.innerHTML='';
+      showToast('สร้างรูปบิลไม่ได้','error');
     }
+  }
 
-    function showNotFoundPopup(barcode){
-        S.scanning=false; clearCountdown();
-        el.popupNfCode.textContent = barcode;
-        el.popupFound.style.display='none';
-        el.popupNotFound.style.display='block';
-        el.popup.className='visible not-found';
-        clearTimeout(S.popupTimeout);
-        S.popupTimeout=setTimeout(hidePopup, 3000);
-    }
+  function downloadImage(canvas,billId){
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png',0.95);
+    a.download='receipt_'+billId+'.png';
+    a.click();
+    showToast('ดาวน์โหลดรูปบิลแล้ว','success');
+  }
 
-    function hidePopup(){
-        el.popup.classList.remove('visible','not-found'); clearCountdown();
-        setTimeout(()=>{ S.scanning=true; S.lockBarcode=null; setScanStatus('พร้อมสแกน ✓','ok'); }, 400);
-    }
+  function genBillId(){
+    const d=new Date();
+    const prefix='B'+d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+    const key='counter_'+prefix;
+    let cnt=parseInt(localStorage.getItem(key)||'0')+1;
+    localStorage.setItem(key,cnt);
+    return prefix+'-'+String(cnt).padStart(3,'0');
+  }
 
-    function startCountdown(seconds, onComplete){
-        clearCountdown();
-        const start=performance.now(), dur=seconds*1000;
-        function tick(now){
-            const rem=Math.max(0, dur-(now-start));
-            el.cdRing.style.strokeDashoffset = RING_C*(1-rem/dur);
-            el.cdNum.textContent = Math.ceil(rem/1000)||1;
-            if(rem>0){ S.countdownRAF=requestAnimationFrame(tick); }
-            else onComplete();
-        }
-        S.countdownRAF=requestAnimationFrame(tick);
-    }
+  /* ─── Toast ─── */
+  let toastTmr=null;
+  function showToast(msg,type='success'){
+    const icons={success:'check_circle',error:'error',warn:'warning',info:'info'};
+    el.toastMsg.textContent=msg;
+    el.toastIcon.textContent=icons[type]||'info';
+    el.toast.className='show '+(type||'');
+    clearTimeout(toastTmr);
+    toastTmr=setTimeout(()=>{ el.toast.className=''; },2500);
+  }
 
-    function clearCountdown(){
-        if(S.countdownRAF){ cancelAnimationFrame(S.countdownRAF); S.countdownRAF=null; }
-        clearTimeout(S.popupTimeout);
-        el.cdRing.style.strokeDashoffset=0; el.cdNum.textContent='2';
-    }
+  /* ─── Init ─── */
+  async function init(){
+    await loadDB(); renderCart();
+    setStat('กำลังเริ่มกล้อง...','');
 
-    /* ─── Cart ─── */
-    function addToCart(product, price, isPack){
-        const cid=product.id+(isPack?'_pack':'');
-        const existing=S.cart.find(i=>i.id===cid);
-        if(existing){ existing.qty++; }
-        else{ S.cart.push({id:cid,barcode:isPack?product.packBarcode:product.barcode,name:product.name,price,qty:1,image:product.image||null}); }
-        renderCart();
-        showToast('เพิ่ม: '+product.name,'success');
-        el.cartBadge.classList.remove('bump'); void el.cartBadge.offsetWidth;
-        el.cartBadge.classList.add('bump'); setTimeout(()=>el.cartBadge.classList.remove('bump'),200);
-    }
-    function changeQty(id,delta){
-        const item=S.cart.find(i=>i.id===id); if(!item) return;
-        item.qty+=delta;
-        if(item.qty<=0) S.cart=S.cart.filter(i=>i.id!==id);
-        renderCart();
-    }
-    function removeFromCart(id){ S.cart=S.cart.filter(i=>i.id!==id); renderCart(); }
-    function clearCart(){ if(!S.cart.length) return; S.cart=[]; renderCart(); }
+    // Start camera
+    if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia) await startCamera();
+    else{ el.video.style.display='none'; el.noCam.style.display='flex'; }
 
-    function fmt(n){ return Number(n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-    function escH(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-    function escA(s){ return String(s).replace(/'/g,"\\'"); }
+    // Camera controls
+    el.btnTorch.addEventListener('click',toggleTorch);
+    el.btnCamSw.addEventListener('click',switchCam);
 
-    function renderCart(){
-        const count=S.cart.reduce((s,i)=>s+i.qty,0);
-        const total=S.cart.reduce((s,i)=>s+(i.price*i.qty),0);
-        el.cartBadge.textContent=count;
-        el.totalVal.textContent=fmt(total);
-        el.btnPrint.disabled=S.cart.length===0;
-        if(!S.cart.length){
-            el.cartItems.innerHTML='';
-            el.cartItems.appendChild(el.cartEmpty);
-            el.cartEmpty.style.display='flex';
-            return;
-        }
-        el.cartItems.innerHTML='';
-        S.cart.forEach(item=>{
-            const row=document.createElement('div');
-            row.className='cart-item';
-            row.innerHTML=
-                '<div class="item-name">'+escH(item.name)+'</div>'+
-                '<div class="item-price-line">&#x0E3F;'+fmt(item.price)+' &times; '+item.qty+' = <strong>&#x0E3F;'+fmt(item.price*item.qty)+'</strong></div>'+
-                '<div class="item-controls">'+
-                '<button class="qty-btn del" onclick="App.removeItem(\''+escA(item.id)+'\')">'+
-                '<span class="material-symbols-rounded" style="font-size:16px;">delete</span></button>'+
-                '<button class="qty-btn minus" onclick="App.changeQty(\''+escA(item.id)+'\',-1)">&#x2212;</button>'+
-                '<span class="qty-num">'+item.qty+'</span>'+
-                '<button class="qty-btn plus" onclick="App.changeQty(\''+escA(item.id)+'\',1)">&#x2B;</button>'+
-                '</div>';
-            el.cartItems.appendChild(row);
-        });
-    }
+    // Manual input
+    el.btnManual.addEventListener('click',()=>{ const v=el.manInp.value.trim(); if(v){handleBarcode(v);el.manInp.value='';} });
+    el.manInp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const v=el.manInp.value.trim(); if(v){handleBarcode(v);el.manInp.value='';} } });
 
-    /* ─── Print ─── */
-    function generateBillId(){
-        const d=new Date();
-        const prefix='B'+d.getFullYear().toString().slice(-2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
-        const key='counter_'+prefix;
-        let cnt=parseInt(localStorage.getItem(key)||'0')+1;
-        localStorage.setItem(key,cnt);
-        return prefix+'-'+String(cnt).padStart(3,'0');
-    }
+    // Popup
+    el.popup.addEventListener('click',(e)=>{ if(!e.target.closest('#btn-add-product')) hidePopup(); });
 
-    function printReceipt(){
-        if(!S.cart.length) return;
-        const cfg={
-            storeName:S.settings.storeName||'ร้านชำ POS',
-            address:S.settings.address||'', phone:S.settings.phone||'',
-            logo:S.settings.logo||null, qrCode:S.settings.qrCode||null,
-            printLogo:S.settings.printLogo!==false, printQr:S.settings.printQr!==false,
-            feedLines:S.settings.printerFeedLines||5
-        };
-        const total=S.cart.reduce((a,i)=>a+i.price*i.qty,0);
-        const billId=generateBillId();
-        const dateStr=new Date().toLocaleString('th-TH');
-        const feed=Array(cfg.feedLines).fill('<div style="color:white!important;font-size:14px;">.</div>').join('');
-        const items=S.cart.map(item=>
-            '<div class="receipt-item" style="display:block;margin-bottom:0;">'+
-            '<div style="font-weight:bold;text-align:left;width:100%;line-height:1.2;word-break:break-word;">'+escH(item.name)+'</div>'+
-            '<div style="display:flex;justify-content:space-between;font-weight:normal;font-size:16px;">'+
-            '<span>'+item.qty+' x &#x0E3F;'+fmt(item.price)+'</span>'+
-            '<span style="font-weight:bold;">&#x0E3F;'+fmt(item.price*item.qty)+'</span></div></div>'
-        ).join('');
-        el.receiptArea.innerHTML=
-            (cfg.printLogo&&cfg.logo?'<div class="receipt-logo"><img src="'+cfg.logo+'"></div>':'')+
-            '<div class="receipt-header"><h2>'+escH(cfg.storeName)+'</h2>'+
-            (cfg.address?'<div style="font-size:14px;margin-bottom:2px;">'+escH(cfg.address)+'</div>':'')+
-            (cfg.phone?'<div>Tel: '+escH(cfg.phone)+'</div>':'')+
-            '<div style="margin-top:5px;font-size:14px;">Bill ID: '+billId+'<br>Date: '+dateStr+'</div></div>'+
-            '<div class="receipt-divider"></div>'+
-            '<div style="display:flex;flex-direction:column;gap:8px;">'+items+'</div>'+
-            '<div class="receipt-divider"></div>'+
-            '<div class="receipt-total"><span>ยอดรวมสุทธิ</span><span>&#x0E3F;'+fmt(total)+'</span></div>'+
-            (cfg.printQr&&cfg.qrCode?'<div class="receipt-qr"><img src="'+cfg.qrCode+'"><div style="font-size:12px;margin-top:2px;">Scan to Pay</div></div>':'')+
-            '<div class="receipt-footer"><br><p>ขอบคุณที่อุดหนุน</p>'+feed+'</div>';
-        el.receiptArea.style.display='block';
-        const appEl=document.getElementById('app');
-        appEl.style.setProperty('display','none','important');
-        setTimeout(()=>{
-            window.print();
-            setTimeout(()=>{ el.receiptArea.style.display='none'; el.receiptArea.innerHTML=''; appEl.style.removeProperty('display'); },5000);
-        },300);
-    }
+    // Add Product from scan
+    el.btnAddProd.addEventListener('click',()=>{ const bc=el.btnAddProd.dataset.bc||''; openAddProductSheet(bc); });
 
-    /* ─── Toast ─── */
-    let toastTimer=null;
-    function showToast(msg,type='success'){
-        const icons={success:'check_circle',error:'error',warn:'warning'};
-        el.toastMsg.textContent=msg;
-        el.toastIcon.textContent=icons[type]||'info';
-        el.toast.className='show '+(type||'');
-        clearTimeout(toastTimer);
-        toastTimer=setTimeout(()=>{ el.toast.className=''; },2500);
-    }
+    // Add Product Sheet
+    el.apsCancel.addEventListener('click',closeAddProductSheet);
+    el.apsSheet.addEventListener('click',e=>{ if(e.target===el.apsSheet) closeAddProductSheet(); });
+    el.apsSave.addEventListener('click',saveNewProduct);
+    el.apsChips.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click',()=>{
+        el.apsChips.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+        chip.classList.add('sel'); S.apsGroup=chip.dataset.val;
+      });
+    });
 
-    /* ─── Init ─── */
-    async function init(){
-        await loadDB();
-        renderCart();
-        setScanStatus('กำลังเริ่มกล้อง...','');
+    // Add Quick Sheet
+    el.aqsCancel.addEventListener('click',closeQuickForm);
+    el.aqsSheet.addEventListener('click',e=>{ if(e.target===el.aqsSheet) closeQuickForm(); });
+    el.aqsSave.addEventListener('click',saveQuickItem);
 
-        // Start ZXing scanner
-        await startZXingScanner();
+    // Confirm dialog
+    el.cdlgNo.addEventListener('click',closeConfirm);
+    el.cdlgYes.addEventListener('click',()=>{ if(confirmYesCb) confirmYesCb(); closeConfirm(); });
 
-        // Events
-        el.btnTorch.addEventListener('click', toggleTorch);
-        el.btnCamSwitch.addEventListener('click', switchCamera);
-        el.btnClear.addEventListener('click', clearCart);
-        el.btnPrint.addEventListener('click', printReceipt);
+    // Cart controls
+    el.btnClear.addEventListener('click',clearCart);
+    el.btnPrint.addEventListener('click',printReceipt);
+    el.btnShare.addEventListener('click',shareReceiptImage);
+    el.btnQuickToggle.addEventListener('click',toggleQuickView);
 
-        el.btnManual.addEventListener('click', ()=>{
-            const v=el.manualInput.value.trim();
-            if(v){ handleBarcode(v); el.manualInput.value=''; }
-        });
-        el.manualInput.addEventListener('keydown', e=>{
-            if(e.key==='Enter'){ const v=el.manualInput.value.trim(); if(v){ handleBarcode(v); el.manualInput.value=''; } }
-        });
+    // Visibility
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden){ if(S.codeReader) S.codeReader.reset(); }
+      else{ if(S.codeReader) startDecode(); }
+    });
+  }
 
-        el.popup.addEventListener('click', hidePopup);
-
-        // Pause/resume on tab switch
-        document.addEventListener('visibilitychange', ()=>{
-            if(document.hidden){ if(S.codeReader) S.codeReader.reset(); }
-            else{ if(S.codeReader) startDecoding(); }
-        });
-    }
-
-    return { init, changeQty:(id,d)=>changeQty(id,d), removeItem:(id)=>removeFromCart(id) };
+  return {
+    init,
+    changeQty:(id,d)=>changeQty(id,d),
+    removeItem:(id)=>removeItem(id),
+    quickAdd:(id)=>quickAddItem(id),
+    quickDel:(id)=>quickDelItem(id),
+    openQuickForm,
+  };
 })();
 
-document.addEventListener('DOMContentLoaded', App.init);
+document.addEventListener('DOMContentLoaded',App.init);
 </script>
 </body>
 </html>
