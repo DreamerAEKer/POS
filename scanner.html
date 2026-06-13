@@ -317,7 +317,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
   </div>
   <div id="hud">
-    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.94.0 (13/06/2026)</span></div>
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.94.1 (13/06/2026)</span></div>
     <div style="display:flex;gap:8px;">
       <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
       <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
@@ -393,19 +393,20 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   </div>
 
   <!-- Cart view -->
-  <div id="cart-view">
-    <div id="cart-items">
+  <div id="cart-view" style="display:flex; flex-direction:column; flex:1; overflow:hidden; min-height:0;">
+    <div id="cart-items" style="flex:1; overflow-y:auto; min-height:80px;">
       <div id="cart-empty">
         <span class="material-symbols-rounded" style="font-size:40px;">shopping_cart_off</span>
         <p>ยังไม่มีสินค้า — สแกนเพื่อเริ่มต้น</p>
       </div>
     </div>
-  </div>
-
-  <!-- Quick List view -->
-  <div id="quick-view">
-    <div id="quick-items-wrap">
-      <div id="quick-grid"></div>
+    <div id="quick-view-header" style="border-top:1px solid var(--br); padding:8px 14px 4px; font-size:12px; font-weight:700; color:var(--td); display:flex; align-items:center; gap:4px; flex-shrink:0;">
+      <span class="material-symbols-rounded" style="font-size:14px; color:var(--o);">bolt</span>รายการสินค้าด่วน
+    </div>
+    <div id="quick-view" style="display:block; flex-shrink:0; overflow-y:auto; max-height:220px;">
+      <div id="quick-items-wrap" style="padding:4px 12px 10px;">
+        <div id="quick-grid"></div>
+      </div>
     </div>
   </div>
 
@@ -928,31 +929,15 @@ const App = (() => {
   function showCartView(){
     S.viewMode = 'cart';
     el.cartView.style.display = 'flex';
-    el.quickView.style.display = 'none';
     el.historyView.style.display = 'none';
-    el.btnQuickToggle.classList.remove('active');
     el.btnHistoryToggle.classList.remove('active');
     el.cartTitle.classList.remove('clickable-tab');
-  }
-
-  function showQuickView(openForm = false){
-    S.viewMode = 'quick';
-    el.cartView.style.display = 'none';
-    el.quickView.style.display = 'flex';
-    el.historyView.style.display = 'none';
-    el.btnQuickToggle.classList.add('active');
-    el.btnHistoryToggle.classList.remove('active');
-    el.cartTitle.classList.add('clickable-tab');
-    renderQuickGrid();
-    if(openForm) openQuickForm();
   }
 
   function showHistoryView(){
     S.viewMode = 'history';
     el.cartView.style.display = 'none';
-    el.quickView.style.display = 'none';
     el.historyView.style.display = 'flex';
-    el.btnQuickToggle.classList.remove('active');
     el.btnHistoryToggle.classList.add('active');
     el.cartTitle.classList.add('clickable-tab');
     closeCameraMode();
@@ -1630,7 +1615,7 @@ const App = (() => {
 
   /* ─── Init ─── */
   async function init(){
-    await loadDB(); renderCart();
+    await loadDB(); renderCart(); renderQuickGrid();
     setStat('กำลังเริ่มกล้อง...','');
 
     // Start camera
@@ -1705,9 +1690,17 @@ const App = (() => {
     el.btnClear.addEventListener('click',clearCart);
     el.btnPrint.addEventListener('click',printReceipt);
     el.btnShare.addEventListener('click',shareReceiptImage);
-    el.btnQuickToggle.addEventListener('click',()=>showQuickView(true));
+    el.btnQuickToggle.addEventListener('click',()=>openQuickForm());
     el.btnHistoryToggle.addEventListener('click', showHistoryView);
-    el.cartTitle.addEventListener('click',()=>{ showCartView(); closeCameraMode(); });
+    el.cartTitle.addEventListener('click',()=>{
+      const isClosed = document.getElementById('app').classList.contains('camera-closed');
+      showCartView();
+      if(isClosed){
+        openCameraMode();
+      }else{
+        closeCameraMode();
+      }
+    });
     el.btnOpenCam.addEventListener('click',openCameraMode);
 
     // Swipe gestures on header
