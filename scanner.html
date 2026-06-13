@@ -184,7 +184,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 
 /* ══ RECEIPT AREAS ══ */
 #receipt-print-area{display:none}
-#receipt-img-area{position:fixed;top:-9999px;left:0;width:390px;background:#fff;color:#000;font-family:'Sarabun',sans-serif;padding:24px 20px;line-height:1.4;visibility:hidden}
+#receipt-img-area{position:fixed;top:0;left:-9999px;width:390px;background:#fff;color:#000;font-family:'Sarabun',sans-serif;padding:24px 20px;line-height:1.4;visibility:visible}
 
 /* ══ PRINT ══ */
 @media print{
@@ -1131,8 +1131,9 @@ const App = (() => {
 
     showToast('กำลังสร้างรูปบิล...','info');
     
-    el.receiptImg.style.visibility='hidden';
-    el.receiptImg.style.top='-9999px';
+    el.receiptImg.style.visibility='visible';
+    el.receiptImg.style.left='-9999px';
+    el.receiptImg.style.top='0';
     el.receiptImg.innerHTML=`
       <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 20px;width:390px;min-height:100px;">
         <div style="text-align:center;margin-bottom:16px;">
@@ -1517,8 +1518,9 @@ const App = (() => {
     recordSaleFromScanner(billId, total);
 
     // Build image-friendly receipt
-    el.receiptImg.style.visibility='hidden';
-    el.receiptImg.style.top='-9999px';
+    el.receiptImg.style.visibility='visible';
+    el.receiptImg.style.left='-9999px';
+    el.receiptImg.style.top='0';
     el.receiptImg.innerHTML=`
       <div style="font-family:'Sarabun',sans-serif;background:#fff;color:#000;padding:24px 20px;width:390px;min-height:100px;">
         <div style="text-align:center;margin-bottom:16px;">
