@@ -28,11 +28,11 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 #camera-video{width:100%;height:100%;object-fit:cover;display:block}
 #scanner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .vf-shade{position:absolute;background:rgba(0,0,0,.55)}
-.vf-shade.top{top:0;left:0;right:0;height:calc(50% - 90px)}
-.vf-shade.bottom{bottom:0;left:0;right:0;height:calc(50% - 90px)}
-.vf-shade.left{top:calc(50% - 90px);bottom:calc(50% - 90px);left:0;width:calc(50% - 110px)}
-.vf-shade.right{top:calc(50% - 90px);bottom:calc(50% - 90px);right:0;width:calc(50% - 110px)}
-#viewfinder{position:absolute;width:220px;height:180px;top:50%;left:50%;transform:translate(-50%,-50%)}
+.vf-shade.top{top:0;left:0;right:0;height:calc(50% - 60px)}
+.vf-shade.bottom{bottom:0;left:0;right:0;height:calc(50% - 60px)}
+.vf-shade.left{top:calc(50% - 60px);bottom:calc(50% - 60px);left:0;width:calc(50% - 140px)}
+.vf-shade.right{top:calc(50% - 60px);bottom:calc(50% - 60px);right:0;width:calc(50% - 140px)}
+#viewfinder{position:absolute;width:280px;height:120px;top:50%;left:50%;transform:translate(-50%,-50%)}
 #viewfinder::before,#viewfinder::after,#viewfinder .vfbr::before,#viewfinder .vfbr::after{content:'';position:absolute;width:28px;height:28px;border-color:var(--g);border-style:solid}
 #viewfinder::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
 #viewfinder::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
@@ -317,7 +317,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
   </div>
   <div id="hud">
-    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.94.1 (13/06/2026)</span></div>
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.95.0 (20/06/2026)</span></div>
     <div style="display:flex;gap:8px;">
       <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
       <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
@@ -1736,6 +1736,26 @@ const App = (() => {
 
     // Drag and drop initialization
     initDragHandlers();
+
+    // Global hardware scanner support (Deli S228WB, Sunmi V3 built-in)
+    let globalBarcode = '';
+    let globalBarcodeTimer = null;
+    document.addEventListener('keydown', e => {
+      if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
+      if(e.key === 'Enter') {
+        if(globalBarcode.length > 0) {
+          handleBarcode(globalBarcode);
+          e.preventDefault();
+        }
+        globalBarcode = '';
+      } else if(e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        globalBarcode += e.key;
+        clearTimeout(globalBarcodeTimer);
+        globalBarcodeTimer = setTimeout(() => {
+          globalBarcode = '';
+        }, 50);
+      }
+    });
 
     // Visibility
     document.addEventListener('visibilitychange',()=>{
