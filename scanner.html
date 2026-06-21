@@ -1509,6 +1509,32 @@ const App = (() => {
     }
   }
   function removeItem(id){ S.cart=S.cart.filter(i=>i.id!==id); renderCart(); }
+  
+  async function editCartItemPrice(id) {
+    const item = S.cart.find(x=>x.id===id);
+    if(!item) return;
+    
+    let dbProduct = S.products.find(p=>p.id===id || (p.id+'_pack')===id);
+    let quickItem = S.quickItems.find(p=>p.id===id);
+    
+    let newPriceStr = prompt(`แก้ไขราคาสำหรับ "${item.name}"\n\nราคาปัจจุบัน: ${fmt(item.price)} บาท\nโปรดระบุราคาใหม่ (แก้ไขถาวร):`, item.price);
+    if(newPriceStr!==null){
+      let newPrice = parseFloat(newPriceStr);
+      if(!isNaN(newPrice) && newPrice>=0){
+        item.price = newPrice;
+        if(dbProduct){
+          dbProduct.price = newPrice;
+          await localforage.setItem('store_products', S.products);
+        }
+        if(quickItem){
+          quickItem.price = newPrice;
+          await localforage.setItem('scanner_quick_items', S.quickItems);
+        }
+        renderCart();
+        showToast('อัปเดตราคาในฐานข้อมูลแล้ว', 'success');
+      }
+    }
+  }
   function clearCart(){
     if(!S.cart.length) return;
     showConfirm('⚠️', 'ยืนยันการล้างตะกร้า', 'ต้องการล้างตะกร้าสินค้าทั้งหมดหรือไม่?', () => {
@@ -1534,8 +1560,8 @@ const App = (() => {
     S.cart.forEach(item=>{
       const row=document.createElement('div'); row.className='ci';
       row.innerHTML=
-        '<div class="ci-name">'+escH(item.name)+'</div>'+
-        '<div class="ci-price">&#x0E3F;'+fmt(item.price)+' &times; '+item.qty+' = <strong>&#x0E3F;'+fmt(item.price*item.qty)+'</strong></div>'+
+        '<div class="ci-name">'+escH(item.name)+' <span class="material-symbols-rounded" style="font-size:14px; color:var(--o); cursor:pointer; vertical-align:middle; margin-left:4px;" onclick="App.editCartItemPrice(\''+escA(item.id)+'\')">edit</span></div>'+
+        '<div class="ci-price" style="cursor:pointer;" onclick="App.editCartItemPrice(\''+escA(item.id)+'\')">&#x0E3F;'+fmt(item.price)+' &times; '+item.qty+' = <strong>&#x0E3F;'+fmt(item.price*item.qty)+'</strong></div>'+
         '<div class="ci-ctrl">'+
         '<button class="qb" onclick="App.changeQty(\''+escA(item.id)+'\',-1)">&#x2212;</button>'+
         '<span class="qn">'+item.qty+'</span>'+
@@ -1866,6 +1892,7 @@ const App = (() => {
     init,
     changeQty:(id,d)=>changeQty(id,d),
     removeItem:(id)=>removeItem(id),
+    editCartItemPrice:(id)=>editCartItemPrice(id),
     quickAdd:(id)=>quickAddItem(id),
     quickDel:(id)=>quickDelItem(id),
     openQuickForm,
