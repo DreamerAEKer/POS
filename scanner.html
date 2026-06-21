@@ -1808,9 +1808,15 @@ const App = (() => {
     });
 
     // Visibility
-    document.addEventListener('visibilitychange',()=>{
-      if(document.hidden){ if(S.codeReader) S.codeReader.reset(); }
-      else{ if(S.codeReader) startDecode(); }
+    document.addEventListener('visibilitychange', async ()=>{
+      if(document.hidden){ 
+        if(S.codeReader) S.codeReader.reset(); 
+      }
+      else { 
+        await loadDB(); 
+        renderQuickGrid();
+        if(S.codeReader) startDecode(); 
+      }
     });
   }
 
