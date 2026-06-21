@@ -1485,7 +1485,19 @@ const App = (() => {
     el.cartBadge.classList.remove('bump'); void el.cartBadge.offsetWidth;
     el.cartBadge.classList.add('bump'); setTimeout(()=>el.cartBadge.classList.remove('bump'),200);
   }
-  function changeQty(id,d){ const i=S.cart.find(x=>x.id===id); if(!i) return; i.qty+=d; if(i.qty<=0) S.cart=S.cart.filter(x=>x.id!==id); renderCart(); }
+  function changeQty(id,d){ 
+    const i=S.cart.find(x=>x.id===id); 
+    if(!i) return; 
+    if(i.qty+d<=0) {
+      showConfirm('⚠️', 'นำออก', 'ต้องการนำสินค้าออกจากตะกร้าใช่ไหม?', () => {
+        S.cart=S.cart.filter(x=>x.id!==id); 
+        renderCart();
+      }, '<span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">delete</span>นำออก', 'ยกเลิก');
+    } else {
+      i.qty+=d; 
+      renderCart(); 
+    }
+  }
   function removeItem(id){ S.cart=S.cart.filter(i=>i.id!==id); renderCart(); }
   function clearCart(){
     if(!S.cart.length) return;
@@ -1515,7 +1527,6 @@ const App = (() => {
         '<div class="ci-name">'+escH(item.name)+'</div>'+
         '<div class="ci-price">&#x0E3F;'+fmt(item.price)+' &times; '+item.qty+' = <strong>&#x0E3F;'+fmt(item.price*item.qty)+'</strong></div>'+
         '<div class="ci-ctrl">'+
-        '<button class="qb del" onclick="App.removeItem(\''+escA(item.id)+'\')"><span class="material-symbols-rounded" style="font-size:15px;">delete</span></button>'+
         '<button class="qb" onclick="App.changeQty(\''+escA(item.id)+'\',-1)">&#x2212;</button>'+
         '<span class="qn">'+item.qty+'</span>'+
         '<button class="qb" onclick="App.changeQty(\''+escA(item.id)+'\',1)">&#x2B;</button>'+
