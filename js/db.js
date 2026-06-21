@@ -603,18 +603,69 @@ const DB = {
         try {
             const data = JSON.parse(jsonString);
             if (!data.products) throw new Error('Invalid Data');
-            if (data.settings) DB.saveToLocalStorage(DB.KEYS.SETTINGS, data.settings);
-            if (data.groupImages) DB.saveToLocalStorage(DB.KEYS.GROUP_IMAGES, data.groupImages);
-            if (data.counters) {
-                Object.keys(data.counters).forEach(key => localStorage.setItem(key, data.counters[key]));
+            
+            // --- Helper: Smart Merge Array of Objects by ID ---
+            const mergeById = (existingArr, importedArr) => {
+                if (!existingArr) existingArr = [];
+                if (!importedArr || importedArr.length === 0) return existingArr;
+                
+                const map = new Map();
+                // 1. Put all existing items into map
+                existingArr.forEach(item => {
+                    if(item && item.id) map.set(item.id, item);
+                });
+                // 2. Put all imported items into map (Overwrite existing if IDs match, but KEEP ones that don't match)
+                importedArr.forEach(item => {
+                    if(item && item.id) map.set(item.id, item);
+                });
+                return Array.from(map.values());
+            };
+
+            // 1. Merge Settings
+            if (data.settings) {
+                const cur = DB.getSettings() || {};
+                DB.saveToLocalStorage(DB.KEYS.SETTINGS, { ...cur, ...data.settings });
             }
-            DB.saveToLocalStorage(DB.KEYS.PRODUCTS, data.products || []);
-            DB.saveToLocalStorage(DB.KEYS.SUPPLIERS, data.suppliers || []);
-            DB.saveToLocalStorage(DB.KEYS.SUPPLIER_PRICES, data.supplierPrices || []);
-            DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, data.parkedCarts || []);
-            DB.saveToLocalStorage(DB.KEYS.SALES, data.sales || []);
+            
+            // 2. Merge Group Images
+            if (data.groupImages) {
+                const cur = DB.getGroupImages() || {};
+                DB.saveToLocalStorage(DB.KEYS.GROUP_IMAGES, { ...cur, ...data.groupImages });
+            }
+            
+            // 3. Merge Counters (Keep highest value to prevent ID conflicts)
+            if (data.counters) {
+                Object.keys(data.counters).forEach(key => {
+                    const currentVal = parseInt(localStorage.getItem(key) || '0');
+                    const importedVal = parseInt(data.counters[key] || '0');
+                    localStorage.setItem(key, Math.max(currentVal, importedVal).toString());
+                });
+            }
+            
+            // 4. Merge Arrays
+            const curProducts = DB.getProducts() || [];
+            DB.saveToLocalStorage(DB.KEYS.PRODUCTS, mergeById(curProducts, data.products));
+            
+            const curSuppliers = DB.getSuppliers() || [];
+            DB.saveToLocalStorage(DB.KEYS.SUPPLIERS, mergeById(curSuppliers, data.suppliers));
+            
+            const curSupplierPrices = DB.safeGet(DB.KEYS.SUPPLIER_PRICES, []) || [];
+            if (data.supplierPrices) {
+                const spMap = new Map();
+                curSupplierPrices.forEach(sp => spMap.set(`${sp.productId}_${sp.supplierId}`, sp));
+                data.supplierPrices.forEach(sp => spMap.set(`${sp.productId}_${sp.supplierId}`, sp));
+                DB.saveToLocalStorage(DB.KEYS.SUPPLIER_PRICES, Array.from(spMap.values()));
+            }
+
+            const curParkedCarts = DB.getParkedCarts() || [];
+            DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, mergeById(curParkedCarts, data.parkedCarts));
+            
+            const curSales = DB.safeGet(DB.KEYS.SALES, []) || [];
+            DB.saveToLocalStorage(DB.KEYS.SALES, mergeById(curSales, data.sales));
+
             return { success: true };
         } catch (e) {
+            console.error('Import Error:', e);
             return { success: false, message: 'ไฟล์ไม่ถูกต้องหรือระบบขัดข้อง' };
         }
     }
