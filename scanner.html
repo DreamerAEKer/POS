@@ -621,19 +621,29 @@ const App = (() => {
   };
 
   /* ─── DB ─── */
+  let isDbConfigured = false;
   async function loadDB(){
     try{
-      // Configure localforage to use the exact same DB store as the main POS app
-      localforage.config({
-        name: 'localforage',
-        storeName: 'keyvaluepairs'
-      });
+      if (!isDbConfigured) {
+        // Configure localforage to use the exact same DB store as the main POS app
+        localforage.config({
+          name: 'localforage',
+          storeName: 'keyvaluepairs'
+        });
+        isDbConfigured = true;
+      }
       S.products = await localforage.getItem('store_products') || [];
       S.settings = await localforage.getItem('store_settings') || {};
       S.quickItems = await localforage.getItem('scanner_quick_items') || [];
       S.sales = await localforage.getItem('store_sales') || [];
       console.log('[Scanner] products:', S.products.length, 'quick:', S.quickItems.length, 'sales:', S.sales.length);
-    }catch(e){ S.products=[]; S.settings={}; S.quickItems=[]; S.sales=[]; }
+    }catch(e){ 
+      console.error('loadDB error:', e);
+      // Only reset if it's the first load, otherwise keep existing data
+      if(S.products.length === 0) {
+        S.products=[]; S.settings={}; S.quickItems=[]; S.sales=[]; 
+      }
+    }
   }
 
   async function saveSales(){
