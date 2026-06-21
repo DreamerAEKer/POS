@@ -317,7 +317,7 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
     <div id="viewfinder"><div class="vfbr"></div><div id="scan-line"></div></div>
   </div>
   <div id="hud">
-    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.95.0 (20/06/2026)</span></div>
+    <div id="hud-title"><div class="logo-dot"></div>สแกนสินค้า <span style="font-size:11px;color:rgba(255,255,255,0.45);font-weight:normal;margin-left:5px;vertical-align:middle;">v0.96.0 (21/06/2026)</span></div>
     <div style="display:flex;gap:8px;">
       <button class="hud-btn" id="btn-cam-sw"><span class="material-symbols-rounded" style="font-size:20px;">flip_camera_ios</span></button>
       <button class="hud-btn" id="btn-torch"><span class="material-symbols-rounded" style="font-size:20px;">flashlight_on</span></button>
@@ -653,12 +653,9 @@ const App = (() => {
     return null;
   }
 
-  /* ─── Camera / ZXing ─── */
+  /* ─── Camera / ZXing / Native BarcodeDetector ─── */
   async function startCamera(){
-    if(!window.ZXing){ setStat('ZXing โหลดไม่ได้ ใช้ช่อง input แทน','err'); return; }
     try{
-      S.codeReader = new ZXing.BrowserMultiFormatReader();
-      // Try initializing with environment-facing camera first to request permission and start stream directly
       await startDecode();
     }catch(err){
       el.video.style.display='none'; el.noCam.style.display='flex';
@@ -667,32 +664,61 @@ const App = (() => {
   }
 
   async function startDecode(){
-    if(!S.codeReader) return;
-    try{
-      // Stop previous decoding if running
-      await S.codeReader.reset();
-      
-      const constraints = {
-        video: {
-          facingMode: S.facingEnvironment ? 'environment' : 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          focusMode: 'continuous'
+    // Stop previous ZXing if running
+    if(S.codeReader) {
+      try { S.codeReader.reset(); } catch(e){}
+    }
+    // Stop previous native video stream if running
+    if(el.video.srcObject) {
+      el.video.srcObject.getTracks().forEach(track => track.stop());
+      el.video.srcObject = null;
+    }
+    S.nativeDetecting = false; // Flag to stop native detection loop
+
+    const constraints = {
+      video: {
+        facingMode: S.facingEnvironment ? 'environment' : 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        focusMode: 'continuous'
+      }
+    };
+
+    // 1. Try Native BarcodeDetector First
+    if ('BarcodeDetector' in window) {
+      try {
+        if(!S.nativeBarcodeDetector) {
+          S.nativeBarcodeDetector = new BarcodeDetector({
+            formats: ['code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'data_matrix', 'itf']
+          });
         }
-      };
-      
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        el.video.srcObject = stream;
+        el.video.setAttribute('playsinline', true); // required to tell iOS safari we don't want fullscreen
+        await el.video.play();
+        
+        el.video.style.display='block'; el.noCam.style.display='none';
+        setStat('พร้อมสแกน (Native) ✓','ok');
+        
+        S.nativeDetecting = true;
+        detectNativeBarcode(); // Start loop
+        return; // Success with native, exit
+      } catch (err) {
+        console.warn('Native BarcodeDetector failed or stream error, falling back to ZXing', err);
+        // Fallback to ZXing if something goes wrong with native initialization
+      }
+    }
+
+    // 2. Fallback to ZXing
+    if(!window.ZXing){ setStat('ZXing โหลดไม่ได้ ใช้ช่อง input แทน','err'); return; }
+    if(!S.codeReader) S.codeReader = new ZXing.BrowserMultiFormatReader();
+    
+    try{
       await S.codeReader.decodeFromConstraints(constraints, 'camera-video', (res) => {
         if(res && S.scanning){ const r=res.getText(); if(r && r!==S.lockBarcode) handleBarcode(r); }
       });
-      
-      // Let's populate the devices list post-stream initialization (permission granted)
-      try {
-        const devs = await S.codeReader.listVideoInputDevices();
-        S.devices = devs || [];
-      } catch(e){}
-      
       el.video.style.display='block'; el.noCam.style.display='none';
-      setStat('พร้อมสแกน ✓','ok');
+      setStat('พร้อมสแกน (ZXing) ✓','ok');
     }catch(err){
       // Try fallback to standard decode if constraint fails
       try {
@@ -700,11 +726,35 @@ const App = (() => {
           if(res && S.scanning){ const r=res.getText(); if(r && r!==S.lockBarcode) handleBarcode(r); }
         });
         el.video.style.display='block'; el.noCam.style.display='none';
-        setStat('พร้อมสแกน (โหมดสำรอง) ✓','ok');
+        setStat('พร้อมสแกน (ZXing สำรอง) ✓','ok');
       } catch (fallbackErr) {
         el.video.style.display='none'; el.noCam.style.display='flex';
         setStat('เปิดกล้องไม่ได้: ' + (err.message || err),'err');
       }
+    }
+  }
+
+  async function detectNativeBarcode() {
+    if(!S.nativeDetecting || !S.nativeBarcodeDetector || !el.video.srcObject) return;
+    
+    if (el.video.readyState === el.video.HAVE_ENOUGH_DATA && S.scanning) {
+      try {
+        const barcodes = await S.nativeBarcodeDetector.detect(el.video);
+        if (barcodes.length > 0) {
+          // Take the first detected barcode
+          const r = barcodes[0].rawValue;
+          if (r && r !== S.lockBarcode) {
+            handleBarcode(r);
+          }
+        }
+      } catch (e) {
+        // Ignore detection errors during loop
+      }
+    }
+    
+    // Loop
+    if(S.nativeDetecting) {
+      requestAnimationFrame(detectNativeBarcode);
     }
   }
 
