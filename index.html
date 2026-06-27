@@ -234,43 +234,7 @@
         style="position: fixed; bottom: 5px; right: 10px; font-size: 11px; color: rgba(0,0,0,0.3); z-index: 10000; pointer-events: none; font-weight: bold;">
     </div>
 
-    <!-- Camera Scanner Overlay -->
-    <div id="camera-scanner-overlay" style="display: none;">
-        <video id="scanner-video" autoplay muted playsinline></video>
-        <div id="camera-scanner-viewfinder">
-            <div class="scanner-vf-shade top"></div>
-            <div class="scanner-vf-shade bottom"></div>
-            <div class="scanner-vf-shade left"></div>
-            <div class="scanner-vf-shade right"></div>
-            <div class="scanner-viewfinder-frame">
-                <div class="scanner-vf-corners"></div>
-                <div class="scanner-scan-line"></div>
-            </div>
-        </div>
-        <div id="scanner-hud">
-            <button type="button" class="scanner-hud-btn" id="btn-scanner-close">
-                <span class="material-symbols-rounded">close</span>
-            </button>
-            <div class="scanner-hud-title">สแกนสินค้า</div>
-            <div style="display: flex; gap: 8px;">
-                <button type="button" class="scanner-hud-btn" id="btn-scanner-cam-sw">
-                    <span class="material-symbols-rounded">flip_camera_ios</span>
-                </button>
-                <button type="button" class="scanner-hud-btn" id="btn-scanner-torch">
-                    <span class="material-symbols-rounded">flashlight_on</span>
-                </button>
-            </div>
-        </div>
-        <div id="scanner-status-hud">กำลังเริ่มกล้อง...</div>
-        <div id="scanner-no-cam" style="display: none;">
-            <span class="material-symbols-rounded" style="font-size: 48px; color: var(--text-secondary);">no_photography</span>
-            <p style="font-size: 15px; line-height: 1.6; margin-top: 10px;">ไม่พบกล้อง หรือไม่ได้รับอนุญาตให้เข้าใช้งาน</p>
-        </div>
-        <div id="scanner-hint">วางบาร์โค้ดสินค้าให้อยู่ในกรอบสแกน</div>
-    </div>
-
     <!-- Scripts (Order matters for file:// compatibility without modules) -->
-    <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script src="js/localforage.min.js"></script>
     <script src="js/utils.js?v=0.92.1"></script>
     <script src="js/db.js?v=0.92.1"></script>
