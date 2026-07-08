@@ -45,7 +45,36 @@ const App = {
                         overlay.classList.add('hidden');
                         loginModal.classList.add('hidden');
                     }
-                    // Optionally trigger a re-render or data fetch here
+                    
+                    // Role Enforcement
+                    const navApprovals = document.getElementById('nav-approvals');
+                    const navApprovalsMobile = document.getElementById('nav-approvals-mobile');
+                    const navSettings = document.getElementById('nav-settings');
+                    const navSettingsMobile = document.getElementById('nav-settings-mobile');
+                    const navSales = document.querySelector('.nav-item[data-view="sales"]');
+                    
+                    if (DB.userRole === 'admin') {
+                        if (navApprovals) navApprovals.style.display = 'flex';
+                        if (navApprovalsMobile) navApprovalsMobile.style.display = 'flex';
+                        if (navSettings) navSettings.style.display = 'flex';
+                        if (navSettingsMobile) navSettingsMobile.style.display = 'flex';
+                        if (navSales) navSales.style.display = 'flex';
+                    } else {
+                        if (navApprovals) navApprovals.style.display = 'none';
+                        if (navApprovalsMobile) navApprovalsMobile.style.display = 'none';
+                        if (navSettings) navSettings.style.display = 'none';
+                        if (navSettingsMobile) navSettingsMobile.style.display = 'none';
+                        if (navSales) navSales.style.display = 'none';
+                        
+                        // If staff is on a restricted view, boot them to pos
+                        if (['settings', 'sales', 'approvals'].includes(App.state.currentView)) {
+                            document.querySelector('.nav-item[data-view="pos"]').click();
+                        }
+                    }
+                    
+                    // Optional: Update User display in main app if we add it later
+                    
+                    App.renderView(App.state.currentView); // Refresh view based on role
                 } else {
                     console.log("User logged out");
                     if (overlay && loginModal) {
@@ -230,9 +259,14 @@ const App = {
         } else if (viewName === 'suppliers') {
             App.renderSupplierView(container);
         } else if (viewName === 'settings') {
+            if (DB.userRole !== 'admin') { App.alert('คุณไม่มีสิทธิ์เข้าถึงเมนูนี้'); return; }
             App.renderSettingsView(container);
         } else if (viewName === 'sales') {
+            if (DB.userRole !== 'admin') { App.alert('คุณไม่มีสิทธิ์เข้าถึงเมนูนี้'); return; }
             App.renderSalesView(container);
+        } else if (viewName === 'approvals') {
+            if (DB.userRole !== 'admin') { App.alert('คุณไม่มีสิทธิ์เข้าถึงเมนูนี้'); return; }
+            App.renderApprovalsView(container);
         } else if (viewName === 'tables') {
             App.renderTablesView(container);
         }
@@ -5032,11 +5066,93 @@ const App = {
         document.getElementById('modal-overlay').classList.add('hidden');
         document.querySelectorAll('.modal').forEach(m => {
             m.classList.add('hidden');
-            // FIX: Do not wipe security-modal or confirmation-modal content as they are static
             if (m.id !== 'security-modal' && m.id !== 'confirmation-modal' && m.id !== 'table-detail-modal') {
                 m.innerHTML = '';
             }
         });
+    },
+
+    // --- APPROVALS VIEW ---
+    renderApprovalsView: async (container) => {
+        container.innerHTML = `<div style="padding:20px;"><h2>รายการรออนุมัติ</h2><p>กำลังโหลดข้อมูล...</p></div>`;
+        if (typeof dbFirestore === 'undefined' || !dbFirestore) {
+            container.innerHTML = `<div style="padding:20px;"><h2>รายการรออนุมัติ</h2><p>ไม่ได้เชื่อมต่อคลาวด์</p></div>`;
+            return;
+        }
+
+        try {
+            const snapshot = await dbFirestore.collection('pending_approvals').orderBy('timestamp', 'desc').get();
+            if (snapshot.empty) {
+                container.innerHTML = `<div style="padding:20px;"><h2>รายการรออนุมัติ</h2><p>ไม่มีรายการรออนุมัติ</p></div>`;
+                return;
+            }
+
+            let html = `<div style="padding:20px;"><h2>รายการรออนุมัติ</h2>
+                <div style="display:flex; flex-direction:column; gap:15px; margin-top:20px;">`;
+
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const typeText = data.type === 'EDIT_PRICE' ? 'ขอแก้ไขราคา' : 'ขอเพิ่มสินค้าใหม่';
+                
+                html += `<div style="background:white; padding:15px; border-radius:8px; box-shadow:var(--shadow-sm); display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:bold; font-size:16px;">${typeText} - ${data.data.name}</div>
+                        <div style="color:#666; font-size:14px; margin-top:5px;">
+                            ${data.type === 'EDIT_PRICE' ? `ขอเปลี่ยนจาก <b>${data.data.oldPrice}</b> เป็น <b>${data.data.newPrice}</b> บาท` : `เพิ่มสินค้าบาร์โค้ด: ${data.data.barcode} ราคา: ${data.data.price}`}
+                        </div>
+                        <div style="color:#999; font-size:12px; margin-top:5px;">โดยพนักงาน: ${data.requestedBy}</div>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="primary-btn" onclick="App.approvePending('${doc.id}')" style="padding:8px 15px;">อนุมัติ</button>
+                        <button class="secondary-btn" onclick="App.rejectPending('${doc.id}')" style="padding:8px 15px; border-color:#ffcdd2; color:#d32f2f;">ปฏิเสธ</button>
+                    </div>
+                </div>`;
+            });
+
+            html += `</div></div>`;
+            container.innerHTML = html;
+
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = `<div style="padding:20px;"><h2>รายการรออนุมัติ</h2><p>เกิดข้อผิดพลาดในการโหลดข้อมูล: ${e.message}</p></div>`;
+        }
+    },
+
+    approvePending: async (docId) => {
+        if (!confirm("ยืนยันการอนุมัติคำขอนี้ใช่หรือไม่?")) return;
+        try {
+            const docRef = dbFirestore.collection('pending_approvals').doc(docId);
+            const doc = await docRef.get();
+            if (doc.exists) {
+                const req = doc.data();
+                if (req.type === 'EDIT_PRICE') {
+                    const products = DB.getProducts();
+                    const idx = products.findIndex(p => p.id === req.data.id);
+                    if (idx >= 0) {
+                        products[idx].price = req.data.newPrice;
+                        DB.saveProduct(products[idx]);
+                    }
+                } else if (req.type === 'ADD_PRODUCT') {
+                    DB.saveProduct(req.data);
+                }
+                await docRef.delete();
+                App.alert("อนุมัติสำเร็จ!");
+                App.renderApprovalsView(document.getElementById('view-container'));
+            }
+        } catch (e) {
+            App.alert("เกิดข้อผิดพลาด: " + e.message);
+        }
+    },
+
+    rejectPending: async (docId) => {
+        if (!confirm("ต้องการปฏิเสธและลบคำขอนี้ทิ้งใช่หรือไม่?")) return;
+        try {
+            await dbFirestore.collection('pending_approvals').doc(docId).delete();
+            App.alert("ลบคำขอสำเร็จ!");
+            App.renderApprovalsView(document.getElementById('view-container'));
+        } catch (e) {
+            App.alert("เกิดข้อผิดพลาด: " + e.message);
+        }
     },
 
     checkDeliveryAlerts: () => {

@@ -90,8 +90,20 @@ const DB = {
     },
     onAuthStateChanged: (callback) => {
         if (auth) {
-            auth.onAuthStateChanged(user => {
+            auth.onAuthStateChanged(async (user) => {
                 DB.currentUser = user;
+                DB.userRole = 'staff'; // Default role
+                if (user && dbFirestore) {
+                    try {
+                        // Check if user is in 'admins' collection
+                        const adminDoc = await dbFirestore.collection('admins').doc(user.email).get();
+                        if (adminDoc.exists) {
+                            DB.userRole = 'admin';
+                        }
+                    } catch (e) {
+                        console.error("Role fetch error:", e);
+                    }
+                }
                 callback(user);
             });
         }
@@ -253,6 +265,25 @@ const DB = {
             return true;
         }
         return false; // Cannot delete if occupied or not found
+    },
+
+    // --- APPROVAL SYSTEM ---
+    addPendingApproval: async (type, data) => {
+        if (typeof dbFirestore === 'undefined' || !dbFirestore || !DB.currentUser) return false;
+        try {
+            const id = Date.now().toString();
+            await dbFirestore.collection('pending_approvals').doc(id).set({
+                id: id,
+                type: type, // e.g. 'EDIT_PRICE', 'ADD_PRODUCT'
+                data: data,
+                requestedBy: DB.currentUser.email,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            return true;
+        } catch (e) {
+            console.error("Error sending approval:", e);
+            return false;
+        }
     },
 
     // --- Group Images ---

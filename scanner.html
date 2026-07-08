@@ -306,6 +306,12 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 </style>
 </head>
 <body>
+<!-- USER DISPLAY -->
+<div id="user-display" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.6); color:white; padding:4px 10px; border-radius:12px; font-size:11px; z-index:50; display:none; align-items:center; gap:5px;">
+  <span class="material-symbols-rounded" style="font-size:14px;">person</span>
+  <span id="user-email-text"></span>
+</div>
+
 <div id="app">
 
 <!-- ══════ SCANNER ══════ -->
@@ -561,6 +567,27 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   <span id="toast-msg">—</span>
 </div>
 
+<!-- ══════ LOGIN DIALOG ══════ -->
+<div id="login-dialog" style="position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.8);backdrop-filter:blur(4px);padding:20px;">
+  <div style="background:white; border-radius:12px; padding:20px; width:100%; max-width:350px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+    <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary);">account_circle</span>
+    <h3 style="margin:10px 0;">เข้าสู่ระบบ (สต็อกหลัก)</h3>
+    <p style="color:#666; margin-bottom:15px; font-size:14px;">กรุณาล็อกอินเพื่อซิงค์ข้อมูลกับสต็อกหลัก</p>
+    <input type="email" id="scanner-login-email" placeholder="อีเมล" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:4px; box-sizing:border-box;">
+    <input type="password" id="scanner-login-password" placeholder="รหัสผ่าน" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px; box-sizing:border-box;">
+    <div id="scanner-login-error" style="color:red; font-size:12px; margin-bottom:10px; display:none;"></div>
+    <button id="btn-scanner-login" style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">เข้าสู่ระบบ</button>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
+
+<!-- DB.js (Shared Config & Logic) -->
+<script src="js/db.js"></script>
+
 <!-- ZXing: cross-browser barcode scanner (iOS Safari supported) -->
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <!-- html2canvas: generate receipt image -->
@@ -635,6 +662,24 @@ const App = (() => {
         });
         isDbConfigured = true;
       }
+      
+      // If Firebase is available and user is logged in, fetch latest products from cloud first
+      if (typeof dbFirestore !== 'undefined' && dbFirestore && auth && auth.currentUser) {
+          try {
+              const snapshot = await dbFirestore.collection('products').get();
+              let cloudProducts = [];
+              snapshot.forEach(doc => {
+                  cloudProducts.push(doc.data());
+              });
+              if (cloudProducts.length > 0) {
+                  await localforage.setItem('store_products', cloudProducts);
+                  console.log('[Scanner] Fetched ' + cloudProducts.length + ' products from Firebase');
+              }
+          } catch (fbErr) {
+              console.warn('[Scanner] Failed to fetch from Firebase, using local cache:', fbErr);
+          }
+      }
+
       S.products = await localforage.getItem('store_products') || [];
       S.settings = await localforage.getItem('store_settings') || {};
       S.quickItems = await localforage.getItem('scanner_quick_items') || [];
@@ -831,15 +876,35 @@ const App = (() => {
     
     el.btnEditScannedPrice.onclick = async () => {
       clearCD(); // Pause countdown
-      let newPriceStr = prompt(`แก้ไขราคาสำหรับ "${product.name}"\n\nราคาปัจจุบัน: ${fmt(price)} บาท\nโปรดระบุราคาใหม่:`, price);
+      let newPriceStr = prompt(`แก้ไขราคาสำหรับ "${product.name}"\n\nราคาปัจจุบัน: ${fmt(price)} บาท\nโปรดระบุราคาใหม่ (มีผลเฉพาะบิลนี้ เว้นแต่แอดมินจะอนุมัติ):`, price);
       if (newPriceStr !== null) {
         let newPrice = parseFloat(newPriceStr);
         if (!isNaN(newPrice) && newPrice >= 0) {
           product.price = newPrice;
-          await localforage.setItem('store_products', S.products);
+          
+          if (typeof DB !== 'undefined' && DB.userRole === 'admin') {
+             // Admin saves directly
+             if (typeof dbFirestore !== 'undefined' && dbFirestore && auth && auth.currentUser) {
+               dbFirestore.collection('products').doc(product.id.toString()).set(product).catch(err => console.error("Firebase sync error:", err));
+             }
+             await localforage.setItem('store_products', S.products);
+             showToast('อัปเดตราคาในฐานข้อมูลแล้ว', 'success');
+          } else {
+             // Staff gets temporary discount + sends approval
+             if (typeof DB !== 'undefined' && DB.addPendingApproval) {
+                 DB.addPendingApproval('EDIT_PRICE', {
+                     id: product.id,
+                     name: product.name,
+                     oldPrice: price,
+                     newPrice: newPrice
+                 });
+                 showToast('ส่งคำขอแก้ไขสต็อกให้เจ้าของร้านแล้ว (บิลนี้ใช้ราคาใหม่ได้เลย)', 'info');
+             }
+             // Staff does NOT update master stock, so we don't save to store_products here.
+          }
+          
           price = newPrice;
           el.popPriceVal.textContent=fmt(price);
-          showToast('อัปเดตราคาในฐานข้อมูลแล้ว', 'success');
         }
       }
       startCD(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
@@ -1746,7 +1811,50 @@ const App = (() => {
 
   /* ─── Init ─── */
   async function init(){
-    await loadDB(); renderCart(); renderQuickGrid();
+    // Setup Firebase Auth listeners
+    if (typeof auth !== 'undefined' && auth) {
+      auth.onAuthStateChanged(async (user) => {
+        if (user) {
+          $('login-dialog').style.display = 'none';
+          $('user-display').style.display = 'flex';
+          $('user-email-text').innerText = user.email + (DB.userRole === 'admin' ? ' (Admin)' : ' (Staff)');
+          await loadDB(); 
+          renderCart(); 
+          renderQuickGrid();
+        } else {
+          $('login-dialog').style.display = 'flex';
+          $('user-display').style.display = 'none';
+        }
+      });
+      
+      // Wire up Login Button
+      $('btn-scanner-login').addEventListener('click', async () => {
+          const email = $('scanner-login-email').value;
+          const password = $('scanner-login-password').value;
+          const errDiv = $('scanner-login-error');
+          
+          if(!email || !password) {
+              errDiv.innerText = "กรุณากรอกอีเมลและรหัสผ่าน";
+              errDiv.style.display = 'block';
+              return;
+          }
+          
+          $('btn-scanner-login').innerText = 'กำลังเข้าสู่ระบบ...';
+          try {
+              await auth.signInWithEmailAndPassword(email, password);
+              errDiv.style.display = 'none';
+          } catch(err) {
+              console.error(err);
+              errDiv.innerText = "เข้าสู่ระบบล้มเหลว: " + err.message;
+              errDiv.style.display = 'block';
+              $('btn-scanner-login').innerText = 'เข้าสู่ระบบ';
+          }
+      });
+    } else {
+      // No Firebase, just load normally
+      await loadDB(); renderCart(); renderQuickGrid();
+    }
+
     setStat('กำลังเริ่มกล้อง...','');
 
     // Start camera

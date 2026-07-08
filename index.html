@@ -51,18 +51,20 @@
                     <span>ร้านส่ง</span>
                 </li>
                 <li class="nav-item" data-view="tables">
-                    <span class="material-symbols-rounded">table_restaurant</span>
-                    <span>โต๊ะ</span>
+                    <span class="material-symbols-rounded">table_bar</span> เปิดโต๊ะ
                 </li>
                 <li class="nav-item" id="btn-check-price">
-                    <span class="material-symbols-rounded">price_check</span>
-                    <span>เช็คราคา</span>
+                    <span class="material-symbols-rounded">search</span> เช็คราคา (F3)
+                </li>
+                <!-- Approvals (Admin Only) -->
+                <li class="nav-item" data-view="approvals" id="nav-approvals" style="display:none; color:var(--warning-color);">
+                    <span class="material-symbols-rounded">pending_actions</span> รออนุมัติ
+                </li>
+                <div style="flex-grow:1;"></div>
+                <li class="nav-item" data-view="settings" id="nav-settings" style="margin-top: auto;">
+                    <span class="material-symbols-rounded">settings</span> ตั้งค่าร้านค้า
                 </li>
 
-                <li class="nav-item" data-view="settings" style="margin-top: auto;">
-                    <span class="material-symbols-rounded">settings</span>
-                    <span>ตั้งค่า</span>
-                </li>
             </ul>
 
             <div class="nav-footer">
@@ -209,17 +211,21 @@
             <span class="material-symbols-rounded">point_of_sale</span>
             <span>ขาย</span>
         </div>
-        <div class="nav-item" data-view="sales">
-            <span class="material-symbols-rounded">payments</span>
-            <span>ยอดขาย</span>
-        </div>
-        <div class="nav-item" data-view="stock">
-            <span class="material-symbols-rounded">inventory_2</span>
-            <span>สต็อก</span>
-        </div>
         <div class="nav-item" data-view="suppliers">
             <span class="material-symbols-rounded">local_shipping</span>
             <span>ร้านส่ง</span>
+        </div>
+        <div class="nav-item" data-view="tables">
+            <span class="material-symbols-rounded">table_bar</span>
+            <span>โต๊ะ</span>
+        </div>
+        <div class="nav-item" data-view="approvals" id="nav-approvals-mobile" style="display:none; color:var(--warning-color);">
+            <span class="material-symbols-rounded">pending_actions</span>
+            <span>รออนุมัติ</span>
+        </div>
+        <div class="nav-item" data-view="settings" id="nav-settings-mobile">
+            <span class="material-symbols-rounded">settings</span>
+            <span>ตั้งค่า</span>
         </div>
         <div class="nav-item" data-view="tables">
             <span class="material-symbols-rounded">table_restaurant</span>
