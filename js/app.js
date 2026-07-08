@@ -35,6 +35,42 @@ const App = {
             // Initialize DB (load from localforage to cache)
             await DB.init();
 
+            // Firebase Auth Setup
+            DB.onAuthStateChanged((user) => {
+                const overlay = document.getElementById('modal-overlay');
+                const loginModal = document.getElementById('login-modal');
+                if (user) {
+                    console.log("User logged in:", user.email);
+                    if (loginModal && !loginModal.classList.contains('hidden')) {
+                        overlay.classList.add('hidden');
+                        loginModal.classList.add('hidden');
+                    }
+                    // Optionally trigger a re-render or data fetch here
+                } else {
+                    console.log("User logged out");
+                    if (overlay && loginModal) {
+                        overlay.classList.remove('hidden');
+                        loginModal.classList.remove('hidden');
+                    }
+                }
+            });
+
+            const btnLogin = document.getElementById('btn-login-submit');
+            if (btnLogin) {
+                btnLogin.addEventListener('click', async () => {
+                    const email = document.getElementById('login-email').value;
+                    const pass = document.getElementById('login-password').value;
+                    const errDiv = document.getElementById('login-error');
+                    errDiv.style.display = 'none';
+                    
+                    const res = await DB.login(email, pass);
+                    if (!res.success) {
+                        errDiv.textContent = 'ล็อกอินล้มเหลว: ' + res.message;
+                        errDiv.style.display = 'block';
+                    }
+                });
+            }
+
             // Load Data
             App.state.products = DB.getProducts();
 

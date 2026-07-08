@@ -151,6 +151,15 @@
 
     <!-- Modals -->
     <div id="modal-overlay" class="hidden">
+        <div id="login-modal" class="modal hidden" style="max-width:350px; text-align:center;">
+            <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color);">account_circle</span>
+            <h3>เข้าสู่ระบบ</h3>
+            <p style="color:#666; margin-bottom:15px; font-size:14px;">กรุณาล็อกอินเพื่อใช้งานระบบ POS</p>
+            <input type="email" id="login-email" placeholder="อีเมล" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:4px;">
+            <input type="password" id="login-password" placeholder="รหัสผ่าน" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+            <div id="login-error" style="color:red; font-size:12px; margin-bottom:10px; display:none;"></div>
+            <button class="primary-btn" id="btn-login-submit" style="width:100%;">เข้าสู่ระบบ</button>
+        </div>
         <div id="price-check-modal" class="modal hidden">
             <!-- Price Check Content -->
         </div>
@@ -233,6 +242,11 @@
     <div id="app-version-display"
         style="position: fixed; bottom: 5px; right: 10px; font-size: 11px; color: rgba(0,0,0,0.3); z-index: 10000; pointer-events: none; font-weight: bold;">
     </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
 
     <!-- Scripts (Order matters for file:// compatibility without modules) -->
     <script src="js/localforage.min.js"></script>

@@ -3,6 +3,35 @@
  * Global 'DB' object
  */
 
+// ==========================================
+// FIREBASE CONFIGURATION (REPLACE WITH YOURS)
+// ==========================================
+const firebaseConfig = {
+    apiKey: "AIzaSyD3Oj1vPVMtxuf8A5BLtZqJEMkHqSDq-hE",
+    authDomain: "posgoldheng.firebaseapp.com",
+    projectId: "posgoldheng",
+    storageBucket: "posgoldheng.firebasestorage.app",
+    messagingSenderId: "667752406777",
+    appId: "1:667752406777:web:1eba014d1222082e3e0c28",
+    measurementId: "G-P1FF8V2L3C"
+};
+
+// Initialize Firebase
+let firebaseApp, auth, dbFirestore;
+try {
+    if (typeof firebase !== 'undefined') {
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        dbFirestore = firebase.firestore();
+        // Enable offline persistence
+        dbFirestore.enablePersistence().catch((err) => {
+            console.warn("Firestore Persistence Error:", err);
+        });
+    }
+} catch (e) {
+    console.error("Firebase Init Error", e);
+}
+
 const DB = {
     cache: {
         store_products: null,
@@ -42,6 +71,30 @@ const DB = {
         DB.cache[key] = data;
         localforage.setItem(key, data).catch(e => console.error("Save error:", e));
         return true;
+    },
+
+    // --- Firebase Auth ---
+    currentUser: null,
+    login: async (email, password) => {
+        try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            DB.currentUser = userCredential.user;
+            return { success: true, user: userCredential.user };
+        } catch (error) {
+            return { success: false, message: error.message };
+        }
+    },
+    logout: async () => {
+        if(auth) await auth.signOut();
+        DB.currentUser = null;
+    },
+    onAuthStateChanged: (callback) => {
+        if (auth) {
+            auth.onAuthStateChanged(user => {
+                DB.currentUser = user;
+                callback(user);
+            });
+        }
     },
 
     // Initial Mock Data
@@ -225,6 +278,26 @@ const DB = {
     },
 
     // --- Products ---
+    syncProductsFromFirebase: async () => {
+        if (!dbFirestore) return;
+        try {
+            const snapshot = await dbFirestore.collection('products').get();
+            const products = [];
+            snapshot.forEach(doc => {
+                products.push({ id: doc.id, ...doc.data() });
+            });
+            if (products.length > 0) {
+                DB.saveProducts(products);
+                // Automatically update App state if loaded
+                if (typeof App !== 'undefined' && App.state) {
+                    App.state.products = products;
+                }
+            }
+        } catch (e) {
+            console.error("Error syncing products from Firebase:", e);
+        }
+    },
+
     getProducts: () => {
         return DB.safeGet(DB.KEYS.PRODUCTS, []);
     },
