@@ -311,6 +311,13 @@ const DB = {
         } else {
             products.push(product);
         }
+
+        // --- FIREBASE AUTO-SYNC ---
+        if (typeof dbFirestore !== 'undefined' && dbFirestore && DB.currentUser) {
+            dbFirestore.collection('products').doc(product.id.toString()).set(product)
+                .catch(err => console.error("Firebase sync error:", err));
+        }
+
         return DB.saveToLocalStorage(DB.KEYS.PRODUCTS, products);
     },
 
@@ -350,6 +357,13 @@ const DB = {
     deleteProduct: (id) => {
         let products = DB.getProducts();
         products = products.filter(p => p.id !== id);
+
+        // --- FIREBASE AUTO-SYNC ---
+        if (typeof dbFirestore !== 'undefined' && dbFirestore && DB.currentUser) {
+            dbFirestore.collection('products').doc(id.toString()).delete()
+                .catch(err => console.error("Firebase sync error:", err));
+        }
+
         DB.saveToLocalStorage(DB.KEYS.PRODUCTS, products);
     },
 
