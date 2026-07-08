@@ -914,11 +914,23 @@ const App = {
     // --- Settings View ---
     renderSettingsView: (container) => {
         const settings = DB.getSettings();
+        let approvalsBtn = '';
+        if (DB.userRole === 'admin') {
+            approvalsBtn = `
+            <div style="margin-bottom:20px;">
+                <button onclick="App.renderView('approvals')" style="width:100%; padding:15px; background:var(--warning-color); color:white; border:none; border-radius:8px; font-size:18px; font-weight:bold; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px;">
+                    <span class="material-symbols-rounded">pending_actions</span>
+                    รายการรออนุมัติจากพนักงาน
+                </button>
+            </div>`;
+        }
+
         container.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:15px;">
                 <h2>ตั้งค่าระบบ</h2>
                 <div style="font-size:14px; color:#888; margin-bottom:5px;">เวอร์ชัน ${App.VERSION}</div>
             </div>
+            ${approvalsBtn}
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
                 <!-- Store Config -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm);">
