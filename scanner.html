@@ -306,11 +306,6 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 </style>
 </head>
 <body>
-<!-- USER DISPLAY -->
-<div id="user-display" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.6); color:white; padding:4px 10px; border-radius:12px; font-size:11px; z-index:50; display:none; align-items:center; gap:5px;">
-  <span class="material-symbols-rounded" style="font-size:14px;">person</span>
-  <span id="user-email-text"></span>
-</div>
 
 <div id="app">
 
@@ -385,10 +380,13 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 <!-- ══════ BOTTOM PANEL ══════ -->
 <div id="bottom-panel">
   <div id="cart-header">
-    <div id="cart-title">
-      <span class="material-symbols-rounded" style="font-size:20px;color:var(--g);">shopping_cart</span>
-      รายการสินค้า
-      <span id="cart-badge">0</span>
+    <div id="cart-title" style="display:flex; flex-direction:column; align-items:flex-start;">
+      <div style="display:flex; align-items:center; gap:5px;">
+        <span class="material-symbols-rounded" style="font-size:20px;color:var(--g);">shopping_cart</span>
+        รายการสินค้า
+        <span id="cart-badge">0</span>
+      </div>
+      <div id="user-email-text" style="font-size:11px; color:#aaa; font-weight:normal; margin-top:2px;"></div>
     </div>
     <button id="btn-open-camera">
       <span class="material-symbols-rounded" style="font-size:15px;">photo_camera</span>เปิดกล้อง
@@ -1816,14 +1814,13 @@ const App = (() => {
       auth.onAuthStateChanged(async (user) => {
         if (user) {
           $('login-dialog').style.display = 'none';
-          $('user-display').style.display = 'flex';
           $('user-email-text').innerText = user.email + (DB.userRole === 'admin' ? ' (Admin)' : ' (Staff)');
           await loadDB(); 
           renderCart(); 
           renderQuickGrid();
         } else {
           $('login-dialog').style.display = 'flex';
-          $('user-display').style.display = 'none';
+          $('user-email-text').innerText = '';
         }
       });
       
