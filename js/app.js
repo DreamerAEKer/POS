@@ -916,6 +916,12 @@ const App = {
                     <h3>สำรองข้อมูล</h3>
                     <button class="primary-btn" onclick="App.backupData()">Download Backup</button>
                 </div>
+                <!-- Firebase Sync -->
+                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
+                    <span class="material-symbols-rounded" style="font-size:48px; color:#f57c00;">cloud_sync</span>
+                    <h3>อัปโหลดข้อมูล</h3>
+                    <button class="primary-btn" style="background:#f57c00; border:none;" onclick="App.uploadProductsToFirebase()">เริ่มอัปโหลดสินค้าไป Firebase</button>
+                </div>
                 <!-- Restore -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
                     <span class="material-symbols-rounded" style="font-size:48px; color:var(--warning-color);">cloud_upload</span>
@@ -1127,6 +1133,40 @@ const App = {
         a.href = url;
         a.download = `backup_pos_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
+    },
+
+    uploadProductsToFirebase: async () => {
+        if (typeof dbFirestore === 'undefined' || !dbFirestore) {
+            App.alert("ไม่พบการตั้งค่า Firebase กรุณาตรวจสอบ db.js");
+            return;
+        }
+        // Check if user is logged in first
+        if (!DB.currentUser) {
+            App.alert("กรุณาล็อกอินก่อนทำการอัปโหลดข้อมูลครับ");
+            return;
+        }
+        if (!confirm("ต้องการอัปโหลดข้อมูลสินค้าทั้งหมดในเครื่อง ขึ้นไปเก็บบนคลาวด์ (Firebase) ใช่หรือไม่? (อาจใช้เวลาสักครู่)")) return;
+        
+        const originalBtnText = event.target.innerText;
+        event.target.innerText = 'กำลังอัปโหลด...';
+        event.target.disabled = true;
+
+        try {
+            const products = DB.getProducts();
+            let count = 0;
+            // Batch writes could be faster, but loop is simple and reliable for <500 items
+            for (const p of products) {
+                await dbFirestore.collection('products').doc(p.id.toString()).set(p);
+                count++;
+            }
+            App.alert(`อัปโหลดสินค้าจำนวน ${count} รายการ สำเร็จ!`);
+        } catch (e) {
+            console.error(e);
+            App.alert("เกิดข้อผิดพลาดในการอัปโหลด: " + e.message);
+        } finally {
+            event.target.innerText = originalBtnText;
+            event.target.disabled = false;
+        }
     },
 
     savePrinterSettings: async () => {
