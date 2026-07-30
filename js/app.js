@@ -913,7 +913,17 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.3 (30/07/2026)', // Show quick-add prompt above camera scanner
+    VERSION: '0.99.4 (30/07/2026)', // Quick stock creation with box/unit conversion
+
+    formatStockBreakdown: (product, stockValue = null) => {
+        const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
+        const unitsPerBox = Math.max(0, parseInt(product.unitsPerBox) || 0);
+        const unitLabel = product.unitLabel || 'ชิ้น';
+        if (unitsPerBox <= 1) return `${stock} ${unitLabel}`;
+        const boxes = Math.floor(stock / unitsPerBox);
+        const looseUnits = stock % unitsPerBox;
+        return `${boxes} กล่อง ${looseUnits} ${unitLabel} (รวม ${stock} ${unitLabel})`;
+    },
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1484,8 +1494,12 @@ const App = {
                 <div class="p-info">
                     <div class="p-name">${p.name}</div>
                     <div class="p-price">฿${Utils.formatCurrency(p.price)}</div>
-                    <div class="p-stock">${displayStock} ชิ้น</div>
-                    ${p.wholesaleQty > 0 ? `
+                    <div class="p-stock">${displayStock} ${p.unitLabel || 'ชิ้น'}</div>
+                    ${p.unitsPerBox > 1 ? `
+                    <div style="font-size:10px; color:#888; text-align:center; margin-top:2px;">
+                        ${App.formatStockBreakdown(p, displayStock)}
+                    </div>
+                    ` : p.wholesaleQty > 0 ? `
                     <div style="font-size:10px; color:#888; text-align:center; margin-top:2px;">
                         (${Math.floor(displayStock / p.wholesaleQty)} ลัง ${displayStock % p.wholesaleQty} ชิ้น)
                     </div>
@@ -1697,9 +1711,13 @@ const App = {
                                     </td>
                                     <td style="padding:10px;">
                                         <span style="color:${p.stock <= 5 ? 'var(--danger-color)' : 'black'}; font-weight:${p.stock <= 5 ? 'bold' : 'normal'};">
-                                            ${p.stock} ชิ้น
+                                            ${p.stock} ${p.unitLabel || 'ชิ้น'}
                                         </span>
-                                        ${p.wholesaleQty > 0 ? `
+                                        ${p.unitsPerBox > 1 ? `
+                                        <div style="font-size:11px; color:#888; margin-top:3px;">
+                                            ${App.formatStockBreakdown(p)}
+                                        </div>
+                                        ` : p.wholesaleQty > 0 ? `
                                         <div style="font-size:11px; color:#888; margin-top:3px;">
                                             (${Math.floor(p.stock / p.wholesaleQty)} ลัง ${p.stock % p.wholesaleQty} ชิ้น)
                                         </div>
@@ -2390,6 +2408,8 @@ const App = {
                     id, barcode, group, name, price, stock, image: newImage,
                     cost, thaiChuaiThaiPrice, expiryDate, tags, location, entryDate, // Save Location & Entry Date
                     parentId, packSize, wholesaleQty, wholesalePrice, packBarcode,
+                    unitsPerBox: product ? (product.unitsPerBox || 0) : 0,
+                    unitLabel: product ? (product.unitLabel || 'ชิ้น') : 'ชิ้น',
                     updatedAt: Date.now() // Auto-Timestamp
                 };
 
@@ -3093,6 +3113,9 @@ const App = {
                         </div>
 
                         <div style="display:flex; flex-direction:column; gap:8px;">
+                            <button class="primary-btn" data-barcode="${Utils.escapeHTML(barcode)}" onclick="App.openQuickStockAdd(this.dataset.barcode)">
+                                📦 เพิ่มสินค้าเข้าสต็อกแบบรวดเร็ว
+                            </button>
                             <button class="secondary-btn" onclick="App.goToAddProduct('${barcode}')">
                                 ➕ ไปหน้าเพิ่มสินค้าแบบละเอียด
                             </button>
@@ -3154,6 +3177,129 @@ const App = {
             App.openProductModal();
             setTimeout(() => document.getElementById('p-barcode').value = barcode, 200);
         }, 100);
+    },
+
+    openQuickStockAdd: (barcode) => {
+        document.getElementById('not-found-overlay')?.remove();
+        const groups = [...new Set(App.state.products.map(product => product.group).filter(Boolean))];
+        const html = `
+            <div id="quick-stock-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:31000; display:flex; align-items:center; justify-content:center; padding:12px;">
+                <div style="background:white; width:100%; max-width:520px; max-height:94dvh; overflow:auto; padding:20px; border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.3);">
+                    <h2 style="margin:0 0 15px;">📦 เพิ่มสินค้าเข้าสต็อกแบบรวดเร็ว</h2>
+                    <form id="quick-stock-form" style="display:flex; flex-direction:column; gap:12px;">
+                        <label>บาร์โค้ด
+                            <input id="qs-barcode" value="${Utils.escapeHTML(barcode)}" readonly style="width:100%; background:#f5f5f5;">
+                        </label>
+                        <label>หมวดหมู่ (ไม่บังคับ)
+                            <input id="qs-group" list="qs-group-list" placeholder="เช่น เครื่องดื่ม" style="width:100%;">
+                            <datalist id="qs-group-list">${groups.map(group => `<option value="${Utils.escapeHTML(group)}">`).join('')}</datalist>
+                        </label>
+                        <label>ชื่อสินค้า
+                            <input id="qs-name" required placeholder="ชื่อสินค้าและขนาด" style="width:100%;">
+                        </label>
+                        <label>ราคาขาย (บาท)
+                            <input id="qs-price" type="number" min="0" step="0.5" required style="width:100%;">
+                        </label>
+                        <div style="background:#f4f8f4; border:1px solid #c8dfc9; border-radius:10px; padding:12px;">
+                            <div style="font-weight:bold; margin-bottom:10px;">จำนวนเริ่มต้น (ไม่บังคับ)</div>
+                            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px;">
+                                <label>หน่วยย่อย
+                                    <select id="qs-unit-label" onchange="App.updateQuickStockPreview()" style="width:100%;">
+                                        <option value="ชิ้น">ชิ้น</option>
+                                        <option value="ขวด">ขวด</option>
+                                    </select>
+                                </label>
+                                <label>1 กล่องมีกี่ชิ้น/ขวด
+                                    <input id="qs-units-per-box" type="number" min="1" placeholder="เช่น 12" oninput="App.updateQuickStockPreview()" style="width:100%;">
+                                </label>
+                                <label>จำนวนกล่อง
+                                    <input id="qs-boxes" type="number" min="0" placeholder="0" oninput="App.updateQuickStockPreview()" style="width:100%;">
+                                </label>
+                                <label>ชิ้น/ขวดแยก
+                                    <input id="qs-loose-units" type="number" min="0" placeholder="0" oninput="App.updateQuickStockPreview()" style="width:100%;">
+                                </label>
+                            </div>
+                            <div id="qs-stock-preview" style="margin-top:10px; padding:10px; background:white; border-radius:8px; text-align:center; font-weight:bold; color:var(--primary-color);">รวม 0 ชิ้น</div>
+                        </div>
+                        <label>รูปสินค้า (ไม่บังคับ)
+                            <input id="qs-image" type="file" accept="image/*" style="width:100%;">
+                        </label>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="secondary-btn" style="flex:1;" onclick="document.getElementById('quick-stock-overlay').remove()">ยกเลิก</button>
+                            <button type="submit" class="primary-btn" style="flex:2;">บันทึกเข้าสต็อก</button>
+                        </div>
+                    </form>
+                </div>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        document.getElementById('quick-stock-form').addEventListener('submit', App.saveQuickStockProduct);
+        document.getElementById('qs-name').focus();
+        App.updateQuickStockPreview();
+    },
+
+    getQuickStockQuantity: () => {
+        const unitsPerBox = Math.max(0, parseInt(document.getElementById('qs-units-per-box')?.value) || 0);
+        const boxes = Math.max(0, parseInt(document.getElementById('qs-boxes')?.value) || 0);
+        const looseUnits = Math.max(0, parseInt(document.getElementById('qs-loose-units')?.value) || 0);
+        return { unitsPerBox, boxes, looseUnits, total: (boxes * unitsPerBox) + looseUnits };
+    },
+
+    updateQuickStockPreview: () => {
+        const quantity = App.getQuickStockQuantity();
+        const unitLabel = document.getElementById('qs-unit-label')?.value || 'ชิ้น';
+        const preview = document.getElementById('qs-stock-preview');
+        if (!preview) return;
+        preview.textContent = quantity.unitsPerBox > 0
+            ? `${quantity.boxes} กล่อง ${quantity.looseUnits} ${unitLabel} = รวม ${quantity.total} ${unitLabel}`
+            : `รวม ${quantity.looseUnits} ${unitLabel}`;
+    },
+
+    saveQuickStockProduct: async (event) => {
+        event.preventDefault();
+        const barcode = document.getElementById('qs-barcode').value.trim();
+        const name = document.getElementById('qs-name').value.trim();
+        const price = Number(document.getElementById('qs-price').value);
+        if (!barcode || !name || !Number.isFinite(price) || price <= 0) {
+            await App.alert('กรุณาระบุชื่อสินค้าและราคาขายให้ถูกต้อง');
+            return;
+        }
+        if (DB.getProductByBarcode(barcode)) {
+            await App.alert('บาร์โค้ดนี้มีสินค้าอยู่แล้ว');
+            return;
+        }
+
+        const quantity = App.getQuickStockQuantity();
+        if (quantity.boxes > 0 && quantity.unitsPerBox < 1) {
+            await App.alert('กรุณาระบุว่า 1 กล่องมีกี่ชิ้นหรือกี่ขวด');
+            return;
+        }
+        const unitLabel = document.getElementById('qs-unit-label').value || 'ชิ้น';
+        let image = null;
+        const imageFile = document.getElementById('qs-image').files[0];
+        if (imageFile) {
+            const rawImage = await Utils.fileToBase64(imageFile);
+            image = await Utils.compressImage(rawImage, 200, 0.5);
+        }
+
+        const product = {
+            id: barcode,
+            barcode,
+            group: document.getElementById('qs-group').value.trim(),
+            name,
+            price,
+            stock: quantity.total,
+            unitsPerBox: quantity.unitsPerBox > 1 ? quantity.unitsPerBox : 0,
+            unitLabel,
+            image,
+            cost: 0,
+            entryDate: new Date().toISOString().split('T')[0],
+            updatedAt: Date.now()
+        };
+        await DB.saveProduct(product);
+        App.state.products = DB.getProducts();
+        document.getElementById('quick-stock-overlay')?.remove();
+        App.renderView('stock');
+        await App.alert(`บันทึกสินค้าเรียบร้อย\n${App.formatStockBreakdown(product)}`);
     },
 
     // --- Manual Entry ---
