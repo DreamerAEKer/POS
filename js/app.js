@@ -914,7 +914,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.9 (30/07/2026)', // Clear mobile scan-to-cart feedback
+    VERSION: '0.99.10 (30/07/2026)', // iOS-inspired scan feedback motion
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -2958,7 +2958,7 @@ const App = {
     openCameraScanner: async () => {
         const overlay = document.getElementById('camera-scanner-overlay');
         overlay.classList.remove('hidden');
-        App.hideCameraScanResult();
+        App.hideCameraScanResult(true);
         App.state.cameraScanner.active = true;
         await App.startCameraScanner();
     },
@@ -3061,12 +3061,20 @@ const App = {
         } catch (_) {}
     },
 
-    hideCameraScanResult: () => {
+    hideCameraScanResult: (immediate = false) => {
         const result = document.getElementById('camera-scan-result');
         if (!result) return;
         clearTimeout(App.state.cameraScanner.resultTimer);
-        result.className = 'camera-scan-result';
-        result.innerHTML = '';
+        clearTimeout(App.state.cameraScanner.resultCleanupTimer);
+        const cleanup = () => {
+            result.className = 'camera-scan-result';
+            result.innerHTML = '';
+        };
+        if (immediate || !result.classList.contains('visible')) cleanup();
+        else {
+            result.classList.add('leaving');
+            App.state.cameraScanner.resultCleanupTimer = setTimeout(cleanup, 220);
+        }
     },
 
     showCameraScanResult: (product, barcode, options = {}) => {
@@ -3088,7 +3096,7 @@ const App = {
             <div class="camera-scan-result-image">${imageHtml}</div>
             <div class="camera-scan-result-body">
                 <div class="camera-scan-result-state">
-                    <span class="material-symbols-rounded">${addedToCart ? 'check_circle' : 'visibility'}</span>
+                    <span class="camera-scan-result-check material-symbols-rounded">${addedToCart ? 'check_circle' : 'visibility'}</span>
                     ${addedToCart ? `เพิ่มเข้าบิลแล้ว +${addedQty}` : 'พบสินค้าในระบบ'}
                 </div>
                 <div class="camera-scan-result-name">${Utils.escapeHTML(product.name)}</div>
@@ -3102,7 +3110,13 @@ const App = {
                 </div>
             </div>`;
         result.className = 'camera-scan-result visible success';
-        App.state.cameraScanner.resultTimer = setTimeout(App.hideCameraScanResult, 2600);
+        const stage = document.querySelector('.camera-scanner-stage');
+        if (stage) {
+            stage.classList.remove('scan-success');
+            requestAnimationFrame(() => stage.classList.add('scan-success'));
+            setTimeout(() => stage.classList.remove('scan-success'), 620);
+        }
+        App.state.cameraScanner.resultTimer = setTimeout(() => App.hideCameraScanResult(false), 2600);
     },
 
     toggleCameraTorch: async () => {
