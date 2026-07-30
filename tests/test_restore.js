@@ -1,64 +1,64 @@
-const fs = require('fs');
-const path = require('path');
+const assert = require('node:assert/strict');
 
-// 1. Mock LocalStorage
-const store = {};
+const syncStore = new Map();
 global.localStorage = {
-    getItem: (key) => store[key] || null,
-    setItem: (key, val) => store[key] = val,
-    clear: () => { for (const k in store) delete store[k]; }
+    get length() { return syncStore.size; },
+    key: index => Array.from(syncStore.keys())[index] ?? null,
+    getItem: key => syncStore.has(key) ? syncStore.get(key) : null,
+    setItem: (key, value) => syncStore.set(key, String(value)),
+    removeItem: key => syncStore.delete(key),
+    clear: () => syncStore.clear()
 };
 
-// 2. Mock Utils
-global.Utils = {
-    generateId: () => 'mock-id-' + Math.random().toString(36).substr(2, 9)
+const asyncStore = new Map();
+global.localforage = {
+    getItem: async key => asyncStore.has(key) ? structuredClone(asyncStore.get(key)) : null,
+    setItem: async (key, value) => { asyncStore.set(key, structuredClone(value)); return value; },
+    removeItem: async key => asyncStore.delete(key)
 };
+global.Utils = { generateId: () => 'mock-id' };
 
-// 3. Load DB Code
-const dbPath = path.join(__dirname, '../js/db.js');
-const dbCode = fs.readFileSync(dbPath, 'utf8');
+const DB = require('../js/db.js');
 
-// Execute DB code (creates global 'DB' object)
-eval(dbCode);
+async function reset() {
+    syncStore.clear();
+    asyncStore.clear();
+    Object.keys(DB.cache).forEach(key => { DB.cache[key] = null; });
+}
 
-// 4. Test Script
 (async () => {
-    console.log('\n--- STARTING BACKUP/RESTORE TEST ---\n');
+    console.log('Starting database safety tests...');
+    await reset();
+    await DB.init();
+    assert.ok(DB.getProducts().length > 0, 'new database should receive starter products');
 
-    // A. SETUP: Set Store Name
-    const mySettings = { storeName: 'KOKOJOY', pin: '1234' };
-    DB.saveSettings(mySettings);
-    console.log('1. [SETUP] Current Settings:', DB.getSettings());
+    await DB.saveProducts([]);
+    Object.keys(DB.cache).forEach(key => { DB.cache[key] = null; });
+    await DB.init();
+    assert.equal(DB.getProducts().length, 0, 'an intentionally empty catalog must remain empty');
 
-    // B. EXPORT
-    console.log('2. [ACTION] Exporting Data...');
-    const jsonBackup = DB.exportData();
-    const parsedBackup = JSON.parse(jsonBackup);
+    await DB.saveSettings({ storeName: 'KOKOJOY', pin: '1234' });
+    const backup = DB.exportData();
+    await DB.saveSettings({ storeName: 'CHANGED' });
+    const restored = await DB.importData(backup);
+    assert.equal(restored.success, true);
+    assert.equal(DB.getSettings().storeName, 'KOKOJOY');
 
-    if (parsedBackup.settings && parsedBackup.settings.storeName === 'KOKOJOY') {
-        console.log('   ✅ PASS: Backup contains settings (Store Name: KOKOJOY)');
-    } else {
-        console.error('   ❌ FAIL: Backup missing settings!');
-        process.exit(1);
-    }
+    const invalidBackup = JSON.stringify({ products: [
+        { id: 'bad-1', barcode: 'bad', name: 'Bad stock', price: 10, stock: -1 }
+    ] });
+    const rejected = await DB.importData(invalidBackup);
+    assert.equal(rejected.success, false, 'negative stock must be rejected before import');
 
-    // C. WIPEOUT
-    console.log('3. [ACTION] Wiping Data (Simulating new device)...');
-    localStorage.clear();
-    console.log('   Current Settings (should be default):', DB.getSettings());
+    await DB.saveProducts([{ id: 'p1', barcode: '1', name: 'Test', price: 10, stock: 5 }]);
+    await DB.saveToLocalStorage(DB.KEYS.SALES, []);
+    const sale = await DB.commitSale({ date: new Date(), items: [{ id: 'p1', qty: 2, price: 10 }], total: 20 }, [{ id: 'p1', qty: 2 }]);
+    assert.ok(sale.billId);
+    assert.equal(DB.getProducts()[0].stock, 3);
+    assert.equal(DB.getSales().length, 1);
 
-    // D. RESTORE
-    console.log('4. [ACTION] Restoring Data...');
-    const result = await DB.importData(jsonBackup);
-    console.log('   Restore Result:', result);
-
-    // E. VERIFY
-    const restoredSettings = DB.getSettings();
-    console.log('5. [VERIFY] Restored Settings:', restoredSettings);
-
-    if (restoredSettings.storeName === 'KOKOJOY') {
-        console.log('\n✅ TEST PASSED: Store Name was successfully restored!');
-    } else {
-        console.log('\n❌ TEST FAILED: Store Name mismatch.');
-    }
-})();
+    console.log('PASS: backup, empty catalog, and atomic checkout behavior');
+})().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+});

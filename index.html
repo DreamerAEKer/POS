@@ -19,9 +19,10 @@
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,1,0" />
 
-    <link rel="stylesheet" href="css/variables.css?v=0.92.1">
-    <link rel="stylesheet" href="css/styles.css?v=0.92.1">
-    <link rel="stylesheet" href="css/print.css?v=0.92.1">
+    <link rel="stylesheet" href="css/variables.css?v=0.99.0">
+    <link rel="stylesheet" href="css/styles.css?v=0.99.0">
+    <link rel="stylesheet" href="css/print.css?v=0.99.0">
+    <script defer src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 </head>
 
 <body>
@@ -203,6 +204,33 @@
     <!-- Hidden Receipt for Printing -->
     <div id="receipt-print-area"></div>
 
+    <!-- Camera scanner integrated with the main POS cart/database -->
+    <div id="camera-scanner-overlay" class="camera-scanner-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="camera-scanner-title">
+        <section class="camera-scanner-panel">
+            <header class="camera-scanner-header">
+                <h2 id="camera-scanner-title"><span class="material-symbols-rounded">qr_code_scanner</span> สแกนสินค้า</h2>
+                <div class="camera-scanner-actions">
+                    <button type="button" id="btn-camera-switch" class="icon-btn" title="สลับกล้อง"><span class="material-symbols-rounded">flip_camera_ios</span></button>
+                    <button type="button" id="btn-camera-torch" class="icon-btn" title="ไฟฉาย"><span class="material-symbols-rounded">flashlight_on</span></button>
+                    <button type="button" id="btn-camera-close" class="icon-btn" title="ปิด"><span class="material-symbols-rounded">close</span></button>
+                </div>
+            </header>
+            <div class="camera-scanner-stage">
+                <video id="camera-scanner-video" autoplay muted playsinline></video>
+                <div class="camera-scanner-frame"><i></i></div>
+                <div id="camera-scanner-empty" class="camera-scanner-empty hidden">
+                    <span class="material-symbols-rounded">no_photography</span>
+                    <p>เปิดกล้องไม่ได้ กรุณาอนุญาตใช้กล้อง<br>หรือกรอกบาร์โค้ดด้านล่าง</p>
+                </div>
+            </div>
+            <p id="camera-scanner-status" class="camera-scanner-status" aria-live="polite">กำลังเริ่มกล้อง...</p>
+            <form id="camera-scanner-form" class="camera-scanner-manual">
+                <input id="camera-scanner-input" type="text" inputmode="numeric" autocomplete="off" placeholder="พิมพ์บาร์โค้ด แล้วกด Enter">
+                <button class="primary-btn" type="submit">ค้นหา</button>
+            </form>
+        </section>
+    </div>
+
 
 
     <!-- Mobile Bottom Navigation (Dedicated Structure) -->
@@ -251,9 +279,9 @@
 
     <!-- Scripts (Order matters for file:// compatibility without modules) -->
     <script src="js/localforage.min.js"></script>
-    <script src="js/utils.js?v=0.92.1"></script>
-    <script src="js/db.js?v=0.92.1"></script>
-    <script src="js/app.js?v=0.92.1"></script>
+    <script src="js/utils.js?v=0.99.0"></script>
+    <script src="js/db.js?v=0.99.0"></script>
+    <script src="js/app.js?v=0.99.0"></script>
 </body>
 
 </html>

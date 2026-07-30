@@ -974,6 +974,22 @@ button {
     }
 }
 
+/* Integrated camera scanner */
+.camera-scanner-overlay{position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+.camera-scanner-overlay.hidden{display:none}
+.camera-scanner-panel{width:min(520px,100%);background:#111827;color:#fff;border-radius:18px;overflow:hidden;box-shadow:0 20px 70px rgba(0,0,0,.5)}
+.camera-scanner-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#1f2937}
+.camera-scanner-header h2{font-size:18px;margin:0;display:flex;align-items:center;gap:8px}
+.camera-scanner-actions{display:flex;gap:6px}.camera-scanner-actions .icon-btn{color:#fff;background:rgba(255,255,255,.1)}
+.camera-scanner-stage{position:relative;height:min(55vh,390px);background:#000;overflow:hidden}
+#camera-scanner-video{width:100%;height:100%;object-fit:cover}
+.camera-scanner-frame{position:absolute;inset:50% auto auto 50%;width:76%;height:120px;transform:translate(-50%,-50%);border:3px solid #22c55e;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.42)}
+.camera-scanner-frame i{position:absolute;left:8px;right:8px;top:50%;height:2px;background:#22c55e;box-shadow:0 0 12px #22c55e}
+.camera-scanner-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#d1d5db;background:#111827}.camera-scanner-empty.hidden{display:none}.camera-scanner-empty .material-symbols-rounded{font-size:52px}
+.camera-scanner-status{margin:0;padding:8px 14px;text-align:center;background:#1f2937;color:#d1d5db}.camera-scanner-status.ok{color:#4ade80}.camera-scanner-status.error{color:#fca5a5}
+.camera-scanner-manual{display:flex;gap:8px;padding:12px;background:#111827}.camera-scanner-manual input{flex:1;min-width:0;padding:11px;border:1px solid #4b5563;border-radius:8px;font-size:16px}
+@media(max-width:600px){.camera-scanner-overlay{padding:0}.camera-scanner-panel{height:100dvh;border-radius:0;display:flex;flex-direction:column}.camera-scanner-stage{flex:1;height:auto}}
+
 /* --- On-Screen Keypad --- */
 .numpad-btn {
     background: white;

@@ -4,6 +4,10 @@
  */
 
 const Utils = {
+    escapeHTML: (value) => String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    })[character]),
+
     // Format number to Thai Currency (e.g. 1,234.00)
     formatCurrency: (amount) => {
         return new Intl.NumberFormat('th-TH', {

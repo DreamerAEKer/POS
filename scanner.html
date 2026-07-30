@@ -161,10 +161,10 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
 .btn-save:active{transform:scale(.97)}
 
 /* ══ CONFIRM DIALOG ══ */
-#confirm-dialog{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .25s;padding:20px}
-#confirm-dialog.open{opacity:1;pointer-events:auto}
-#confirm-box{background:var(--s2);border-radius:var(--rl);padding:24px;width:100%;max-width:320px;border:1px solid var(--br2);transform:scale(.92);transition:transform .25s}
-#confirm-dialog.open #confirm-box{transform:scale(1)}
+#confirm-dialog, #prompt-dialog{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .25s;padding:20px}
+#confirm-dialog.open, #prompt-dialog.open{opacity:1;pointer-events:auto}
+#confirm-box, #prompt-box{background:var(--s2);border-radius:var(--rl);padding:24px;width:100%;max-width:320px;border:1px solid var(--br2);transform:scale(.92);transition:transform .25s}
+#confirm-dialog.open #confirm-box, #prompt-dialog.open #prompt-box{transform:scale(1)}
 #confirm-icon{font-size:42px;text-align:center;margin-bottom:10px}
 #confirm-title{font-size:17px;font-weight:800;text-align:center;margin-bottom:6px}
 #confirm-msg{font-size:14px;color:var(--td);text-align:center;margin-bottom:18px;line-height:1.5}
@@ -555,6 +555,19 @@ html,body{height:100%;font-family:var(--f);background:var(--bg);color:var(--t);o
   </div>
 </div>
 
+<!-- ══════ PROMPT DIALOG ══════ -->
+<div id="prompt-dialog">
+  <div id="prompt-box">
+    <div id="prompt-title" style="font-size:17px;font-weight:800;text-align:center;margin-bottom:6px;">แก้ไขราคา</div>
+    <div id="prompt-msg" style="font-size:14px;color:var(--td);text-align:center;margin-bottom:18px;line-height:1.5;white-space:pre-wrap;"></div>
+    <input type="number" id="prompt-input" class="form-input" style="text-align:center;font-size:18px;font-weight:bold;margin-bottom:16px;" placeholder="ระบุราคา">
+    <div id="confirm-btns">
+      <button class="cdlg-btn no" id="prompt-cancel">ยกเลิก</button>
+      <button class="cdlg-btn yes" id="prompt-ok">ตกลง</button>
+    </div>
+  </div>
+</div>
+
 <!-- Hidden areas -->
 <div id="receipt-print-area"></div>
 <div id="receipt-img-area"></div>
@@ -638,6 +651,11 @@ const App = (() => {
     aqsCancel:$('aqs-cancel'), aqsSave:$('aqs-save'),
     // Confirm
     confirmDlg:$('confirm-dialog'), confirmIcon:$('confirm-icon'),
+    confirmTitle:$('confirm-title'), confirmMsg:$('confirm-msg'),
+    cdlgYes:$('cdlg-yes'), cdlgNo:$('cdlg-no'),
+    promptDlg:$('prompt-dialog'), promptTitle:$('prompt-title'),
+    promptMsg:$('prompt-msg'), promptInp:$('prompt-input'),
+    promptCancel:$('prompt-cancel'), promptOk:$('prompt-ok'),
     confirmTitle:$('confirm-title'), confirmMsg:$('confirm-msg'),
     cdlgNo:$('cdlg-no'), cdlgYes:$('cdlg-yes'),
     // Options menu
@@ -874,38 +892,35 @@ const App = (() => {
     
     el.btnEditScannedPrice.onclick = async () => {
       clearCD(); // Pause countdown
-      let newPriceStr = prompt(`แก้ไขราคาสำหรับ "${product.name}"\n\nราคาปัจจุบัน: ${fmt(price)} บาท\nโปรดระบุราคาใหม่ (มีผลเฉพาะบิลนี้ เว้นแต่แอดมินจะอนุมัติ):`, price);
-      if (newPriceStr !== null) {
-        let newPrice = parseFloat(newPriceStr);
-        if (!isNaN(newPrice) && newPrice >= 0) {
-          product.price = newPrice;
-          
-          if (typeof DB !== 'undefined' && DB.userRole === 'admin') {
-             // Admin saves directly
-             if (typeof dbFirestore !== 'undefined' && dbFirestore && auth && auth.currentUser) {
-               dbFirestore.collection('products').doc(product.id.toString()).set(product).catch(err => console.error("Firebase sync error:", err));
-             }
-             await localforage.setItem('store_products', S.products);
-             showToast('อัปเดตราคาในฐานข้อมูลแล้ว', 'success');
-          } else {
-             // Staff gets temporary discount + sends approval
-             if (typeof DB !== 'undefined' && DB.addPendingApproval) {
-                 DB.addPendingApproval('EDIT_PRICE', {
-                     id: product.id,
-                     name: product.name,
-                     oldPrice: price,
-                     newPrice: newPrice
-                 });
-                 showToast('ส่งคำขอแก้ไขสต็อกให้เจ้าของร้านแล้ว (บิลนี้ใช้ราคาใหม่ได้เลย)', 'info');
-             }
-             // Staff does NOT update master stock, so we don't save to store_products here.
+      showPrompt(`แก้ไขราคาสำหรับ "${product.name}"`, `ราคาปัจจุบัน: ${fmt(price)} บาท\nโปรดระบุราคาใหม่ (มีผลเฉพาะบิลนี้ เว้นแต่แอดมินจะอนุมัติ):`, price, async (newPriceStr) => {
+        if (newPriceStr !== null && newPriceStr !== '') {
+          let newPrice = parseFloat(newPriceStr);
+          if (!isNaN(newPrice) && newPrice >= 0) {
+            product.price = newPrice;
+
+            if (typeof DB !== 'undefined' && DB.userRole === 'admin') {
+              if (typeof dbFirestore !== 'undefined' && dbFirestore && auth && auth.currentUser) {
+                await dbFirestore.collection('products').doc(product.id.toString()).set(product);
+              }
+              await localforage.setItem('store_products', S.products);
+              showToast('อัปเดตราคาในฐานข้อมูลแล้ว', 'success');
+            } else if (typeof DB !== 'undefined' && DB.addPendingApproval) {
+              await DB.addPendingApproval('EDIT_PRICE', {
+                id: product.id,
+                name: product.name,
+                oldPrice: price,
+                newPrice: newPrice
+              });
+              showToast('ส่งคำขอแก้ไขราคาให้เจ้าของร้านแล้ว (บิลนี้ใช้ราคาใหม่ได้เลย)', 'info');
+            }
+
+            el.popPriceVal.textContent=fmt(newPrice);
+            startCD(2,()=>{ addToCart(product,newPrice,isPack); hidePopup(); });
+            return;
           }
-          
-          price = newPrice;
-          el.popPriceVal.textContent=fmt(price);
         }
-      }
-      startCD(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
+        startCD(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
+      });
     };
 
     startCD(2,()=>{ addToCart(product,price,isPack); hidePopup(); });
@@ -1583,23 +1598,24 @@ const App = (() => {
     let dbProduct = S.products.find(p=>p.id===id || (p.id+'_pack')===id);
     let quickItem = S.quickItems.find(p=>p.id===id);
     
-    let newPriceStr = prompt(`แก้ไขราคาสำหรับ "${item.name}"\n\nราคาปัจจุบัน: ${fmt(item.price)} บาท\nโปรดระบุราคาใหม่ (แก้ไขถาวร):`, item.price);
-    if(newPriceStr!==null){
-      let newPrice = parseFloat(newPriceStr);
-      if(!isNaN(newPrice) && newPrice>=0){
-        item.price = newPrice;
-        if(dbProduct){
-          dbProduct.price = newPrice;
-          await localforage.setItem('store_products', S.products);
+    showPrompt(`แก้ไขราคาสำหรับ "${item.name}"`, `ราคาปัจจุบัน: ${fmt(item.price)} บาท\nโปรดระบุราคาใหม่ (แก้ไขถาวร):`, item.price, async (newPriceStr) => {
+      if(newPriceStr!==null && newPriceStr!==''){
+        let newPrice = parseFloat(newPriceStr);
+        if(!isNaN(newPrice) && newPrice>=0){
+          item.price = newPrice;
+          if(dbProduct){
+            dbProduct.price = newPrice;
+            await localforage.setItem('store_products', S.products);
+          }
+          if(quickItem){
+            quickItem.price = newPrice;
+            await localforage.setItem('scanner_quick_items', S.quickItems);
+          }
+          renderCart();
+          showToast('อัปเดตราคาในฐานข้อมูลแล้ว', 'success');
         }
-        if(quickItem){
-          quickItem.price = newPrice;
-          await localforage.setItem('scanner_quick_items', S.quickItems);
-        }
-        renderCart();
-        showToast('อัปเดตราคาในฐานข้อมูลแล้ว', 'success');
       }
-    }
+    });
   }
   function clearCart(){
     if(!S.cart.length) return;
@@ -1649,6 +1665,18 @@ const App = (() => {
     el.confirmDlg.classList.add('open');
   }
   function closeConfirm(){ el.confirmDlg.classList.remove('open'); confirmYesCb=null; }
+
+  /* ─── Prompt Dialog ─── */
+  let promptYesCb=null;
+  function showPrompt(title,msg,defVal,onYes){
+    el.promptTitle.textContent=title;
+    el.promptMsg.textContent=msg;
+    el.promptInp.value=defVal||'';
+    promptYesCb=onYes;
+    el.promptDlg.classList.add('open');
+    setTimeout(()=>el.promptInp.focus(), 100);
+  }
+  function closePrompt(){ el.promptDlg.classList.remove('open'); promptYesCb=null; }
 
   /* ─── Receipt Builder ─── */
   function buildReceiptHtml(){
@@ -1920,6 +1948,19 @@ const App = (() => {
     el.cdlgYes.addEventListener('click',()=>{ if(confirmYesCb) confirmYesCb(); closeConfirm(); });
     el.confirmDlg.addEventListener('click',(e)=>{
       if(e.target===el.confirmDlg) closeConfirm();
+    });
+
+    // Prompt dialog
+    el.promptCancel.addEventListener('click',closePrompt);
+    el.promptOk.addEventListener('click',()=>{ if(promptYesCb) promptYesCb(el.promptInp.value); closePrompt(); });
+    el.promptDlg.addEventListener('click',(e)=>{
+      if(e.target===el.promptDlg) closePrompt();
+    });
+    el.promptInp.addEventListener('keydown', e => {
+      if(e.key==='Enter'){
+        if(promptYesCb) promptYesCb(el.promptInp.value);
+        closePrompt();
+      }
     });
 
     // Cart controls

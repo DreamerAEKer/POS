@@ -33,6 +33,7 @@ try {
 }
 
 const DB = {
+    STOCK_COLLECTION: 'stock',
     cache: {
         store_products: null,
         store_parked_carts: null,
@@ -69,8 +70,9 @@ const DB = {
     // New: Helper for safe saving with Quota Check
     saveToLocalStorage: (key, data) => {
         DB.cache[key] = data;
-        localforage.setItem(key, data).catch(e => console.error("Save error:", e));
-        return true;
+        const p = localforage.setItem(key, data);
+        p.catch(e => console.error("Save error:", e));
+        return p;
     },
 
     // --- Firebase Auth ---
@@ -129,7 +131,9 @@ const DB = {
             DB.cache[key] = await localforage.getItem(key);
         }
 
-        if (!DB.cache[DB.KEYS.PRODUCTS] || DB.cache[DB.KEYS.PRODUCTS].length === 0) {
+        // Seed demo data only on a genuinely new database. An intentionally empty
+        // product list must stay empty after the next reload.
+        if (DB.cache[DB.KEYS.PRODUCTS] === null) {
             const mockProducts = [
                 {
                     id: '8850987123456', // Mock Barcode
@@ -309,23 +313,33 @@ const DB = {
     },
 
     // --- Products ---
-    syncProductsFromFirebase: async () => {
-        if (!dbFirestore) return;
+    syncStocksFromFirebase: async () => {
+        if (!dbFirestore || !DB.currentUser) return { synced: 0, available: false };
         try {
-            const snapshot = await dbFirestore.collection('products').get();
-            const products = [];
+            const snapshot = await dbFirestore.collection(DB.STOCK_COLLECTION).get();
+            if (snapshot.empty) return { synced: 0, available: false };
+
+            const products = DB.getProducts().map(product => ({ ...product }));
+            const productsById = new Map(products.map(product => [String(product.id), product]));
+            let synced = 0;
             snapshot.forEach(doc => {
-                products.push({ id: doc.id, ...doc.data() });
+                const product = productsById.get(String(doc.id));
+                const stock = Number(doc.data().stock);
+                if (product && Number.isFinite(stock)) {
+                    product.stock = stock;
+                    synced++;
+                }
             });
-            if (products.length > 0) {
-                DB.saveProducts(products);
-                // Automatically update App state if loaded
+            if (synced > 0) {
+                await DB.saveProducts(products);
                 if (typeof App !== 'undefined' && App.state) {
                     App.state.products = products;
                 }
             }
+            return { synced, available: true };
         } catch (e) {
-            console.error("Error syncing products from Firebase:", e);
+            console.error("Error syncing stock from Firebase:", e);
+            return { synced: 0, available: false, error: e };
         }
     },
 
@@ -343,10 +357,16 @@ const DB = {
             products.push(product);
         }
 
-        // --- FIREBASE AUTO-SYNC ---
+        // Only the numeric stock level is shared through Firebase. Product
+        // names, prices, images and other catalog fields stay on this device.
         if (typeof dbFirestore !== 'undefined' && dbFirestore && DB.currentUser) {
-            dbFirestore.collection('products').doc(product.id.toString()).set(product)
-                .catch(err => console.error("Firebase sync error:", err));
+            const stock = Number(product.stock);
+            if (Number.isFinite(stock)) {
+                dbFirestore.collection(DB.STOCK_COLLECTION).doc(product.id.toString()).set({
+                    stock,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true }).catch(err => console.error("Firebase stock sync error:", err));
+            }
         }
 
         return DB.saveToLocalStorage(DB.KEYS.PRODUCTS, products);
@@ -389,12 +409,8 @@ const DB = {
         let products = DB.getProducts();
         products = products.filter(p => p.id !== id);
 
-        // --- FIREBASE AUTO-SYNC ---
-        if (typeof dbFirestore !== 'undefined' && dbFirestore && DB.currentUser) {
-            dbFirestore.collection('products').doc(id.toString()).delete()
-                .catch(err => console.error("Firebase sync error:", err));
-        }
-
+        // Keep the cloud stock record as a recovery trail. It can be cleaned
+        // up explicitly by an administrator after catalog deletion is verified.
         DB.saveToLocalStorage(DB.KEYS.PRODUCTS, products);
     },
 
@@ -592,8 +608,7 @@ const DB = {
                 // UPDATE existing sale
                 // Merge but preserve original date if not provided
                 sales[existingIndex] = { ...sales[existingIndex], ...saleData };
-                DB.saveToLocalStorage(DB.KEYS.SALES, sales);
-                return;
+                return DB.saveToLocalStorage(DB.KEYS.SALES, sales);
             }
         } else {
             saleData.billId = DB.generateBillId();
@@ -602,7 +617,84 @@ const DB = {
         // Snapshot Store Name for Historical Integrity
         saleData.storeName = DB.getSettings().storeName;
         sales.push(saleData);
-        DB.saveToLocalStorage(DB.KEYS.SALES, sales);
+        return DB.saveToLocalStorage(DB.KEYS.SALES, sales);
+    },
+
+    // Persist stock and sale before the UI clears the cart. When signed in,
+    // stock changes are committed to Firestore with an idempotent operation
+    // record so a retried checkout cannot deduct stock twice.
+    commitSale: async (saleData, cartItems) => {
+        const originalProducts = DB.getProducts();
+        const nextProducts = originalProducts.map(product => ({ ...product }));
+        for (const item of cartItems) {
+            const productId = item.parentId && item.packSize ? item.parentId : item.id;
+            const quantity = item.parentId && item.packSize ? item.qty * item.packSize : item.qty;
+            const product = nextProducts.find(candidate => candidate.id === productId);
+            if (product) product.stock -= quantity;
+        }
+
+        const originalSales = DB.safeGet(DB.KEYS.SALES, []);
+        const nextSales = originalSales.map(sale => ({ ...sale }));
+        const committedSale = { ...saleData };
+        if (!committedSale.billId) committedSale.billId = DB.generateBillId();
+        committedSale.storeName = committedSale.storeName || DB.getSettings().storeName;
+        const existingIndex = nextSales.findIndex(sale => sale.billId === committedSale.billId);
+        if (existingIndex >= 0) nextSales[existingIndex] = { ...nextSales[existingIndex], ...committedSale };
+        else nextSales.push(committedSale);
+
+        const stockChanges = new Map();
+        for (const item of cartItems) {
+            const productId = String(item.parentId && item.packSize ? item.parentId : item.id);
+            const multiplier = item.parentId && item.packSize ? item.packSize : 1;
+            const soldQty = item.qty * multiplier;
+            const originalQty = item.originalQty === undefined ? 0 : item.originalQty * multiplier;
+            stockChanges.set(productId, (stockChanges.get(productId) || 0) + soldQty - originalQty);
+        }
+
+        await DB.saveToLocalStorage(DB.KEYS.PRODUCTS, nextProducts);
+        try {
+            await DB.saveToLocalStorage(DB.KEYS.SALES, nextSales);
+
+            if (dbFirestore && DB.currentUser) {
+                const operationRef = dbFirestore.collection('stock_operations').doc(committedSale.billId);
+                const cloudStocks = await dbFirestore.runTransaction(async transaction => {
+                    const operationSnapshot = await transaction.get(operationRef);
+                    if (operationSnapshot.exists) return operationSnapshot.data().stocks || {};
+
+                    const entries = Array.from(stockChanges.entries()).filter(([, change]) => change !== 0);
+                    const snapshots = await Promise.all(entries.map(([productId]) =>
+                        transaction.get(dbFirestore.collection(DB.STOCK_COLLECTION).doc(productId))
+                    ));
+                    const stocks = {};
+                    entries.forEach(([productId, change], index) => {
+                        const snapshot = snapshots[index];
+                        if (!snapshot.exists) throw new Error(`ไม่พบสินค้า ${productId} บน Firebase`);
+                        const currentStock = Number(snapshot.data().stock || 0);
+                        const nextStock = currentStock - change;
+                        stocks[productId] = nextStock;
+                        transaction.update(snapshot.ref, { stock: nextStock, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    });
+                    transaction.set(operationRef, {
+                        billId: committedSale.billId,
+                        stocks,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        createdBy: DB.currentUser.email
+                    });
+                    return stocks;
+                });
+
+                Object.entries(cloudStocks).forEach(([productId, stock]) => {
+                    const localProduct = nextProducts.find(product => String(product.id) === productId);
+                    if (localProduct) localProduct.stock = stock;
+                });
+                await DB.saveToLocalStorage(DB.KEYS.PRODUCTS, nextProducts);
+            }
+        } catch (error) {
+            try { await DB.saveToLocalStorage(DB.KEYS.PRODUCTS, originalProducts); } catch (_) {}
+            try { await DB.saveToLocalStorage(DB.KEYS.SALES, originalSales); } catch (_) { DB.cache[DB.KEYS.SALES] = originalSales; }
+            throw error;
+        }
+        return committedSale;
     },
 
     getSales: () => {
@@ -701,7 +793,10 @@ const DB = {
         }
 
         const data = {
-            settings: DB.getSettings(), // Include Settings
+            settings: (() => {
+                const { pin, ...safeSettings } = DB.getSettings();
+                return safeSettings; // Never place the security PIN in a portable backup.
+            })(),
             products: DB.getProducts(),
             suppliers: DB.getSuppliers(),
             supplierPrices: DB.getSupplierPrices(),
@@ -717,10 +812,35 @@ const DB = {
         return JSON.stringify(data, null, 2);
     },
 
+    validateImportData: (data) => {
+        if (!data || !Array.isArray(data.products)) throw new Error('Backup must contain a products array');
+        if (data.products.length > 10000) throw new Error('Backup contains too many products');
+
+        const ids = new Set();
+        const barcodes = new Set();
+        data.products.forEach((product, index) => {
+            if (!product || typeof product !== 'object') throw new Error(`Invalid product at row ${index + 1}`);
+            const id = String(product.id || '').trim();
+            const name = String(product.name || '').trim();
+            const barcode = String(product.barcode || '').trim();
+            const stock = Number(product.stock);
+            const price = Number(product.price);
+            if (!id || !name || !barcode) throw new Error(`Missing required product data at row ${index + 1}`);
+            if (!Number.isFinite(stock) || stock < 0) throw new Error(`Invalid stock for barcode ${barcode}`);
+            if (!Number.isFinite(price) || price < 0) throw new Error(`Invalid price for barcode ${barcode}`);
+            if (ids.has(id)) throw new Error(`Duplicate product ID ${id}`);
+            if (barcodes.has(barcode)) throw new Error(`Duplicate barcode ${barcode}`);
+            ids.add(id);
+            barcodes.add(barcode);
+        });
+        return true;
+    },
+
     importData: async (jsonString) => {
         try {
             const data = JSON.parse(jsonString);
-            if (!data.products) throw new Error('Invalid Data');
+            DB.validateImportData(data);
+            await localforage.setItem('store_pre_import_recovery', JSON.parse(DB.exportData()));
             
             // --- Helper: Smart Merge Array of Objects by ID ---
             const mergeById = (existingArr, importedArr) => {
@@ -742,13 +862,13 @@ const DB = {
             // 1. Merge Settings
             if (data.settings) {
                 const cur = DB.getSettings() || {};
-                DB.saveToLocalStorage(DB.KEYS.SETTINGS, { ...cur, ...data.settings });
+                await DB.saveToLocalStorage(DB.KEYS.SETTINGS, { ...cur, ...data.settings });
             }
             
             // 2. Merge Group Images
             if (data.groupImages) {
                 const cur = DB.getGroupImages() || {};
-                DB.saveToLocalStorage(DB.KEYS.GROUP_IMAGES, { ...cur, ...data.groupImages });
+                await DB.saveToLocalStorage(DB.KEYS.GROUP_IMAGES, { ...cur, ...data.groupImages });
             }
             
             // 3. Merge Counters (Keep highest value to prevent ID conflicts)
@@ -762,24 +882,24 @@ const DB = {
             
             // 4. Merge Arrays
             const curProducts = DB.getProducts() || [];
-            DB.saveToLocalStorage(DB.KEYS.PRODUCTS, mergeById(curProducts, data.products));
+            await DB.saveToLocalStorage(DB.KEYS.PRODUCTS, mergeById(curProducts, data.products));
             
             const curSuppliers = DB.getSuppliers() || [];
-            DB.saveToLocalStorage(DB.KEYS.SUPPLIERS, mergeById(curSuppliers, data.suppliers));
+            await DB.saveToLocalStorage(DB.KEYS.SUPPLIERS, mergeById(curSuppliers, data.suppliers));
             
             const curSupplierPrices = DB.safeGet(DB.KEYS.SUPPLIER_PRICES, []) || [];
             if (data.supplierPrices) {
                 const spMap = new Map();
                 curSupplierPrices.forEach(sp => spMap.set(`${sp.productId}_${sp.supplierId}`, sp));
                 data.supplierPrices.forEach(sp => spMap.set(`${sp.productId}_${sp.supplierId}`, sp));
-                DB.saveToLocalStorage(DB.KEYS.SUPPLIER_PRICES, Array.from(spMap.values()));
+                await DB.saveToLocalStorage(DB.KEYS.SUPPLIER_PRICES, Array.from(spMap.values()));
             }
 
             const curParkedCarts = DB.getParkedCarts() || [];
-            DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, mergeById(curParkedCarts, data.parkedCarts));
+            await DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, mergeById(curParkedCarts, data.parkedCarts));
             
             const curSales = DB.safeGet(DB.KEYS.SALES, []) || [];
-            DB.saveToLocalStorage(DB.KEYS.SALES, mergeById(curSales, data.sales));
+            await DB.saveToLocalStorage(DB.KEYS.SALES, mergeById(curSales, data.sales));
 
             return { success: true };
         } catch (e) {
@@ -788,3 +908,5 @@ const DB = {
         }
     }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = DB;

@@ -17,7 +17,8 @@ const App = {
         salesReport: {
             startDate: new Date().toISOString().split('T')[0], // Default Today
             endDate: new Date().toISOString().split('T')[0]
-        }
+        },
+        cameraScanner: { stream: null, detector: null, reader: null, active: false, detecting: false, facingEnvironment: true, torchOn: false, lastCode: null, lastAt: 0 }
     },
 
     elements: {
@@ -36,7 +37,7 @@ const App = {
             await DB.init();
 
             // Firebase Auth Setup
-            DB.onAuthStateChanged((user) => {
+            DB.onAuthStateChanged(async (user) => {
                 const overlay = document.getElementById('modal-overlay');
                 const loginModal = document.getElementById('login-modal');
                 if (user) {
@@ -74,7 +75,9 @@ const App = {
                     
                     // Optional: Update User display in main app if we add it later
                     
-                    App.renderView(App.state.currentView); // Refresh view based on role
+                    await DB.syncStocksFromFirebase();
+                    App.state.products = DB.getProducts();
+                    App.renderView(App.state.currentView); // Refresh view based on role and cloud stock
                 } else {
                     console.log("User logged out");
                     if (overlay && loginModal) {
@@ -118,6 +121,7 @@ const App = {
             App.setupNavigation();
             App.setupGlobalInput();
             App.setupCartActions();
+            App.setupCameraScanner();
 
             // Initial Render
             App.renderView('pos');
@@ -845,7 +849,7 @@ const App = {
                 <table style="width:100%;">
                     ${sale.items.map(item => `
                         <tr>
-                            <td style="padding:5px 0;">${item.name} <span style="font-size:12px; color:#999;">x${item.qty}</span></td>
+                            <td style="padding:5px 0;">${Utils.escapeHTML(item.name)} <span style="font-size:12px; color:#999;">x${item.qty}</span></td>
                             <td style="text-align:right;">${Utils.formatCurrency(App.getLineTotal(item))}</td>
                         </tr>
                     `).join('')}
@@ -909,7 +913,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.98.0 (21/06/2026)', // Update Version
+    VERSION: '0.99.1 (30/07/2026)', // Main scanner + stock-only Firebase sync
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -965,8 +969,9 @@ const App = {
                 <!-- Firebase Sync -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
                     <span class="material-symbols-rounded" style="font-size:48px; color:#f57c00;">cloud_sync</span>
-                    <h3>อัปโหลดข้อมูล</h3>
-                    <button class="primary-btn" style="background:#f57c00; border:none;" onclick="App.uploadProductsToFirebase()">เริ่มอัปโหลดสินค้าไป Firebase</button>
+                    <h3>ซิงก์จำนวนสต็อก</h3>
+                    <p style="color:#666; font-size:14px; margin-bottom:15px;">ส่งเฉพาะจำนวนคงเหลือ ไม่ส่งชื่อ ราคา หรือรูปสินค้า</p>
+                    <button class="primary-btn" style="background:#f57c00; border:none;" onclick="App.uploadProductsToFirebase(event)">ส่งสต็อกไป Firebase</button>
                 </div>
                 <!-- Restore -->
                 <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
@@ -1181,7 +1186,7 @@ const App = {
         a.click();
     },
 
-    uploadProductsToFirebase: async () => {
+    uploadProductsToFirebase: async (event) => {
         if (typeof dbFirestore === 'undefined' || !dbFirestore) {
             App.alert("ไม่พบการตั้งค่า Firebase กรุณาตรวจสอบ db.js");
             return;
@@ -1191,7 +1196,7 @@ const App = {
             App.alert("กรุณาล็อกอินก่อนทำการอัปโหลดข้อมูลครับ");
             return;
         }
-        if (!confirm("ต้องการอัปโหลดข้อมูลสินค้าทั้งหมดในเครื่อง ขึ้นไปเก็บบนคลาวด์ (Firebase) ใช่หรือไม่? (อาจใช้เวลาสักครู่)")) return;
+        if (!confirm("ยืนยันส่งเฉพาะจำนวนสต็อกทั้งหมดจากเครื่องนี้ไป Firebase? ข้อมูลชื่อ ราคา และรูปสินค้าจะไม่ถูกส่ง")) return;
         
         const originalBtnText = event.target.innerText;
         event.target.innerText = 'กำลังอัปโหลด...';
@@ -1201,11 +1206,19 @@ const App = {
             const products = DB.getProducts();
             let count = 0;
             // Batch writes could be faster, but loop is simple and reliable for <500 items
+            const batch = dbFirestore.batch();
             for (const p of products) {
-                await dbFirestore.collection('products').doc(p.id.toString()).set(p);
+                const stock = Number(p.stock);
+                if (!Number.isFinite(stock)) throw new Error(`Invalid stock for product ${p.id}`);
+                const stockRef = dbFirestore.collection(DB.STOCK_COLLECTION).doc(p.id.toString());
+                batch.set(stockRef, {
+                    stock,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
                 count++;
             }
-            App.alert(`อัปโหลดสินค้าจำนวน ${count} รายการ สำเร็จ!`);
+            await batch.commit();
+            App.alert(`ส่งจำนวนสต็อก ${count} รายการไป Firebase สำเร็จ!`);
         } catch (e) {
             console.error(e);
             App.alert("เกิดข้อผิดพลาดในการอัปโหลด: " + e.message);
@@ -1846,7 +1859,7 @@ const App = {
 
             modal.innerHTML = `
                 <h3>แก้ไขหมวดหมู่</h3>
-                <p style="color:#666; margin-bottom:15px;">สินค้า: <strong>${product.name}</strong></p>
+                <p style="color:#666; margin-bottom:15px;">สินค้า: <strong>${Utils.escapeHTML(product.name)}</strong></p>
                 <div style="margin-bottom:15px;">
                     <label style="font-size:12px;">หมวดหมู่ปัจจุบัน</label>
                     <div style="font-size:18px; font-weight:bold;">${product.group || 'ไม่มีหมวดหมู่'}</div>
@@ -2020,7 +2033,7 @@ const App = {
 
             return `
                         <tr style="border-bottom:1px solid #eee;">
-                            <td style="padding:10px;">${product.name}</td>
+                            <td style="padding:10px;">${Utils.escapeHTML(product.name)}</td>
                             <td style="padding:10px;">${Utils.formatCurrency(product.price)}</td>
                             <td style="padding:10px; font-weight:bold;">${costDisplay}</td>
                             <td style="padding:10px; color:${profit > 0 ? 'green' : 'red'};">
@@ -2877,10 +2890,134 @@ const App = {
             }
         }, true); // Capture phase to intervene early
 
-        // 3. Manual Trigger Button - Redirects to scanner.html in the same sandbox
-        document.getElementById('btn-scan-trigger').addEventListener('click', () => {
-            window.location.href = 'scanner.html';
+        // 3. Manual Trigger Button
+        document.getElementById('btn-scan-trigger').addEventListener('click', App.openCameraScanner);
+    },
+
+    setupCameraScanner: () => {
+        const overlay = document.getElementById('camera-scanner-overlay');
+        if (!overlay || overlay.dataset.ready === 'true') return;
+        overlay.dataset.ready = 'true';
+        document.getElementById('btn-camera-close').addEventListener('click', App.closeCameraScanner);
+        document.getElementById('btn-camera-switch').addEventListener('click', async () => {
+            App.state.cameraScanner.facingEnvironment = !App.state.cameraScanner.facingEnvironment;
+            await App.startCameraScanner();
         });
+        document.getElementById('btn-camera-torch').addEventListener('click', App.toggleCameraTorch);
+        document.getElementById('camera-scanner-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const input = document.getElementById('camera-scanner-input');
+            const code = input.value.trim();
+            if (!code) return;
+            input.value = '';
+            await App.acceptCameraBarcode(code);
+        });
+        overlay.addEventListener('click', event => {
+            if (event.target === overlay) App.closeCameraScanner();
+        });
+    },
+
+    setCameraScannerStatus: (message, type = '') => {
+        const status = document.getElementById('camera-scanner-status');
+        if (!status) return;
+        status.textContent = message;
+        status.className = 'camera-scanner-status' + (type ? ` ${type}` : '');
+    },
+
+    openCameraScanner: async () => {
+        const overlay = document.getElementById('camera-scanner-overlay');
+        overlay.classList.remove('hidden');
+        App.state.cameraScanner.active = true;
+        await App.startCameraScanner();
+    },
+
+    stopCameraScanner: () => {
+        const scanner = App.state.cameraScanner;
+        scanner.active = false;
+        scanner.detecting = false;
+        if (scanner.reader) { try { scanner.reader.reset(); } catch (_) {} scanner.reader = null; }
+        if (scanner.stream) scanner.stream.getTracks().forEach(track => track.stop());
+        scanner.stream = null;
+        const video = document.getElementById('camera-scanner-video');
+        if (video) video.srcObject = null;
+    },
+
+    closeCameraScanner: () => {
+        App.stopCameraScanner();
+        document.getElementById('camera-scanner-overlay').classList.add('hidden');
+        App.elements.globalSearch.focus();
+    },
+
+    startCameraScanner: async () => {
+        App.stopCameraScanner();
+        const scanner = App.state.cameraScanner;
+        scanner.active = true;
+        const video = document.getElementById('camera-scanner-video');
+        const empty = document.getElementById('camera-scanner-empty');
+        empty.classList.add('hidden');
+        video.style.display = 'block';
+        App.setCameraScannerStatus('กำลังเปิดกล้อง...');
+        const constraints = { video: { facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+        try {
+            if ('BarcodeDetector' in window) {
+                scanner.detector ||= new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] });
+                scanner.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = scanner.stream;
+                await video.play();
+                scanner.detecting = true;
+                App.setCameraScannerStatus('พร้อมสแกน', 'ok');
+                App.detectCameraBarcode();
+                return;
+            }
+            if (!window.ZXing) throw new Error('เบราว์เซอร์นี้ไม่รองรับตัวอ่านบาร์โค้ด');
+            scanner.reader = new ZXing.BrowserMultiFormatReader();
+            App.setCameraScannerStatus('พร้อมสแกน', 'ok');
+            await scanner.reader.decodeFromConstraints(constraints, 'camera-scanner-video', (result) => {
+                if (result && scanner.active) App.acceptCameraBarcode(result.getText());
+            });
+        } catch (error) {
+            console.error('Camera scanner error:', error);
+            video.style.display = 'none';
+            empty.classList.remove('hidden');
+            App.setCameraScannerStatus(error.name === 'NotAllowedError' ? 'ไม่ได้รับอนุญาตให้ใช้กล้อง' : 'เปิดกล้องไม่ได้ ใช้ช่องกรอกบาร์โค้ดแทนได้', 'error');
+            document.getElementById('camera-scanner-input').focus();
+        }
+    },
+
+    detectCameraBarcode: async () => {
+        const scanner = App.state.cameraScanner;
+        const video = document.getElementById('camera-scanner-video');
+        if (!scanner.active || !scanner.detecting) return;
+        try {
+            if (video.readyState >= 2) {
+                const results = await scanner.detector.detect(video);
+                if (results[0]?.rawValue) await App.acceptCameraBarcode(results[0].rawValue);
+            }
+        } catch (_) {}
+        if (scanner.active && scanner.detecting) requestAnimationFrame(App.detectCameraBarcode);
+    },
+
+    acceptCameraBarcode: async (rawCode) => {
+        const code = String(rawCode || '').trim();
+        if (!code) return;
+        const scanner = App.state.cameraScanner;
+        const now = Date.now();
+        if (scanner.lastCode === code && now - scanner.lastAt < 1800) return;
+        scanner.lastCode = code;
+        scanner.lastAt = now;
+        App.setCameraScannerStatus(`อ่านได้: ${code}`, 'ok');
+        if (navigator.vibrate) navigator.vibrate(40);
+        await App.handleBarcodeScan(code);
+    },
+
+    toggleCameraTorch: async () => {
+        const scanner = App.state.cameraScanner;
+        const track = scanner.stream?.getVideoTracks?.()[0];
+        const capabilities = track?.getCapabilities?.() || {};
+        if (!track || !capabilities.torch) { App.setCameraScannerStatus('กล้องนี้ไม่รองรับไฟฉาย', 'error'); return; }
+        scanner.torchOn = !scanner.torchOn;
+        try { await track.applyConstraints({ advanced: [{ torch: scanner.torchOn }] }); }
+        catch (_) { scanner.torchOn = false; App.setCameraScannerStatus('เปิดไฟฉายไม่ได้', 'error'); }
     },
 
     handleBarcodeScan: async (barcode) => {
@@ -3136,13 +3273,13 @@ const App = {
         `;
 
         popup.innerHTML = `
-            <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #fff;">${product.name}</div>
+            <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #fff;">${Utils.escapeHTML(product.name)}</div>
             <div style="font-size: 48px; font-weight: bold; color: #4caf50; margin-bottom: 10px;">
                 ฿${Utils.formatCurrency(product.price)}
             </div>
             ${product.location ? `
                 <div style="font-size: 20px; color: #ffeb3b; background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; display: inline-block;">
-                    📍 ${product.location}
+                    📍 ${Utils.escapeHTML(product.location)}
                 </div>
             ` : '<div style="font-size: 16px; color: #ccc;">(ไม่ระบุจุดวาง)</div>'}
         `;
@@ -3274,7 +3411,7 @@ const App = {
                         </div>
                         <div style="flex:1;">
                             <div style="font-weight:bold; display:flex; align-items:center; gap:5px; line-height:1.3; font-size:15px;">
-                                ${item.name} 
+                                ${Utils.escapeHTML(item.name)}
                                 ${product.isQuick || item.id.startsWith('M') ? `<span class="material-symbols-rounded" style="font-size:16px; color:var(--primary-color); cursor:pointer;" onclick="App.editCartItemName(${index})" title="แก้ไขชื่อ">edit</span>` : ''}
                             </div>
                             ${stockWarning}
@@ -3603,16 +3740,7 @@ const App = {
 
             const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
 
-            // Deduct Stock
-            App.state.cart.forEach(item => {
-                if (item.parentId && item.packSize) {
-                    DB.updateStock(item.parentId, item.qty * item.packSize);
-                } else {
-                    DB.updateStock(item.id, item.qty);
-                }
-            });
-
-            // Record Sale
+            // Persist stock and sale before clearing the cart.
             const saleData = {
                 billId: App.state.editingBillId || null,
                 date: App.state.editingSaleDate || new Date(),
@@ -3621,7 +3749,13 @@ const App = {
                 received: total,
                 change: 0
             };
-            DB.recordSale(saleData);
+            try {
+                await DB.commitSale(saleData, App.state.cart);
+            } catch (error) {
+                App.state.isProcessingPayment = false;
+                await App.alert('บันทึกการขายไม่สำเร็จ ตะกร้ายังไม่ถูกล้าง กรุณาลองใหม่\n' + error.message);
+                return;
+            }
 
             // Clear Edit State & Table Ties
             if (App.state.activeBill && App.state.activeBill.id) {
@@ -4220,7 +4354,7 @@ const App = {
 
 
 
-        const completeSale = (shouldPrint) => {
+        const completeSale = async (shouldPrint) => {
             const received = parseFloat(App.currentPayInput);
             const change = received - total;
 
@@ -4232,25 +4366,20 @@ const App = {
                 printQr: document.getElementById('pay-print-qr').checked
             });
 
-            // Deduct Stock & Record
-            App.state.cart.forEach(item => {
-                if (item.parentId && item.packSize) {
-                    // Deduct from Parent (Bundle)
-                    DB.updateStock(item.parentId, item.qty * item.packSize);
-                } else {
-                    // Deduct Normal
-                    DB.updateStock(item.id, item.qty);
-                }
-            });
-
-            DB.recordSale({
+            try {
+                await DB.commitSale({
                 billId: App.state.editingBillId || null, // Preserve ID if editing
                 date: App.state.editingSaleDate || new Date(), // Preserve Date if editing
                 items: App.state.cart.map(item => ({ ...item, finalLineTotal: App.calcItemTotal(item) })),
                 total: total,
                 received: received,
                 change: change
-            });
+                }, App.state.cart);
+            } catch (error) {
+                App.state.isProcessingPayment = false;
+                await App.alert('บันทึกการขายไม่สำเร็จ ตะกร้ายังไม่ถูกล้าง กรุณาลองใหม่\n' + error.message);
+                return;
+            }
 
             // Clear Edit State
             App.state.editingBillId = null;
@@ -4319,7 +4448,7 @@ const App = {
             ${sale.items.map(item => `
                 <div class="receipt-item" style="display:block; margin-bottom:0;">
                     <div style="font-weight:bold; text-align:left; width:100%; line-height:1.2; word-break:break-word;">
-                        ${item.name}
+                        ${Utils.escapeHTML(item.name)}
                     </div>
                     <div style="display:flex; justify-content:space-between; font-weight:normal; font-size:16px;">
                         <span>${item.qty} x ${Utils.formatCurrency(item.price)}</span>
@@ -4945,7 +5074,7 @@ const App = {
             <div style="max-height: 250px; overflow-y: auto; background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
                 ${bill.items.length > 0 ? bill.items.map(item => `
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; border-bottom: 1px dashed #ddd; padding-bottom: 5px;">
-                        <span style="flex: 1; word-break: break-word; padding-right: 10px;">${item.qty}x ${item.name}</span>
+                        <span style="flex: 1; word-break: break-word; padding-right: 10px;">${item.qty}x ${Utils.escapeHTML(item.name)}</span>
                         <span style="font-weight: bold; white-space: nowrap;">฿${Utils.formatCurrency(item.qty * item.price)}</span>
                     </div>
                 `).join('') : '<div style="text-align: center; color: #999;">ไม่มีรายการ</div>'}
@@ -5030,7 +5159,7 @@ const App = {
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
         modal.innerHTML = `
-    < div style = "text-align:center;" >
+            <div style="text-align:center;">
                 <span class="material-symbols-rounded" style="font-size:64px; color:var(--secondary-color);">price_check</span>
                 <h2>เช็คราคาสินค้า</h2>
                 <p>ยิงบาร์โค้ด หรือ พิมพ์ค้นหา</p>
@@ -5061,8 +5190,8 @@ const App = {
 
                 if (product) {
                     result.innerHTML = `
-    < div style = "font-size:24px; font-weight:bold;" > ${product.name}</div >
-        ${product.image ? '<img src="' + product.image + '" style="max-height:100px; margin:10px 0;">' : ''}
+                        <div style="font-size:24px; font-weight:bold;">${Utils.escapeHTML(product.name)}</div>
+                        ${product.image && product.image.startsWith('data:image/') ? '<img src="' + Utils.escapeHTML(product.image) + '" style="max-height:100px; margin:10px 0;" alt="">' : ''}
                         <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
                         <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
 `;
