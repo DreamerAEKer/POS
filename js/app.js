@@ -913,7 +913,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.4 (30/07/2026)', // Quick stock creation with box/unit conversion
+    VERSION: '0.99.5 (30/07/2026)', // Safe import for products without physical barcodes
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -1352,7 +1352,10 @@ const App = {
                 const correctionNote = result.correctedStocks > 0
                     ? `<br><small>ปรับสต็อกผิดปกติเป็น 0 จำนวน ${result.correctedStocks} รายการ</small>`
                     : '';
-                statusEl.innerHTML = `<span style="color:green; font-weight:bold;">✅ กู้คืนข้อมูลสำเร็จ!${correctionNote}<br>กำลังเริ่มระบบใหม่...</span>`;
+                const internalCodeNote = result.internalBarcodeProducts > 0
+                    ? `<br><small>นำเข้าสินค้าไม่มีบาร์โค้ดโดยใช้รหัสภายใน ${result.internalBarcodeProducts} รายการ</small>`
+                    : '';
+                statusEl.innerHTML = `<span style="color:green; font-weight:bold;">✅ กู้คืนข้อมูลสำเร็จ!${correctionNote}${internalCodeNote}<br>กำลังเริ่มระบบใหม่...</span>`;
                 setTimeout(() => location.reload(), 1500);
             } else {
                 overlay.remove();
@@ -1700,7 +1703,7 @@ const App = {
                                             </div>
                                             <div style="min-width:0;">
                                                 <div style="font-weight:bold; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
-                                                <div style="font-size:11px; color:#888;">${p.barcode}</div>
+                                                <div style="font-size:11px; color:#888;">${p.hasBarcode === false ? `ไม่มีบาร์โค้ด · รหัสภายใน ${Utils.escapeHTML(p.internalCode || p.barcode)}` : Utils.escapeHTML(p.barcode)}</div>
                                                 ${statusHtml}
                                             </div>
                                         </div>
@@ -2410,6 +2413,8 @@ const App = {
                     parentId, packSize, wholesaleQty, wholesalePrice, packBarcode,
                     unitsPerBox: product ? (product.unitsPerBox || 0) : 0,
                     unitLabel: product ? (product.unitLabel || 'ชิ้น') : 'ชิ้น',
+                    hasBarcode: product && product.hasBarcode === false && barcode === product.barcode ? false : true,
+                    internalCode: product && product.hasBarcode === false && barcode === product.barcode ? (product.internalCode || barcode) : null,
                     updatedAt: Date.now() // Auto-Timestamp
                 };
 
@@ -3156,6 +3161,8 @@ const App = {
             cost: 0,
             stock: 0,
             isQuick: true,
+            hasBarcode: true,
+            internalCode: null,
             entryDate: new Date().toISOString().split('T')[0],
             updatedAt: Date.now()
         };
@@ -3378,6 +3385,8 @@ const App = {
             cost: 0,
             stock: 0,
             isQuick: true, // Flag as temporary/quick
+            hasBarcode: false,
+            internalCode: randomId,
             entryDate: new Date().toISOString().split('T')[0],
             updatedAt: Date.now()
         };

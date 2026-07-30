@@ -57,6 +57,16 @@ async function reset() {
     ] }));
     assert.equal(malformed.success, false, 'missing identity fields must still be rejected');
 
+    const noBarcodeBackup = JSON.stringify({ products: [
+        { id: 'no-barcode-1', barcode: '', name: 'No barcode', price: 5, stock: 2 },
+        { id: 'M12345678', barcode: 'M12345678', name: 'Manual item', price: 10, stock: 3 }
+    ] });
+    const noBarcodeResult = await DB.importData(noBarcodeBackup);
+    assert.equal(noBarcodeResult.success, true);
+    assert.equal(noBarcodeResult.internalBarcodeProducts, 2);
+    assert.equal(DB.getProducts().find(product => product.id === 'no-barcode-1').hasBarcode, false);
+    assert.equal(DB.getProducts().find(product => product.id === 'M12345678').hasBarcode, false);
+
     await DB.saveProducts([{ id: 'p1', barcode: '1', name: 'Test', price: 10, stock: 5 }]);
     await DB.saveToLocalStorage(DB.KEYS.SALES, []);
     const sale = await DB.commitSale({ date: new Date(), items: [{ id: 'p1', qty: 2, price: 10 }], total: 20 }, [{ id: 'p1', qty: 2 }]);

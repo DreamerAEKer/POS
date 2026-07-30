@@ -417,7 +417,7 @@ const DB = {
     getProductByBarcode: (barcode) => {
         const products = DB.getProducts();
         // Return object indicating if it matched the main barcode or the pack barcode
-        const mainMatch = products.find(p => p.barcode === barcode);
+        const mainMatch = products.find(p => p.hasBarcode !== false && p.barcode === barcode);
         if (mainMatch) return { product: mainMatch, isPack: false };
 
         const packMatch = products.find(p => p.packBarcode === barcode);
@@ -840,12 +840,28 @@ const DB = {
         try {
             const data = JSON.parse(jsonString);
             let correctedStocks = 0;
+            let internalBarcodeProducts = 0;
             if (Array.isArray(data.products)) {
                 data.products.forEach(product => {
                     const stock = Number(product && product.stock);
                     if (!product || product.stock === null || product.stock === undefined || product.stock === '' || !Number.isFinite(stock) || stock < 0) {
                         if (product) product.stock = 0;
                         correctedStocks++;
+                    }
+                    if (!product) return;
+                    const barcode = String(product.barcode || '').trim();
+                    const generatedManualCode = /^M\d{8}$/.test(barcode) && String(product.id) === barcode;
+                    if (!barcode) {
+                        product.barcode = `INTERNAL-${String(product.id || Utils.generateId())}`;
+                        product.internalCode = product.barcode;
+                        product.hasBarcode = false;
+                        internalBarcodeProducts++;
+                    } else if (generatedManualCode) {
+                        product.internalCode = barcode;
+                        product.hasBarcode = false;
+                        internalBarcodeProducts++;
+                    } else if (product.hasBarcode === undefined) {
+                        product.hasBarcode = true;
                     }
                 });
             }
@@ -911,7 +927,7 @@ const DB = {
             const curSales = DB.safeGet(DB.KEYS.SALES, []) || [];
             await DB.saveToLocalStorage(DB.KEYS.SALES, mergeById(curSales, data.sales));
 
-            return { success: true, correctedStocks };
+            return { success: true, correctedStocks, internalBarcodeProducts };
         } catch (e) {
             console.error('Import Error:', e);
             return { success: false, message: e.message || 'ไฟล์ไม่ถูกต้องหรือระบบขัดข้อง' };
