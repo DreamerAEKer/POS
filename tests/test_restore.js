@@ -38,6 +38,9 @@ async function reset() {
     assert.equal(DB.getProducts().length, 0, 'an intentionally empty catalog must remain empty');
 
     await DB.saveSettings({ storeName: 'KOKOJOY', pin: '1234' });
+    const sharedSettings = DB.getSharedSettingsPayload(DB.getSettings());
+    assert.equal(sharedSettings.storeName, 'KOKOJOY');
+    assert.equal(Object.hasOwn(sharedSettings, 'pin'), false, 'security PIN must never enter shared Firebase settings');
     const backup = DB.exportData();
     await DB.saveSettings({ storeName: 'CHANGED' });
     const restored = await DB.importData(backup);

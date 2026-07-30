@@ -75,6 +75,7 @@ const App = {
                     
                     // Optional: Update User display in main app if we add it later
                     
+                    await DB.syncSharedSettingsFromFirebase();
                     await DB.syncStocksFromFirebase();
                     App.state.products = DB.getProducts();
                     App.renderView(App.state.currentView); // Refresh view based on role and cloud stock
@@ -913,7 +914,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.5 (30/07/2026)', // Safe import for products without physical barcodes
+    VERSION: '0.99.6 (30/07/2026)', // Sync shared receipt/store settings through Firebase
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -1134,9 +1135,9 @@ const App = {
             settings.storeName = name;
             settings.address = address;
             settings.phone = phone;
-            DB.saveSettings(settings);
+            await DB.saveSettings(settings);
 
-            await App.alert('บันทึกข้อมูลร้านเรียบร้อยแล้ว!');
+            await App.alert('บันทึกข้อมูลร้านและซิงก์ Firebase เรียบร้อยแล้ว!');
             App.renderSettingsView(document.getElementById('view-container'));
         });
     },
@@ -1181,7 +1182,7 @@ const App = {
             return;
         }
         App.checkPin(async () => {
-            DB.saveSettings({ pin: newPin });
+            await DB.saveSettings({ pin: newPin });
             await App.alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!');
         });
     },
@@ -1260,8 +1261,8 @@ const App = {
                 updates.qrCode = await Utils.compressImage(raw, 300, 0.7);
             }
 
-            DB.saveSettings(updates);
-            await App.alert('บันทึกตั้งค่าเครื่องพิมพ์เรียบร้อย!');
+            await DB.saveSettings(updates);
+            await App.alert('บันทึกตั้งค่าใบเสร็จและซิงก์ Firebase เรียบร้อยแล้ว!');
             App.renderView('settings');
         } catch (e) {
             await App.alert('เกิดข้อผิดพลาดในการบันทึกภาพ (อาจใหญ่เกินไป): ' + e.message);
@@ -1313,7 +1314,7 @@ const App = {
 
         const updates = {};
         updates[type] = null;
-        DB.saveSettings(updates);
+        await DB.saveSettings(updates);
         App.renderView('settings');
     },
 

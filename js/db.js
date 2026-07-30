@@ -34,6 +34,10 @@ try {
 
 const DB = {
     STOCK_COLLECTION: 'stock',
+    SHARED_SETTINGS_FIELDS: [
+        'storeName', 'address', 'phone', 'printerWidth', 'printerFeedLines',
+        'printLogo', 'printQr', 'logo', 'qrCode'
+    ],
     cache: {
         store_products: null,
         store_parked_carts: null,
@@ -203,10 +207,52 @@ const DB = {
         return { ...defaults, ...saved };
     },
 
-    saveSettings: (newSettings) => {
+    saveSettings: async (newSettings) => {
         const current = DB.getSettings();
         const updated = { ...current, ...newSettings };
-        DB.saveToLocalStorage(DB.KEYS.SETTINGS, updated);
+        await DB.saveToLocalStorage(DB.KEYS.SETTINGS, updated);
+        const touchesSharedSetting = DB.SHARED_SETTINGS_FIELDS.some(field =>
+            Object.prototype.hasOwnProperty.call(newSettings, field)
+        );
+        if (touchesSharedSetting && DB.currentUser && DB.userRole === 'admin') {
+            await DB.syncSharedSettingsToFirebase(updated);
+        }
+        return updated;
+    },
+
+    getSharedSettingsPayload: (settings = DB.getSettings()) => {
+        const payload = {};
+        DB.SHARED_SETTINGS_FIELDS.forEach(field => {
+            if (settings[field] !== undefined) payload[field] = settings[field];
+        });
+        return payload;
+    },
+
+    syncSharedSettingsToFirebase: async (settings = DB.getSettings()) => {
+        if (!dbFirestore || !DB.currentUser || DB.userRole !== 'admin') return false;
+        const payload = DB.getSharedSettingsPayload(settings);
+        await dbFirestore.collection('app_settings').doc('shared').set({
+            ...payload,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: DB.currentUser.email
+        }, { merge: true });
+        return true;
+    },
+
+    syncSharedSettingsFromFirebase: async () => {
+        if (!dbFirestore || !DB.currentUser) return false;
+        try {
+            const snapshot = await dbFirestore.collection('app_settings').doc('shared').get();
+            if (!snapshot.exists) return false;
+            const remote = snapshot.data();
+            const current = DB.getSettings();
+            const shared = DB.getSharedSettingsPayload(remote);
+            await DB.saveToLocalStorage(DB.KEYS.SETTINGS, { ...current, ...shared });
+            return true;
+        } catch (error) {
+            console.error('Firebase settings download error:', error);
+            return false;
+        }
     },
 
     // --- Payment Preferences ---
