@@ -914,7 +914,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.8 (30/07/2026)', // Sync new catalog items and category suggestions
+    VERSION: '0.99.9 (30/07/2026)', // Clear mobile scan-to-cart feedback
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -2958,6 +2958,7 @@ const App = {
     openCameraScanner: async () => {
         const overlay = document.getElementById('camera-scanner-overlay');
         overlay.classList.remove('hidden');
+        App.hideCameraScanResult();
         App.state.cameraScanner.active = true;
         await App.startCameraScanner();
     },
@@ -3036,9 +3037,72 @@ const App = {
         if (scanner.lastCode === code && now - scanner.lastAt < 1800) return;
         scanner.lastCode = code;
         scanner.lastAt = now;
-        App.setCameraScannerStatus(`อ่านได้: ${code}`, 'ok');
-        if (navigator.vibrate) navigator.vibrate(40);
+        App.setCameraScannerStatus(`อ่านบาร์โค้ด ${code} — กำลังตรวจสอบ...`);
         await App.handleBarcodeScan(code);
+    },
+
+    playScanFeedback: (success = true) => {
+        if (navigator.vibrate) navigator.vibrate(success ? [45, 35, 75] : [120, 60, 120]);
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return;
+            const context = new AudioContextClass();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.value = success ? 880 : 220;
+            gain.gain.setValueAtTime(0.08, context.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.12);
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.12);
+            oscillator.onended = () => context.close();
+        } catch (_) {}
+    },
+
+    hideCameraScanResult: () => {
+        const result = document.getElementById('camera-scan-result');
+        if (!result) return;
+        clearTimeout(App.state.cameraScanner.resultTimer);
+        result.className = 'camera-scan-result';
+        result.innerHTML = '';
+    },
+
+    showCameraScanResult: (product, barcode, options = {}) => {
+        const result = document.getElementById('camera-scan-result');
+        if (!result) return;
+        clearTimeout(App.state.cameraScanner.resultTimer);
+
+        const cartItem = App.state.cart.find(item => item.id === product.id);
+        const cartQty = cartItem?.qty || 0;
+        const stock = Number(product.stock) || 0;
+        const projectedStock = stock - cartQty;
+        const addedQty = options.addedQty || 0;
+        const addedToCart = options.addedToCart === true;
+        const imageHtml = product.image
+            ? `<img src="${product.image}" alt="">`
+            : '<span class="material-symbols-rounded">inventory_2</span>';
+
+        result.innerHTML = `
+            <div class="camera-scan-result-image">${imageHtml}</div>
+            <div class="camera-scan-result-body">
+                <div class="camera-scan-result-state">
+                    <span class="material-symbols-rounded">${addedToCart ? 'check_circle' : 'visibility'}</span>
+                    ${addedToCart ? `เพิ่มเข้าบิลแล้ว +${addedQty}` : 'พบสินค้าในระบบ'}
+                </div>
+                <div class="camera-scan-result-name">${Utils.escapeHTML(product.name)}</div>
+                <div class="camera-scan-result-code">${Utils.escapeHTML(barcode)}</div>
+                <div class="camera-scan-result-facts">
+                    <strong>฿${Utils.formatCurrency(product.price)}</strong>
+                    ${addedToCart ? `<span>ในบิล ${cartQty} ชิ้น</span>` : ''}
+                    <span class="${projectedStock < 0 ? 'danger' : ''}">
+                        ${addedToCart ? 'เหลือหลังบิล' : 'คงเหลือ'} ${addedToCart ? projectedStock : stock} ${product.unitLabel || 'ชิ้น'}
+                    </span>
+                </div>
+            </div>`;
+        result.className = 'camera-scan-result visible success';
+        App.state.cameraScanner.resultTimer = setTimeout(App.hideCameraScanResult, 2600);
     },
 
     toggleCameraTorch: async () => {
@@ -3058,8 +3122,9 @@ const App = {
             const product = match.product;
             const isPack = match.isPack;
 
-            // GLOBAL: Always show Flash Popup (Price & Location)
-            App.showProductFlash(product);
+            if (!App.state.cameraScanner.active) App.showProductFlash(product);
+
+            let addedQty = 0;
 
             if (App.state.currentView === 'pos') {
                 if (isPack) {
@@ -3067,13 +3132,29 @@ const App = {
                     const packQty = product.wholesaleQty || 1;
                     if (await App.confirm(`🛒 คุณสแกนบาร์โค้ดลัง:\n\nต้องการเพิ่ม "${product.name}"\nจำนวน 1 ลัง (${packQty} ชิ้น) ลงตะกร้าใช่หรือไม่?`)) {
                         for (let i = 0; i < packQty; i++) {
-                            App.addToCart(product, true);
+                            await App.addToCart(product, true);
                         }
+                        addedQty = packQty;
                     }
                 } else {
                     // Normal piece scan
-                    App.addToCart(product, true); // True = fromScan
+                    await App.addToCart(product, true); // True = fromScan
+                    addedQty = 1;
                 }
+            }
+
+            if (App.state.cameraScanner.active) {
+                App.showCameraScanResult(product, barcode, {
+                    addedQty,
+                    addedToCart: App.state.currentView === 'pos' && addedQty > 0
+                });
+                App.setCameraScannerStatus(
+                    addedQty > 0
+                        ? `เพิ่ม ${product.name} ลงบิลแล้ว • ในบิล ${App.state.cart.find(item => item.id === product.id)?.qty || 0} ชิ้น`
+                        : `พบ ${product.name} • ฿${Utils.formatCurrency(product.price)}`,
+                    'ok'
+                );
+                App.playScanFeedback(true);
             }
             // In Stock/Other views: Just Flash, and scroll to item if in Stock View
             if (App.state.currentView === 'stock') {
@@ -3102,6 +3183,8 @@ const App = {
                 }
             }
         } else {
+            App.setCameraScannerStatus(`ไม่พบสินค้า: ${barcode}`, 'error');
+            App.playScanFeedback(false);
             // The camera overlay sits above regular dialogs. Stop and close it
             // first so the quick-sale/add-product choices are immediately visible.
             if (App.state.cameraScanner.active) App.closeCameraScanner();
@@ -3569,8 +3652,11 @@ const App = {
         const isClosed = !cartPanel.classList.contains('open');
 
         if (isMobile && fromScan && isClosed) {
-            App.toggleMobileCart(true, 2000); // Open for 2s then close
+            // The scanner has its own compact result card. Opening the full cart
+            // behind it adds motion without giving the cashier useful feedback.
+            if (!App.state.cameraScanner.active) App.toggleMobileCart(true, 2000);
         }
+        return App.state.cart.find(item => item.id === product.id);
     },
 
     actionParkCart: async () => {
