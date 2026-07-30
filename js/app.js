@@ -913,7 +913,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.2 (30/07/2026)', // Normalize invalid stock during SUNMI import
+    VERSION: '0.99.3 (30/07/2026)', // Show quick-add prompt above camera scanner
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -3074,6 +3074,9 @@ const App = {
                 }
             }
         } else {
+            // The camera overlay sits above regular dialogs. Stop and close it
+            // first so the quick-sale/add-product choices are immediately visible.
+            if (App.state.cameraScanner.active) App.closeCameraScanner();
             const notFoundHtml = `
                 <div id="not-found-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:flex; align-items:center; justify-content:center;">
                     <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
