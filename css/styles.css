@@ -1358,6 +1358,29 @@ button {
     text-align: center;
 }
 
+.category-suggestions {
+    display: none;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 8px;
+}
+
+.category-suggestions.visible {
+    display: flex;
+}
+
+.category-suggestion-chip {
+    min-height: 36px;
+    padding: 6px 12px;
+    border: 1px solid #b8d7bb;
+    border-radius: 18px;
+    background: #f1f8f2;
+    color: var(--primary-color);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
 .settings-card button,
 .settings-card input {
     max-width: 100%;

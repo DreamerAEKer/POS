@@ -914,7 +914,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.7 (30/07/2026)', // Responsive layout for primary mobile devices
+    VERSION: '0.99.8 (30/07/2026)', // Sync new catalog items and category suggestions
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -2107,11 +2107,12 @@ const App = {
                     </div>
                      <div style="flex: 1 1 200px;">
                         <label>หมวดหมู่ (ปล่อยว่างถ้าไม่มี)</label>
-                        <input type="text" id="p-group" list="group-list" value="${product && product.group ? product.group : ''}" 
+                        <input type="text" id="p-group" list="group-list" value="${product && product.group ? product.group : ''}"
                             placeholder="เช่น น้ำอัดลม, ไข่ไก่" style="width:100%;">
                         <datalist id="group-list">
                             ${existingGroups.map(g => `<option value="${g}">`).join('')}
                         </datalist>
+                        <div id="p-group-suggestions" class="category-suggestions"></div>
                     </div>
                 </div>
 
@@ -2427,6 +2428,7 @@ const App = {
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+        App.setupCategorySuggestions('p-group', 'p-group-suggestions');
     },
 
     // --- Duplicate Check Helpers ---
@@ -3201,6 +3203,7 @@ const App = {
                         <label>หมวดหมู่ (ไม่บังคับ)
                             <input id="qs-group" list="qs-group-list" placeholder="เช่น เครื่องดื่ม" style="width:100%;">
                             <datalist id="qs-group-list">${groups.map(group => `<option value="${Utils.escapeHTML(group)}">`).join('')}</datalist>
+                            <div id="qs-group-suggestions" class="category-suggestions"></div>
                         </label>
                         <label>ชื่อสินค้า
                             <input id="qs-name" required placeholder="ชื่อสินค้าและขนาด" style="width:100%;">
@@ -3241,8 +3244,54 @@ const App = {
             </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
         document.getElementById('quick-stock-form').addEventListener('submit', App.saveQuickStockProduct);
+        App.setupCategorySuggestions('qs-group', 'qs-group-suggestions');
         document.getElementById('qs-name').focus();
         App.updateQuickStockPreview();
+    },
+
+    setupCategorySuggestions: (inputId, containerId) => {
+        const input = document.getElementById(inputId);
+        const container = document.getElementById(containerId);
+        if (!input || !container) return;
+
+        const render = () => {
+            const query = input.value.trim().toLocaleLowerCase('th-TH');
+            const groups = [...new Set(App.state.products
+                .map(product => (product.group || '').trim())
+                .filter(Boolean))];
+
+            const matches = groups
+                .map(group => {
+                    const normalized = group.toLocaleLowerCase('th-TH');
+                    let score = 3;
+                    if (!query) score = 2;
+                    else if (normalized === query) score = 0;
+                    else if (normalized.startsWith(query)) score = 1;
+                    else if (normalized.includes(query) || query.includes(normalized)) score = 2;
+                    return { group, score };
+                })
+                .filter(item => !query || item.score < 3)
+                .sort((a, b) => a.score - b.score || a.group.localeCompare(b.group, 'th'))
+                .slice(0, 6);
+
+            container.innerHTML = matches.map(item => `
+                <button type="button" class="category-suggestion-chip"
+                    data-group="${Utils.escapeHTML(item.group)}"
+                    onclick="App.selectCategorySuggestion('${inputId}', this.dataset.group, '${containerId}')">
+                    ${Utils.escapeHTML(item.group)}
+                </button>
+            `).join('');
+            container.classList.toggle('visible', matches.length > 0);
+        };
+
+        input.addEventListener('input', render);
+        input.addEventListener('focus', render);
+    },
+
+    selectCategorySuggestion: (inputId, group, containerId) => {
+        const input = document.getElementById(inputId);
+        if (input) input.value = group;
+        document.getElementById(containerId)?.classList.remove('visible');
     },
 
     getQuickStockQuantity: () => {
@@ -3306,6 +3355,8 @@ const App = {
         await DB.saveProduct(product);
         App.state.products = DB.getProducts();
         document.getElementById('quick-stock-overlay')?.remove();
+        App.state.stockTab = 'all';
+        App.state.searchQuery = barcode;
         App.renderView('stock');
         await App.alert(`บันทึกสินค้าเรียบร้อย\n${App.formatStockBreakdown(product)}`);
     },

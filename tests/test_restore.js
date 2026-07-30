@@ -41,6 +41,15 @@ async function reset() {
     const sharedSettings = DB.getSharedSettingsPayload(DB.getSettings());
     assert.equal(sharedSettings.storeName, 'KOKOJOY');
     assert.equal(Object.hasOwn(sharedSettings, 'pin'), false, 'security PIN must never enter shared Firebase settings');
+    const stockCatalog = DB.getStockCatalogPayload({
+        barcode: '8850250015161', name: 'ผงชูรส', group: 'เครื่องปรุง',
+        price: 20, stock: 12, pin: 'must-not-sync'
+    });
+    assert.equal(stockCatalog.barcode, '8850250015161');
+    assert.equal(stockCatalog.name, 'ผงชูรส');
+    assert.equal(stockCatalog.group, 'เครื่องปรุง');
+    assert.equal(Object.hasOwn(stockCatalog, 'stock'), false, 'stock is synchronized separately');
+    assert.equal(Object.hasOwn(stockCatalog, 'pin'), false, 'PIN must never enter a stock catalog document');
     const backup = DB.exportData();
     await DB.saveSettings({ storeName: 'CHANGED' });
     const restored = await DB.importData(backup);

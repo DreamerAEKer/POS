@@ -34,6 +34,12 @@ try {
 
 const DB = {
     STOCK_COLLECTION: 'stock',
+    STOCK_CATALOG_FIELDS: [
+        'barcode', 'packBarcode', 'name', 'group', 'price', 'cost',
+        'image', 'unitsPerBox', 'unitLabel', 'hasBarcode', 'internalCode',
+        'parentId', 'packSize', 'wholesaleQty', 'wholesalePrice',
+        'thaiChuaiThaiPrice', 'expiryDate', 'tags', 'location', 'entryDate'
+    ],
     SHARED_SETTINGS_FIELDS: [
         'storeName', 'address', 'phone', 'printerWidth', 'printerFeedLines',
         'printLogo', 'printQr', 'logo', 'qrCode'
@@ -368,21 +374,67 @@ const DB = {
             const products = DB.getProducts().map(product => ({ ...product }));
             const productsById = new Map(products.map(product => [String(product.id), product]));
             let synced = 0;
+            let added = 0;
+            const catalogBackfills = [];
             snapshot.forEach(doc => {
-                const product = productsById.get(String(doc.id));
-                const stock = Number(doc.data().stock);
+                const data = doc.data();
+                const productId = String(doc.id);
+                let product = productsById.get(productId);
+                const stock = Number(data.stock);
+                const hasCatalog = typeof data.name === 'string' && data.name.trim() !== '';
+
+                if (!product && hasCatalog) {
+                    product = {
+                        id: productId,
+                        barcode: data.barcode || productId,
+                        name: data.name,
+                        price: Number(data.price) || 0,
+                        stock: Number.isFinite(stock) ? stock : 0,
+                        updatedAt: Number(data.catalogUpdatedAt) || Date.now()
+                    };
+                    Object.assign(product, DB.getStockCatalogPayload(data));
+                    products.push(product);
+                    productsById.set(productId, product);
+                    added++;
+                } else if (product && hasCatalog) {
+                    const remoteUpdatedAt = Number(data.catalogUpdatedAt) || 0;
+                    const localUpdatedAt = Number(product.updatedAt) || 0;
+                    if (remoteUpdatedAt >= localUpdatedAt) {
+                        Object.assign(product, DB.getStockCatalogPayload(data));
+                        product.updatedAt = remoteUpdatedAt || localUpdatedAt;
+                    }
+                }
+
                 if (product && Number.isFinite(stock)) {
                     product.stock = stock;
                     synced++;
                 }
+
+                // One-time migration for stock records created by versions that
+                // stored only the quantity. Run only from an administrator's
+                // device that already has the complete local catalog.
+                if (product && !hasCatalog && DB.userRole === 'admin' && product.name) {
+                    catalogBackfills.push(() => doc.ref.set({
+                        ...DB.getStockCatalogPayload(product),
+                        catalogUpdatedAt: Number(product.updatedAt) || Date.now()
+                    }, { merge: true }));
+                }
             });
-            if (synced > 0) {
+
+            let backfilled = 0;
+            for (let index = 0; index < catalogBackfills.length; index += 20) {
+                const results = await Promise.allSettled(
+                    catalogBackfills.slice(index, index + 20).map(write => write())
+                );
+                backfilled += results.filter(result => result.status === 'fulfilled').length;
+            }
+            if (synced > 0 || added > 0) {
                 await DB.saveProducts(products);
                 if (typeof App !== 'undefined' && App.state) {
                     App.state.products = products;
                 }
             }
-            return { synced, available: true };
+            return { synced, added, backfilled, available: true };
         } catch (e) {
             console.error("Error syncing stock from Firebase:", e);
             return { synced: 0, available: false, error: e };
@@ -391,6 +443,14 @@ const DB = {
 
     getProducts: () => {
         return DB.safeGet(DB.KEYS.PRODUCTS, []);
+    },
+
+    getStockCatalogPayload: (product) => {
+        const payload = {};
+        DB.STOCK_CATALOG_FIELDS.forEach(field => {
+            if (product[field] !== undefined) payload[field] = product[field];
+        });
+        return payload;
     },
 
     saveProduct: (product) => {
@@ -403,13 +463,15 @@ const DB = {
             products.push(product);
         }
 
-        // Only the numeric stock level is shared through Firebase. Product
-        // names, prices, images and other catalog fields stay on this device.
+        // Keep each stock item usable on every signed-in device. Sales, bills,
+        // supplier data and other POS records remain local to the device.
         if (typeof dbFirestore !== 'undefined' && dbFirestore && DB.currentUser) {
             const stock = Number(product.stock);
             if (Number.isFinite(stock)) {
                 dbFirestore.collection(DB.STOCK_COLLECTION).doc(product.id.toString()).set({
+                    ...DB.getStockCatalogPayload(product),
                     stock,
+                    catalogUpdatedAt: Number(product.updatedAt) || Date.now(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true }).catch(err => console.error("Firebase stock sync error:", err));
             }
