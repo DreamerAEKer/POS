@@ -914,7 +914,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.10 (30/07/2026)', // iOS-inspired scan feedback motion
+    VERSION: '0.99.11 (30/07/2026)', // Tap scan result to edit price first
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -3069,6 +3069,11 @@ const App = {
         const cleanup = () => {
             result.className = 'camera-scan-result';
             result.innerHTML = '';
+            result.onclick = null;
+            result.onkeydown = null;
+            result.removeAttribute('role');
+            result.removeAttribute('tabindex');
+            result.removeAttribute('aria-label');
         };
         if (immediate || !result.classList.contains('visible')) cleanup();
         else {
@@ -3108,15 +3113,52 @@ const App = {
                         ${addedToCart ? 'เหลือหลังบิล' : 'คงเหลือ'} ${addedToCart ? projectedStock : stock} ${product.unitLabel || 'ชิ้น'}
                     </span>
                 </div>
+                <div class="camera-scan-result-action">
+                    <span class="material-symbols-rounded">edit</span>
+                    แตะเพื่อแก้ไขสินค้า — เริ่มที่ราคาขาย
+                    <span class="material-symbols-rounded">chevron_right</span>
+                </div>
             </div>`;
         result.className = 'camera-scan-result visible success';
+        result.setAttribute('role', 'button');
+        result.setAttribute('tabindex', '0');
+        result.setAttribute('aria-label', `แก้ไข ${product.name} เริ่มที่ราคาขาย`);
+        result.onclick = () => App.openScannedProductEditor(product.id);
+        result.onkeydown = event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                App.openScannedProductEditor(product.id);
+            }
+        };
         const stage = document.querySelector('.camera-scanner-stage');
         if (stage) {
             stage.classList.remove('scan-success');
             requestAnimationFrame(() => stage.classList.add('scan-success'));
             setTimeout(() => stage.classList.remove('scan-success'), 620);
         }
-        App.state.cameraScanner.resultTimer = setTimeout(() => App.hideCameraScanResult(false), 2600);
+        App.state.cameraScanner.resultTimer = setTimeout(() => App.hideCameraScanResult(false), 4200);
+    },
+
+    openScannedProductEditor: (productId) => {
+        const product = App.state.products.find(item => String(item.id) === String(productId));
+        if (!product) {
+            App.alert('ไม่พบข้อมูลสินค้าที่ต้องการแก้ไข');
+            return;
+        }
+        App.hideCameraScanResult(true);
+        if (App.state.cameraScanner.active) App.closeCameraScanner();
+        App.renderView('stock');
+        setTimeout(() => {
+            App.openProductModal(product.id);
+            setTimeout(() => {
+                const priceInput = document.getElementById('p-price');
+                if (priceInput) {
+                    priceInput.focus();
+                    priceInput.select();
+                    priceInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 160);
+        }, 80);
     },
 
     toggleCameraTorch: async () => {
