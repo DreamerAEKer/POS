@@ -913,7 +913,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.1 (30/07/2026)', // Main scanner + stock-only Firebase sync
+    VERSION: '0.99.2 (30/07/2026)', // Normalize invalid stock during SUNMI import
 
     // --- Settings View ---
     renderSettingsView: (container) => {
@@ -1339,7 +1339,10 @@ const App = {
             });
 
             if (result.success) {
-                statusEl.innerHTML = '<span style="color:green; font-weight:bold;">✅ กู้คืนข้อมูลสำเร็จ! กำลังเริ่มระบบใหม่...</span>';
+                const correctionNote = result.correctedStocks > 0
+                    ? `<br><small>ปรับสต็อกผิดปกติเป็น 0 จำนวน ${result.correctedStocks} รายการ</small>`
+                    : '';
+                statusEl.innerHTML = `<span style="color:green; font-weight:bold;">✅ กู้คืนข้อมูลสำเร็จ!${correctionNote}<br>กำลังเริ่มระบบใหม่...</span>`;
                 setTimeout(() => location.reload(), 1500);
             } else {
                 overlay.remove();

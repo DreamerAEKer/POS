@@ -839,6 +839,16 @@ const DB = {
     importData: async (jsonString) => {
         try {
             const data = JSON.parse(jsonString);
+            let correctedStocks = 0;
+            if (Array.isArray(data.products)) {
+                data.products.forEach(product => {
+                    const stock = Number(product && product.stock);
+                    if (!product || product.stock === null || product.stock === undefined || product.stock === '' || !Number.isFinite(stock) || stock < 0) {
+                        if (product) product.stock = 0;
+                        correctedStocks++;
+                    }
+                });
+            }
             DB.validateImportData(data);
             await localforage.setItem('store_pre_import_recovery', JSON.parse(DB.exportData()));
             
@@ -901,10 +911,10 @@ const DB = {
             const curSales = DB.safeGet(DB.KEYS.SALES, []) || [];
             await DB.saveToLocalStorage(DB.KEYS.SALES, mergeById(curSales, data.sales));
 
-            return { success: true };
+            return { success: true, correctedStocks };
         } catch (e) {
             console.error('Import Error:', e);
-            return { success: false, message: 'ไฟล์ไม่ถูกต้องหรือระบบขัดข้อง' };
+            return { success: false, message: e.message || 'ไฟล์ไม่ถูกต้องหรือระบบขัดข้อง' };
         }
     }
 };

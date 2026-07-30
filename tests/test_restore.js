@@ -47,8 +47,15 @@ async function reset() {
     const invalidBackup = JSON.stringify({ products: [
         { id: 'bad-1', barcode: 'bad', name: 'Bad stock', price: 10, stock: -1 }
     ] });
-    const rejected = await DB.importData(invalidBackup);
-    assert.equal(rejected.success, false, 'negative stock must be rejected before import');
+    const normalized = await DB.importData(invalidBackup);
+    assert.equal(normalized.success, true, 'negative stock should be normalized during import');
+    assert.equal(normalized.correctedStocks, 1);
+    assert.equal(DB.getProducts().find(product => product.id === 'bad-1').stock, 0);
+
+    const malformed = await DB.importData(JSON.stringify({ products: [
+        { id: '', barcode: '', name: '', price: 10, stock: 1 }
+    ] }));
+    assert.equal(malformed.success, false, 'missing identity fields must still be rejected');
 
     await DB.saveProducts([{ id: 'p1', barcode: '1', name: 'Test', price: 10, stock: 5 }]);
     await DB.saveToLocalStorage(DB.KEYS.SALES, []);
