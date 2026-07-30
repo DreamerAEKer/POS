@@ -914,7 +914,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.6 (30/07/2026)', // Sync shared receipt/store settings through Firebase
+    VERSION: '0.99.7 (30/07/2026)', // Responsive layout for primary mobile devices
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -941,14 +941,14 @@ const App = {
         }
 
         container.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:15px;">
+            <div class="settings-page-header">
                 <h2>ตั้งค่าระบบ</h2>
                 <div style="font-size:14px; color:#888; margin-bottom:5px;">เวอร์ชัน ${App.VERSION}</div>
             </div>
             ${approvalsBtn}
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
+            <div class="settings-grid">
                 <!-- Store Config -->
-                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                <div class="settings-card">
                     <h3>ข้อมูลร้านค้า</h3>
                     <p style="color:#666; font-size:14px; margin-bottom:15px;">ชื่อนี้จะปรากฏบนใบเสร็จ (ไม่มีผลกับบิลเก่า)</p>
                     <label>ชื่อร้าน</label>
@@ -963,7 +963,7 @@ const App = {
                     <button class="primary-btn" onclick="App.saveStoreName()">บันทึกข้อมูลร้าน</button>
                 </div>
                 <!-- Security Config -->
-                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm);">
+                <div class="settings-card">
                     <h3>ความปลอดภัย</h3>
                     <div style="margin-bottom:15px;">
                         <label>เปลี่ยนรหัสผ่าน (PIN)</label>
@@ -972,20 +972,20 @@ const App = {
                     <button class="secondary-btn" onclick="App.changePin()">เปลี่ยนรหัสผ่าน</button>
                 </div>
                 <!-- Backup -->
-                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
+                <div class="settings-card settings-card-centered">
                     <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color);">cloud_download</span>
                     <h3>สำรองข้อมูล</h3>
                     <button class="primary-btn" onclick="App.backupData()">Download Backup</button>
                 </div>
                 <!-- Firebase Sync -->
-                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
+                <div class="settings-card settings-card-centered">
                     <span class="material-symbols-rounded" style="font-size:48px; color:#f57c00;">cloud_sync</span>
                     <h3>ซิงก์จำนวนสต็อก</h3>
                     <p style="color:#666; font-size:14px; margin-bottom:15px;">ส่งเฉพาะจำนวนคงเหลือ ไม่ส่งชื่อ ราคา หรือรูปสินค้า</p>
                     <button class="primary-btn" style="background:#f57c00; border:none;" onclick="App.uploadProductsToFirebase(event)">ส่งสต็อกไป Firebase</button>
                 </div>
                 <!-- Restore -->
-                <div style="background:white; padding:20px; border-radius:8px; box-shadow:var(--shadow-sm); text-align:center;">
+                <div class="settings-card settings-card-centered">
                     <span class="material-symbols-rounded" style="font-size:48px; color:var(--warning-color);">cloud_upload</span>
                     <h3>เรียกคืนข้อมูล</h3>
                     <input type="file" id="restore-input" accept=".json" style="display:none;" onchange="App.restoreData(this)">
@@ -1054,7 +1054,7 @@ const App = {
                 <!-- Responsive Grid: Stacks on mobile, Side-by-side on desktop -->
                 <div style="display:flex; flex-wrap:wrap; gap:20px; margin-top:15px;">
                     <!-- Logo Upload -->
-                    <div style="flex:1; min-width:300px;">
+                    <div class="receipt-image-setting">
                         <label>โลโก้ร้าน (หัวบิล)</label>
                         <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
                             <div id="preview-logo" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #ddd;">
@@ -1073,7 +1073,7 @@ const App = {
                     </div>
                     
                     <!-- QR Upload -->
-                    <div style="flex:1; min-width:300px;">
+                    <div class="receipt-image-setting">
                         <label>QR Code รับเงิน (ท้ายบิล)</label>
                         <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
                             <div id="preview-qr" style="width:80px; height:80px; background:#eee; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #ddd;">
