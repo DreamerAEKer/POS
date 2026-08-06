@@ -1022,7 +1022,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.16 (06/08/2026)', // Reliable table bill close and cancellation
+    VERSION: '0.99.17 (06/08/2026)', // Delivery order cancellation and cleanup
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -5438,6 +5438,9 @@ const App = {
                             <button class="primary-btn" style="padding:5px 15px; display:flex; align-items:center; gap:5px;" onclick="event.stopPropagation(); App.restoreDelivery('${bill.id}')">
                                 <span class="material-symbols-rounded" style="font-size:20px;">shopping_cart_checkout</span> จัดการ
                             </button>
+                            <button class="secondary-btn" style="padding:5px 10px; display:flex; align-items:center; gap:5px; background:white; color:#c62828; border:1px solid #ef9a9a;" onclick="event.stopPropagation(); App.cancelDeliveryBill('${bill.id}')" title="ยกเลิกออเดอร์ส่ง">
+                                <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -5727,12 +5730,30 @@ const App = {
             id: bill.id,
             note: bill.note,
             timestamp: bill.timestamp,
-            deliveryTime: bill.deliveryTime
+            deliveryTime: bill.deliveryTime,
+            deliveryDetails: bill.deliveryDetails || null
         };
 
         App.renderCart();
         App.renderView('pos');
         if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+    },
+
+    cancelDeliveryBill: async (billId) => {
+        const bill = DB.getParkedCarts().find(item => String(item.id) === String(billId));
+        if (!bill) return;
+        const total = (bill.items || []).reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+        const scheduled = bill.deliveryTime ? new Date(bill.deliveryTime).toLocaleString('th-TH', {
+            dateStyle: 'short', timeStyle: 'short'
+        }) : 'ไม่ระบุเวลา';
+        const confirmed = await App.confirm(
+            `ยืนยันยกเลิกออเดอร์ส่ง\nลูกค้า: ${bill.note || 'ไม่ระบุชื่อ'}\nนัด: ${scheduled}\nยอดรวม ฿${Utils.formatCurrency(total)}\n\nออเดอร์จะย้ายไปถังขยะและสามารถกู้คืนได้`,
+            'ยกเลิกออเดอร์ส่ง'
+        );
+        if (!confirmed) return;
+        App.closeBillSession(bill.id, 'cancelled');
+        App.renderView('tables');
+        await App.alert('ยกเลิกออเดอร์ส่งแล้ว');
     },
 
     handleTableClick: async (tableId) => {
