@@ -919,7 +919,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.12 (06/08/2026)', // Faster launch, camera scan and Bluetooth scanner handling
+    VERSION: '0.99.13 (06/08/2026)', // Barcode-optional products and fast mobile product search
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -1401,14 +1401,37 @@ const App = {
         `;
     },
 
+    setPOSSortMode: (mode) => {
+        const settings = DB.getSettings();
+        settings.posSortMode = ['no_barcode', 'popular', 'name'].includes(mode) ? mode : 'no_barcode';
+        DB.saveSettings(settings);
+        App.renderProductGrid();
+    },
+
+    getProductPopularity: () => {
+        const counts = {};
+        (DB.getSales() || []).forEach(sale => (sale.items || []).forEach(item => {
+            const id = item.productId || item.id;
+            if (id) counts[id] = (counts[id] || 0) + (Number(item.quantity) || 1);
+        }));
+        return counts;
+    },
+
     // --- POS View ---
     renderPOSView: (container) => {
         container.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
                 <h2>ขายสินค้า</h2>
-                <button class="secondary-btn" style="display:flex; align-items:center; gap:5px;" onclick="App.showManualEntryModal()">
-                    <span class="material-symbols-rounded">edit_square</span> พิมพ์รายการเอง
-                </button>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                    <select class="pos-sort-select" aria-label="เรียงสินค้าหน้าขาย" onchange="App.setPOSSortMode(this.value)">
+                        <option value="no_barcode" ${(!DB.getSettings().posSortMode || DB.getSettings().posSortMode === 'no_barcode') ? 'selected' : ''}>ไม่มีบาร์โค้ดก่อน</option>
+                        <option value="popular" ${DB.getSettings().posSortMode === 'popular' ? 'selected' : ''}>ขายบ่อยก่อน</option>
+                        <option value="name" ${DB.getSettings().posSortMode === 'name' ? 'selected' : ''}>ชื่อ ก-ฮ</option>
+                    </select>
+                    <button class="secondary-btn" style="display:flex; align-items:center; gap:5px;" onclick="App.showManualEntryModal()">
+                        <span class="material-symbols-rounded">edit_square</span> พิมพ์รายการเอง
+                    </button>
+                </div>
             </div>
             ${App.renderQuickFilterBarHtml()}
             <div class="product-grid" id="product-grid">
@@ -1422,15 +1445,30 @@ const App = {
         const grid = document.getElementById('product-grid');
         if (!grid) return;
 
-        let displayProducts = App.state.products;
-        if (App.state.searchQuery) {
-            const query = App.state.searchQuery.toLowerCase();
+        let displayProducts = [...App.state.products];
+        const query = App.state.searchQuery.trim().toLowerCase();
+        if (query) {
             displayProducts = displayProducts.filter(p =>
                 (p.name && p.name.toLowerCase().includes(query)) ||
                 (p.barcode && p.barcode.includes(query)) ||
                 (p.packBarcode && p.packBarcode.includes(query)) ||
                 (p.group && p.group.toLowerCase().includes(query))
             );
+            displayProducts.sort((a, b) => {
+                const aName = (a.name || '').toLowerCase();
+                const bName = (b.name || '').toLowerCase();
+                const aScore = aName === query ? 0 : aName.startsWith(query) ? 1 : 2;
+                const bScore = bName === query ? 0 : bName.startsWith(query) ? 1 : 2;
+                return aScore - bScore || aName.localeCompare(bName, 'th');
+            });
+        } else {
+            const sortMode = DB.getSettings().posSortMode || 'no_barcode';
+            const popularity = sortMode === 'popular' ? App.getProductPopularity() : {};
+            displayProducts.sort((a, b) => {
+                if (sortMode === 'popular') return (popularity[b.id] || 0) - (popularity[a.id] || 0) || (a.name || '').localeCompare(b.name || '', 'th');
+                if (sortMode === 'name') return (a.name || '').localeCompare(b.name || '', 'th');
+                return Number(a.hasBarcode !== false) - Number(b.hasBarcode !== false) || (a.name || '').localeCompare(b.name || '', 'th');
+            });
         }
 
         // Aggregate by Group
@@ -1438,7 +1476,7 @@ const App = {
         const singles = [];
 
         displayProducts.forEach(p => {
-            if (p.group) {
+            if (!query && p.hasBarcode !== false && p.group) {
                 if (!groups[p.group]) groups[p.group] = [];
                 groups[p.group].push(p);
             } else {
@@ -1471,7 +1509,7 @@ const App = {
         }).join('');
 
         // 2. Render Singles
-        const singleHtml = singles.map(p => {
+        const singleHtml = singles.map((p, index) => {
             let displayStock = p.stock;
             // Bundle Stock Calculation
             if (p.parentId && p.packSize) {
@@ -1493,8 +1531,16 @@ const App = {
                 badgeHtml += '<div class="stock-badge" style="background:var(--danger-color); top:5px; left:5px; right:auto;">🔥 Promo</div>';
             }
 
-            return `
+            let sectionHeader = '';
+            if (!query && p.hasBarcode === false && index === 0) {
+                sectionHeader = '<div class="product-grid-section"><span class="material-symbols-rounded">touch_app</span> สินค้าไม่มีบาร์โค้ด · แตะเพื่อขาย</div>';
+            } else if (!query && p.hasBarcode !== false && index > 0 && singles[index - 1].hasBarcode === false) {
+                sectionHeader = '<div class="product-grid-section">สินค้าอื่น</div>';
+            }
+
+            return `${sectionHeader}
             <div class="product-card" onclick="App.addToCart(App.state.products.find(x => x.id === '${p.id}'))" style="${p.tags && p.tags.includes('promo') ? 'border:2px solid var(--danger-color);' : ''}">
+                ${p.hasBarcode === false ? '<div class="stock-badge no-barcode">แตะขาย · ไม่มีบาร์โค้ด</div>' : ''}
                 ${displayStock <= 5 ? '<div class="stock-badge low">Low Stock</div>' : ''}
                 ${badgeHtml}
                 <div style="height:120px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
@@ -1518,7 +1564,7 @@ const App = {
             `;
         }).join('');
 
-        grid.innerHTML = groupHtml + singleHtml;
+        grid.innerHTML = singleHtml + groupHtml;
     },
 
     // --- Stock View ---
@@ -2104,11 +2150,12 @@ const App = {
                 
                 <div style="display:flex; flex-wrap:wrap; gap:15px;">
                     <div style="flex: 1 1 250px;">
-                        <label>บาร์โค้ด (Scan หรือ พิมพ์)</label>
+                        <label>บาร์โค้ด (ไม่บังคับ)</label>
                         <div style="display:flex; gap:5px;">
-                            <input type="text" id="p-barcode" value="${product ? product.barcode : ''}" required style="flex:1;">
+                            <input type="text" id="p-barcode" value="${product && product.hasBarcode !== false ? product.barcode : ''}" placeholder="สแกน พิมพ์ หรือปล่อยว่าง" style="flex:1;">
                             <button type="button" class="secondary-btn" onclick="document.getElementById('p-barcode').focus()">Scan</button>
                         </div>
+                        <small style="color:#667085;">ถ้าปล่อยว่าง ระบบจะสร้างรหัสภายในและแสดงสินค้านี้ไว้หน้าขาย</small>
                     </div>
                      <div style="flex: 1 1 200px;">
                         <label>หมวดหมู่ (ปล่อยว่างถ้าไม่มี)</label>
@@ -2336,8 +2383,14 @@ const App = {
             });
             document.getElementById('product-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const id = document.getElementById('p-id').value || Utils.generateId();
-                const barcode = document.getElementById('p-barcode').value;
+                let id = document.getElementById('p-id').value || Utils.generateId();
+                const enteredBarcode = document.getElementById('p-barcode').value.trim();
+                const barcodeIdentity = Utils.resolveProductBarcode(
+                    enteredBarcode,
+                    id,
+                    product && product.hasBarcode === false ? (product.internalCode || product.barcode) : ''
+                );
+                const { barcode, hasBarcode, internalCode } = barcodeIdentity;
                 const group = document.getElementById('p-group').value.trim();
                 const name = document.getElementById('p-name').value;
                 const price = parseFloat(document.getElementById('p-price').value);
@@ -2352,7 +2405,9 @@ const App = {
                 const tags = Array.from(document.querySelectorAll('input[name="p-tags"]:checked')).map(cb => cb.value);
 
                 // --- Duplicate Barcode Check ---
-                const existingProduct = App.state.products.find(p => p.barcode === barcode && p.id !== id && barcode.trim() !== '');
+                const existingProduct = hasBarcode
+                    ? App.state.products.find(p => p.hasBarcode !== false && p.barcode === barcode && p.id !== id)
+                    : null;
 
                 if (existingProduct) {
                     const isQuick = existingProduct.name.startsWith('(ขายด่วน)');
@@ -2420,8 +2475,8 @@ const App = {
                     parentId, packSize, wholesaleQty, wholesalePrice, packBarcode,
                     unitsPerBox: product ? (product.unitsPerBox || 0) : 0,
                     unitLabel: product ? (product.unitLabel || 'ชิ้น') : 'ชิ้น',
-                    hasBarcode: product && product.hasBarcode === false && barcode === product.barcode ? false : true,
-                    internalCode: product && product.hasBarcode === false && barcode === product.barcode ? (product.internalCode || barcode) : null,
+                    hasBarcode,
+                    internalCode,
                     updatedAt: Date.now() // Auto-Timestamp
                 };
 
@@ -2849,13 +2904,101 @@ const App = {
     },
 
     // --- Search & Scan Logic ---
+    renderQuickSearchResults: (rawQuery) => {
+        const panel = document.getElementById('quick-search-results');
+        if (!panel) return;
+        const query = String(rawQuery || '').trim().toLowerCase();
+        if (!query || /^\d{6,18}$/.test(query)) {
+            panel.classList.add('hidden');
+            panel.innerHTML = '';
+            return;
+        }
+
+        const matches = App.state.products
+            .filter(p => (p.name || '').toLowerCase().includes(query) || (p.group || '').toLowerCase().includes(query))
+            .sort((a, b) => {
+                const aName = (a.name || '').toLowerCase();
+                const bName = (b.name || '').toLowerCase();
+                return Number(!aName.startsWith(query)) - Number(!bName.startsWith(query)) || aName.localeCompare(bName, 'th');
+            })
+            .slice(0, 6);
+        const groups = [...new Set(matches.map(p => p.group).filter(Boolean))].slice(0, 4);
+        if (!matches.length) {
+            panel.innerHTML = '<div class="quick-search-empty">ไม่พบสินค้า — ลองพิมพ์คำสั้นลงหรือเลือกหมวดหมู่</div>';
+            panel.classList.remove('hidden');
+            return;
+        }
+
+        panel.innerHTML = `
+            ${groups.length ? `<div class="quick-search-groups">${groups.map(group => `<button type="button" onclick="App.chooseQuickSearchCategory('${encodeURIComponent(group)}')">${Utils.escapeHTML(group)}</button>`).join('')}</div>` : ''}
+            ${matches.map(p => `
+                <button type="button" class="quick-search-item" onclick="App.selectQuickSearchProduct('${p.id}')">
+                    <span class="quick-search-thumb">${p.image ? `<img src="${p.image}" alt="">` : '<span class="material-symbols-rounded">inventory_2</span>'}</span>
+                    <span class="quick-search-copy"><strong>${Utils.escapeHTML(p.name)}</strong><small>${p.hasBarcode === false ? 'ไม่มีบาร์โค้ด' : Utils.escapeHTML(p.group || 'สินค้า')} · คงเหลือ ${Number(p.stock) || 0}</small></span>
+                    <strong class="quick-search-price">฿${Utils.formatCurrency(p.price)}</strong>
+                </button>
+            `).join('')}
+        `;
+        panel.classList.remove('hidden');
+    },
+
+    selectQuickSearchProduct: (productId) => {
+        const product = App.state.products.find(p => p.id === productId);
+        if (product) App.addToCart(product);
+        App.clearProductSearch();
+    },
+
+    chooseQuickSearchCategory: (encodedGroup) => {
+        App.setQuickFilter(decodeURIComponent(encodedGroup));
+        document.getElementById('quick-search-results')?.classList.add('hidden');
+    },
+
+    clearProductSearch: () => {
+        App.state.searchQuery = '';
+        if (App.elements.globalSearch) App.elements.globalSearch.value = '';
+        App.renderQuickSearchResults('');
+        if (App.state.currentView === 'pos') App.renderProductGrid();
+    },
+
+    startVoiceSearch: () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            App.alert('เครื่องนี้ยังไม่รองรับการค้นหาด้วยเสียง กรุณาพิมพ์ชื่อสินค้าแทน');
+            return;
+        }
+        if (App.voiceRecognition) {
+            try { App.voiceRecognition.stop(); } catch (_) {}
+        }
+        const button = document.getElementById('btn-voice-search');
+        const recognition = new SpeechRecognition();
+        App.voiceRecognition = recognition;
+        recognition.lang = 'th-TH';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => button?.classList.add('listening');
+        recognition.onend = () => button?.classList.remove('listening');
+        recognition.onerror = () => button?.classList.remove('listening');
+        recognition.onresult = (event) => {
+            const spoken = event.results?.[0]?.[0]?.transcript?.trim();
+            if (!spoken) return;
+            App.elements.globalSearch.value = spoken;
+            App.elements.globalSearch.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+        recognition.start();
+    },
+
     setupGlobalInput: () => {
         const input = App.elements.globalSearch;
+
+        document.getElementById('btn-voice-search')?.addEventListener('click', App.startVoiceSearch);
+        input.addEventListener('focus', () => App.renderQuickSearchResults(input.value));
+        input.addEventListener('blur', () => setTimeout(() => document.getElementById('quick-search-results')?.classList.add('hidden'), 180));
 
         // 1. Standard Search Box Input
         let timeout = null;
         input.addEventListener('input', (e) => {
             clearTimeout(timeout);
+            App.renderQuickSearchResults(e.target.value);
             timeout = setTimeout(() => {
                 const val = e.target.value;
                 App.state.searchQuery = val;
@@ -2864,6 +3007,7 @@ const App = {
                     App.handleBarcodeScan(val);
                     input.value = '';
                     App.state.searchQuery = '';
+                    App.renderQuickSearchResults('');
                 } else {
                     if (App.state.currentView === 'pos') {
                         App.renderProductGrid();

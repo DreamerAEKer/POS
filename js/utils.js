@@ -90,6 +90,13 @@ const Utils = {
         return validFormat && Number(elapsedMs) <= Math.max(1400, code.length * 130);
     },
 
+    resolveProductBarcode: (enteredValue, productId, existingInternalCode = '') => {
+        const entered = String(enteredValue || '').trim();
+        if (entered) return { barcode: entered, hasBarcode: true, internalCode: null };
+        const internalCode = String(existingInternalCode || '').trim() || `INTERNAL-${productId}`;
+        return { barcode: internalCode, hasBarcode: false, internalCode };
+    },
+
     // New: Universal Image Compressor for existing Base64 strings
     compressImage: (base64, maxWidth = 200, quality = 0.5) => {
         return new Promise((resolve, reject) => {

@@ -539,6 +539,16 @@ body.printing-mode #receipt-print-area {
     #mobile-bottom-nav .nav-item span:first-child,
 }
 
+.product-grid-section {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--primary-color);
+    padding: 4px 2px;
+}
+
 /* Buttons */
 button {
     cursor: pointer;
@@ -579,7 +589,40 @@ button {
     background: transparent;
     padding: var(--space-sm);
     border-radius: var(--radius-full);
+    position: relative;
 }
+
+.quick-search-results {
+    position: absolute;
+    z-index: 1200;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    max-height: min(62vh, 520px);
+    overflow-y: auto;
+    background: white;
+    border: 1px solid var(--neutral-300);
+    border-radius: 18px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+    padding: 8px;
+}
+
+.quick-search-groups { display:flex; gap:6px; overflow-x:auto; padding:2px 2px 8px; }
+.quick-search-groups button { white-space:nowrap; border:0; border-radius:18px; padding:7px 12px; background:var(--primary-light); color:var(--primary-color); font-family:inherit; font-weight:600; }
+.quick-search-item { width:100%; min-height:60px; display:flex; align-items:center; gap:10px; padding:7px; border:0; border-top:1px solid #eee; background:white; text-align:left; font-family:inherit; }
+.quick-search-item:active { background:var(--primary-light); }
+.quick-search-thumb { width:46px; height:46px; flex:0 0 46px; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:10px; background:#eef4ef; color:var(--primary-color); }
+.quick-search-thumb img { width:100%; height:100%; object-fit:cover; }
+.quick-search-copy { min-width:0; flex:1; display:flex; flex-direction:column; }
+.quick-search-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.quick-search-copy small { color:#667085; }
+.quick-search-price { color:var(--primary-color); white-space:nowrap; }
+.quick-search-empty { padding:14px; text-align:center; color:#667085; }
+#btn-voice-search.listening { color:white; background:#e53935; animation:voice-pulse 1s infinite; }
+@keyframes voice-pulse { 50% { transform:scale(1.12); box-shadow:0 0 0 7px rgba(229,57,53,.15); } }
+
+.pos-sort-select { min-height:42px; max-width:170px; border:1px solid var(--neutral-300); border-radius:10px; padding:6px 8px; background:white; font-family:inherit; font-weight:600; }
+.stock-badge.no-barcode { left:5px; right:auto; top:5px; background:#1565c0; }
 
 .icon-btn:hover {
     background-color: var(--neutral-200);
