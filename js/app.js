@@ -13,6 +13,8 @@ const App = {
         salesFilter: 'today', // 'today', '7days', '30days', 'all'
         salesTab: 'bills', // 'bills', 'top', 'categories'
         stockTab: 'all', // 'all', 'low', 'new', 'groups'
+        stockBulkMode: false,
+        selectedStockProductIds: [],
         stockSort: { column: 'name', direction: 'asc' }, // New Sorting State
         salesReport: {
             startDate: new Date().toISOString().split('T')[0], // Default Today
@@ -919,7 +921,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.13 (06/08/2026)', // Barcode-optional products and fast mobile product search
+    VERSION: '0.99.14 (06/08/2026)', // Bulk mobile category organizer
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -1577,11 +1579,16 @@ const App = {
         const totalSalesValue = allProducts.reduce((sum, p) => sum + (p.stock * p.price), 0);
         const totalItems = allProducts.reduce((sum, p) => sum + p.stock, 0);
         const lowStockCount = allProducts.filter(p => p.stock <= 5).length;
+        const existingGroups = [...new Set(allProducts.map(p => p.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+        const selectedCount = App.state.selectedStockProductIds.length;
 
         container.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2>จัดการสต็อก</h2>
-                <div style="text-align:right; display:flex; gap:10px; align-items:center;">
+                <div style="text-align:right; display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                    <button class="secondary-btn ${App.state.stockBulkMode ? 'bulk-mode-active' : ''}" onclick="App.requestToggleStockBulkMode()" style="display:flex; align-items:center; gap:5px; padding:10px 15px;">
+                        <span class="material-symbols-rounded" style="font-size:18px;">checklist</span> ${App.state.stockBulkMode ? 'ออกจากโหมดจัดหมวด' : 'จัดหมวดหลายรายการ'}
+                    </button>
                     <button class="secondary-btn" onclick="App.printProductCatalog()" style="display:flex; align-items:center; gap:5px; padding: 10px 15px;">
                         <span class="material-symbols-rounded" style="font-size:18px;">print</span> แคตตาล็อค
                     </button>
@@ -1614,8 +1621,27 @@ const App = {
                 <button class="filter-btn ${App.state.stockTab === 'all' ? 'active' : ''}" onclick="App.setStockTab('all')">ทั้งหมด</button>
                 <button class="filter-btn ${App.state.stockTab === 'low' ? 'active' : ''}" onclick="App.setStockTab('low')">ใกล้หมด (Low)</button>
                 <button class="filter-btn ${App.state.stockTab === 'new' ? 'active' : ''}" onclick="App.setStockTab('new')">มาใหม่ (New)</button>
-                <button class="filter-btn ${App.state.stockTab === 'groups' ? 'active' : ''}" onclick="App.setStockTab('groups')">แยกหมวดหมู่</button>
+                <button class="filter-btn ${App.state.stockTab === 'groups' ? 'active' : ''}" onclick="App.setStockTab('groups')" ${App.state.stockBulkMode ? 'disabled title="ออกจากโหมดจัดหมวดก่อน"' : ''}>แยกหมวดหมู่</button>
             </div>
+
+            ${App.state.stockBulkMode ? `
+                <div class="bulk-category-ribbon" role="region" aria-label="เครื่องมือจัดหมวดหลายรายการ">
+                    <div class="bulk-category-summary">
+                        <span class="material-symbols-rounded">library_add_check</span>
+                        <strong id="bulk-selected-count">เลือกแล้ว ${selectedCount} รายการ</strong>
+                        <button type="button" onclick="App.selectAllFilteredStock(true)">เลือกที่แสดงทั้งหมด</button>
+                        <button type="button" onclick="App.selectAllFilteredStock(false)">ล้างการเลือก</button>
+                    </div>
+                    <div class="bulk-category-actions">
+                        <label for="bulk-category-input">ย้ายไปหมวด</label>
+                        <input id="bulk-category-input" list="bulk-category-list" placeholder="เลือกหรือพิมพ์หมวดใหม่">
+                        <datalist id="bulk-category-list">${existingGroups.map(group => `<option value="${Utils.escapeHTML(group)}">`).join('')}</datalist>
+                        <button type="button" class="primary-btn bulk-category-apply" onclick="App.applyBulkCategory(false)" ${selectedCount ? '' : 'disabled'}>ย้ายหมวด</button>
+                        <button type="button" class="secondary-btn bulk-category-apply" onclick="App.applyBulkCategory(true)" ${selectedCount ? '' : 'disabled'}>เอาออกจากหมวด</button>
+                    </div>
+                    <small>คำสั่งนี้เปลี่ยนเฉพาะหมวดหมู่ ไม่แตะราคา สต็อก หรือบาร์โค้ด</small>
+                </div>
+            ` : ''}
 
             <div style="margin-top:10px; overflow-x:auto;">
                 ${App.state.stockTab === 'groups' ? App.renderStockGroups(products) : App.renderStockTable(products)}
@@ -1626,6 +1652,67 @@ const App = {
     setStockTab: (tab) => {
         App.state.stockTab = tab;
         App.renderView('stock');
+    },
+
+    requestToggleStockBulkMode: () => {
+        if (App.state.stockBulkMode) {
+            App.state.stockBulkMode = false;
+            App.state.selectedStockProductIds = [];
+            App.renderView('stock');
+            return;
+        }
+        App.checkPin(() => {
+            App.state.stockBulkMode = true;
+            App.state.stockTab = 'all';
+            App.state.selectedStockProductIds = [];
+            App.renderView('stock');
+        });
+    },
+
+    toggleStockProductSelection: (productId, checked) => {
+        const selected = new Set(App.state.selectedStockProductIds);
+        if (checked) selected.add(productId);
+        else selected.delete(productId);
+        App.state.selectedStockProductIds = [...selected];
+        document.getElementById(`stock-item-${productId}`)?.classList.toggle('stock-row-selected', checked);
+        App.updateBulkCategoryRibbonState();
+    },
+
+    updateBulkCategoryRibbonState: () => {
+        const count = App.state.selectedStockProductIds.length;
+        const countEl = document.getElementById('bulk-selected-count');
+        if (countEl) countEl.textContent = `เลือกแล้ว ${count} รายการ`;
+        document.querySelectorAll('.bulk-category-apply').forEach(button => { button.disabled = count === 0; });
+        const visibleIds = App.getFilteredStock().products.map(p => p.id);
+        const selectAll = document.getElementById('bulk-select-all');
+        if (selectAll) selectAll.checked = visibleIds.length > 0 && visibleIds.every(id => App.state.selectedStockProductIds.includes(id));
+    },
+
+    selectAllFilteredStock: (checked) => {
+        const visibleIds = App.getFilteredStock().products.map(p => p.id);
+        const selected = new Set(App.state.selectedStockProductIds);
+        visibleIds.forEach(id => checked ? selected.add(id) : selected.delete(id));
+        App.state.selectedStockProductIds = [...selected];
+        App.renderView('stock');
+    },
+
+    applyBulkCategory: async (removeCategory = false) => {
+        const selectedIds = new Set(App.state.selectedStockProductIds);
+        if (!selectedIds.size) return App.alert('กรุณาเลือกสินค้าอย่างน้อย 1 รายการ');
+        const newGroup = removeCategory ? '' : (document.getElementById('bulk-category-input')?.value || '').trim();
+        if (!removeCategory && !newGroup) return App.alert('กรุณาเลือกหรือพิมพ์ชื่อหมวดหมู่');
+
+        const targetLabel = removeCategory ? 'ไม่มีหมวดหมู่' : newGroup;
+        if (!await App.confirm(`ยืนยันเปลี่ยนหมวดสินค้า ${selectedIds.size} รายการเป็น “${targetLabel}” หรือไม่?\n\nราคา สต็อก และบาร์โค้ดจะไม่เปลี่ยน`)) return;
+
+        const result = Utils.assignCategoryToProducts(App.state.products, selectedIds, newGroup);
+        App.state.products = result.products;
+        const changed = result.changed;
+        const syncResult = await DB.saveProductsWithCloud(App.state.products, [...selectedIds]);
+        App.state.selectedStockProductIds = [];
+        App.renderView('stock');
+        const syncNote = syncResult.available ? `\nซิงค์ Firebase แล้ว ${syncResult.synced} รายการ` : '\nบันทึกในเครื่องแล้ว และจะซิงค์เมื่อเชื่อมต่อ Firebase';
+        await App.alert(`จัดหมวดหมู่เรียบร้อย ${changed} รายการ${syncNote}`);
     },
 
     toggleStockSort: (column) => {
@@ -1697,6 +1784,8 @@ const App = {
         };
 
         const thStyle = "padding:12px; cursor:pointer; user-select:none; white-space:nowrap; vertical-align:middle;";
+        const visibleIds = products.map(p => p.id);
+        const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => App.state.selectedStockProductIds.includes(id));
 
         return `
             <div style="padding-bottom:20px;">
@@ -1709,6 +1798,7 @@ const App = {
                     <table style="width:100%; min-width:600px; border-collapse:collapse; overflow:hidden;">
                     <thead>
                         <tr style="background:var(--neutral-100); text-align:left; font-size:13px; color:#666;">
+                            ${App.state.stockBulkMode ? `<th style="padding:12px; width:46px;"><input id="bulk-select-all" type="checkbox" aria-label="เลือกสินค้าที่แสดงทั้งหมด" ${allVisibleSelected ? 'checked' : ''} onchange="App.selectAllFilteredStock(this.checked)"></th>` : ''}
                             <th style="${thStyle}" onclick="App.toggleStockSort('name')">
                                 <div style="display:flex; align-items:center; gap:4px;">สินค้า ${sortIcon('name')}</div>
                             </th>
@@ -1747,7 +1837,8 @@ const App = {
             const costAlert = !p.cost ? 'color:orange;' : '';
 
             return `
-                                <tr id="stock-item-${p.id}" style="border-bottom:1px solid #eee;">
+                                <tr id="stock-item-${p.id}" class="${App.state.selectedStockProductIds.includes(p.id) ? 'stock-row-selected' : ''}" style="border-bottom:1px solid #eee;">
+                                    ${App.state.stockBulkMode ? `<td style="padding:12px;"><input type="checkbox" aria-label="เลือก ${Utils.escapeHTML(p.name)}" ${App.state.selectedStockProductIds.includes(p.id) ? 'checked' : ''} onchange="App.toggleStockProductSelection('${p.id}', this.checked)"></td>` : ''}
                                     <td style="padding:10px;">
                                         <div style="display:flex; align-items:center; gap:10px;">
                                             <div style="width:36px; height:36px; background:#eee; border-radius:4px; overflow:hidden; flex-shrink:0;">
@@ -1975,7 +2066,8 @@ const App = {
 
         if (product) {
             product.group = newGroup;
-            DB.saveProducts(App.state.products); // Save to DB
+            product.updatedAt = Date.now();
+            await DB.saveProductsWithCloud(App.state.products, [product.id]);
             App.closeModals();
             App.renderView('stock'); // Refresh View
 

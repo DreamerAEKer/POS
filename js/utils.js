@@ -97,6 +97,17 @@ const Utils = {
         return { barcode: internalCode, hasBarcode: false, internalCode };
     },
 
+    assignCategoryToProducts: (products, selectedIds, newGroup, updatedAt = Date.now()) => {
+        const ids = new Set(selectedIds || []);
+        let changed = 0;
+        const updatedProducts = (products || []).map(product => {
+            if (!ids.has(product.id)) return product;
+            changed++;
+            return { ...product, group: String(newGroup || ''), updatedAt };
+        });
+        return { products: updatedProducts, changed };
+    },
+
     // New: Universal Image Compressor for existing Base64 strings
     compressImage: (base64, maxWidth = 200, quality = 0.5) => {
         return new Promise((resolve, reject) => {

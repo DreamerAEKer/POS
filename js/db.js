@@ -408,6 +408,13 @@ const DB = {
                     if (remoteUpdatedAt >= localUpdatedAt) {
                         Object.assign(product, DB.getStockCatalogPayload(data));
                         product.updatedAt = remoteUpdatedAt || localUpdatedAt;
+                    } else if (product.name) {
+                        // A category/name/price edit was saved while Firebase was
+                        // unavailable. Push the newer local catalog on reconnect.
+                        catalogBackfills.push(() => doc.ref.set({
+                            ...DB.getStockCatalogPayload(product),
+                            catalogUpdatedAt: localUpdatedAt
+                        }, { merge: true }));
                     }
                 }
 
@@ -488,6 +495,38 @@ const DB = {
 
     saveProducts: (productsArray) => {
         return DB.saveToLocalStorage(DB.KEYS.PRODUCTS, productsArray);
+    },
+
+    saveProductsWithCloud: async (productsArray, changedIds = []) => {
+        await DB.saveProducts(productsArray);
+        const ids = new Set((changedIds || []).map(String));
+        const changedProducts = productsArray.filter(product => ids.has(String(product.id)));
+        if (!changedProducts.length || !dbFirestore || !DB.currentUser) {
+            return { saved: changedProducts.length, synced: 0, available: Boolean(dbFirestore && DB.currentUser) };
+        }
+
+        let synced = 0;
+        try {
+            for (let index = 0; index < changedProducts.length; index += 400) {
+                const batch = dbFirestore.batch();
+                const chunk = changedProducts.slice(index, index + 400);
+                chunk.forEach(product => {
+                    const ref = dbFirestore.collection(DB.STOCK_COLLECTION).doc(String(product.id));
+                    batch.set(ref, {
+                        ...DB.getStockCatalogPayload(product),
+                        stock: Number(product.stock) || 0,
+                        catalogUpdatedAt: Number(product.updatedAt) || Date.now(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                });
+                await batch.commit();
+                synced += chunk.length;
+            }
+            return { saved: changedProducts.length, synced, available: true };
+        } catch (error) {
+            console.error('Firebase bulk catalog sync error:', error);
+            return { saved: changedProducts.length, synced, available: false, error };
+        }
     },
 
     // New: Batch recompress all images to free up space

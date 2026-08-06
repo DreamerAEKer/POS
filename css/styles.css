@@ -632,6 +632,74 @@ button {
     color: var(--danger-color);
 }
 
+.bulk-mode-active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.bulk-category-ribbon {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 12px;
+    border: 2px solid var(--primary-color);
+    border-radius: 14px;
+    background: #f4fbf5;
+    box-shadow: 0 5px 16px rgba(0, 0, 0, .12);
+}
+
+.bulk-category-summary,
+.bulk-category-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bulk-category-summary button {
+    min-height: 38px;
+    padding: 7px 11px;
+    border-radius: 9px;
+    background: white;
+    border: 1px solid #b7d8ba;
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.bulk-category-actions input {
+    flex: 1 1 190px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 9px 11px;
+    border: 1px solid #a9c9ac;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 16px;
+}
+
+.bulk-category-actions .primary-btn,
+.bulk-category-actions .secondary-btn {
+    min-height: 44px;
+    padding: 9px 13px;
+    font-size: 15px;
+}
+
+.stock-row-selected {
+    background: #e6f4e8;
+    outline: 2px solid rgba(46, 125, 50, .28);
+    outline-offset: -2px;
+}
+
+table input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--primary-color);
+}
+
 .badge {
     background: var(--danger-color);
     color: white;
