@@ -1022,7 +1022,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.15 (06/08/2026)', // Firebase customers, orders and payments
+    VERSION: '0.99.16 (06/08/2026)', // Reliable table bill close and cancellation
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -4390,9 +4390,16 @@ const App = {
 
     setupCartActions: () => {
         document.getElementById('btn-clear-cart').addEventListener('click', async () => {
-            if (await App.confirm('ต้องการล้างตะกร้าสินค้าทั้งหมด?', 'ล้างตะกร้า')) {
+            if (App.state.activeBill?.id) {
+                const confirmed = await App.confirm(
+                    `ตะกร้านี้ผูกกับบิล "${App.state.activeBill.note || App.state.activeBill.id}"\n\nต้องการยกเลิกและล้างบิลนี้ออกจากโต๊ะ/รายการส่งทั้งหมดหรือไม่?`,
+                    'ยกเลิกบิลที่เปิดอยู่'
+                );
+                if (!confirmed) return;
+                App.closeBillSession(App.state.activeBill.id, 'cancelled');
+            } else if (await App.confirm('ต้องการล้างตะกร้าสินค้าทั้งหมด?', 'ล้างตะกร้า')) {
                 App.state.cart = [];
-                App.state.activeBill = null; // Reset tracker
+                DB.clearAutoCart();
                 App.renderCart();
             }
         });
@@ -4430,6 +4437,30 @@ const App = {
                 App.toggleMobileCart(false);
             });
         }
+    },
+
+    closeBillSession: (billId, fulfillmentStatus = 'cancelled') => {
+        if (!billId) return;
+        if (fulfillmentStatus === 'completed') DB.finalizeParkedCart(billId);
+        else DB.removeParkedCart(billId, { fulfillmentStatus: 'cancelled', moveToTrash: true });
+
+        const tables = DB.getTables();
+        let changed = false;
+        tables.forEach(table => {
+            if (String(table.billId) === String(billId)) {
+                table.billId = null;
+                changed = true;
+            }
+        });
+        if (changed) DB.saveTables(tables);
+
+        if (App.state.activeBill && String(App.state.activeBill.id) === String(billId)) {
+            App.state.cart = [];
+            App.state.activeBill = null;
+        }
+        DB.clearAutoCart();
+        App.updateParkedBadge();
+        App.renderCart();
     },
 
     applyTCTPrice: async () => {
@@ -4491,7 +4522,7 @@ const App = {
 
             // Persist stock and sale before clearing the cart.
             const saleData = {
-                billId: App.state.editingBillId || null,
+                billId: App.state.editingBillId || App.state.activeBill?.id || null,
                 date: App.state.editingSaleDate || new Date(),
                 items: App.state.cart.map(item => ({ ...item, finalLineTotal: App.calcItemTotal(item) })),
                 total: total,
@@ -4506,16 +4537,8 @@ const App = {
                 return;
             }
 
-            // Clear Edit State & Table Ties
-            if (App.state.activeBill && App.state.activeBill.id) {
-                DB.removeParkedCart(App.state.activeBill.id);
-                const tables = DB.getTables();
-                const matchedTable = tables.find(t => t.billId === App.state.activeBill.id);
-                if (matchedTable) {
-                    matchedTable.billId = null;
-                    DB.saveTables(tables);
-                }
-            }
+            // A paid table/delivery bill must be removed from the active queue.
+            if (App.state.activeBill?.id) App.closeBillSession(App.state.activeBill.id, 'completed');
 
             App.state.editingBillId = null;
             App.state.editingSaleDate = null;
@@ -5124,7 +5147,7 @@ const App = {
 
             try {
                 await DB.commitSale({
-                billId: App.state.editingBillId || null, // Preserve ID if editing
+                billId: App.state.editingBillId || App.state.activeBill?.id || null, // Preserve active table/delivery ID
                 date: App.state.editingSaleDate || new Date(), // Preserve Date if editing
                 items: App.state.cart.map(item => ({ ...item, finalLineTotal: App.calcItemTotal(item) })),
                 total: total,
@@ -5142,11 +5165,16 @@ const App = {
                 return;
             }
 
+            // Paid table/delivery bills must disappear from the active queue and free the table.
+            if (App.state.activeBill?.id) App.closeBillSession(App.state.activeBill.id, 'completed');
+
             // Clear Edit State
             App.state.editingBillId = null;
             App.state.editingSaleDate = null;
 
             App.state.cart = [];
+            App.state.activeBill = null;
+            DB.clearAutoCart();
             // Refresh Global State
             App.state.products = DB.getProducts();
             App.renderCart();
@@ -5856,6 +5884,9 @@ const App = {
                 <button class="primary-btn" onclick="App.checkoutTableDirectly(${table.id})" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #4caf50;">
                     <span class="material-symbols-rounded">payments</span> เช็คบิล / รับเงิน
                 </button>
+                <button class="secondary-btn" onclick="App.cancelTableBill(${table.id})" style="width:100%; color:#c62828; border-color:#ef9a9a; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <span class="material-symbols-rounded">delete</span> ยกเลิกและล้างบิลโต๊ะ
+                </button>
             </div>
         `;
 
@@ -5915,6 +5946,23 @@ const App = {
         if (total > 0) {
             App.showPaymentModal();
         }
+    },
+
+    cancelTableBill: async (tableId) => {
+        const tables = DB.getTables();
+        const table = tables.find(item => item.id === tableId);
+        if (!table?.billId) return;
+        const bill = DB.getParkedCarts().find(item => String(item.id) === String(table.billId));
+        const total = (bill?.items || []).reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+        const confirmed = await App.confirm(
+            `ยืนยันยกเลิกบิล ${table.name}\n${bill?.note ? `ลูกค้า: ${bill.note}\n` : ''}ยอดรวม ฿${Utils.formatCurrency(total)}\n\nบิลจะออกจากโต๊ะและย้ายไปถังขยะเพื่อให้กู้คืนได้`,
+            'ยกเลิกบิลโต๊ะ'
+        );
+        if (!confirmed) return;
+        App.closeBillSession(table.billId, 'cancelled');
+        App.closeModals();
+        App.renderView('tables');
+        await App.alert(`ล้างบิล ${table.name} แล้ว`);
     },
 
     // --- Price Check ---

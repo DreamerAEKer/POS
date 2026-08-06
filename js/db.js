@@ -825,33 +825,45 @@ const DB = {
         return null;
     },
 
-    removeParkedCart: (id) => {
-        // Soft Delete to Trash
+    removeParkedCart: (id, options = {}) => {
+        const { fulfillmentStatus = 'cancelled', moveToTrash = true } = options;
         const parked = DB.getParkedCarts();
         const item = parked.find(c => c.id === id);
 
         if (item) {
-            // Add to Trash - Robust FIFO
-            let trash = DB.getParkedTrash();
-            trash.push(item);
-            trash.sort((a, b) => b.timestamp - a.timestamp); // Newest First
-            
-            // Limit to 20
-            if (trash.length > 20) {
-                 if (typeof App !== 'undefined' && App.alert) {
-                     App.alert('ถังขยะเต็ม! รายการที่เก่าที่สุดจะถูกลบถาวร');
-                 }
-                 trash = trash.slice(0, 20);
+            if (moveToTrash) {
+                // Cancelled bills remain recoverable from the trash.
+                let trash = DB.getParkedTrash();
+                trash.push(item);
+                trash.sort((a, b) => b.timestamp - a.timestamp);
+                if (trash.length > 20) {
+                    if (typeof App !== 'undefined' && App.alert) {
+                        App.alert('ถังขยะเต็ม! รายการที่เก่าที่สุดจะถูกลบถาวร');
+                    }
+                    trash = trash.slice(0, 20);
+                }
+                DB.saveToLocalStorage('store_parked_trash', trash);
             }
-            DB.saveToLocalStorage('store_parked_trash', trash);
 
             // Remove from Active
             const newParked = parked.filter(c => c.id !== id);
             DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, newParked);
             const order = DB.getOrders().find(candidate => String(candidate.id) === String(id));
-            if (order) DB.saveOrder({ ...order, fulfillmentStatus: 'cancelled', cancelledAt: Date.now() });
+            if (order) {
+                const statusTime = Date.now();
+                DB.saveOrder({
+                    ...order,
+                    fulfillmentStatus,
+                    ...(fulfillmentStatus === 'cancelled' ? { cancelledAt: statusTime } : { completedAt: statusTime })
+                });
+            }
         }
     },
+
+    finalizeParkedCart: (id) => DB.removeParkedCart(id, {
+        fulfillmentStatus: 'completed',
+        moveToTrash: false
+    }),
 
     restoreParkedFromTrash: (id) => {
         const trash = DB.getParkedTrash();
