@@ -1022,7 +1022,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.17 (06/08/2026)', // Delivery order cancellation and cleanup
+    VERSION: '0.99.18 (06/08/2026)', // Compact mobile lists and stock management
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -1887,15 +1887,39 @@ const App = {
         const thStyle = "padding:12px; cursor:pointer; user-select:none; white-space:nowrap; vertical-align:middle;";
         const visibleIds = products.map(p => p.id);
         const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => App.state.selectedStockProductIds.includes(id));
+        const mobileRowsHtml = products.map(p => `
+            <article id="stock-mobile-${p.id}" class="stock-mobile-item ${App.state.selectedStockProductIds.includes(p.id) ? 'stock-row-selected' : ''}">
+                ${App.state.stockBulkMode ? `<label class="stock-mobile-select"><input type="checkbox" aria-label="เลือก ${Utils.escapeHTML(p.name)}" ${App.state.selectedStockProductIds.includes(p.id) ? 'checked' : ''} onchange="App.toggleStockProductSelection('${p.id}', this.checked)"></label>` : ''}
+                <div class="stock-mobile-thumb">
+                    ${p.image ? `<img src="${p.image}" alt="">` : '<span class="material-symbols-rounded">inventory_2</span>'}
+                </div>
+                <div class="stock-mobile-main">
+                    <strong>${Utils.escapeHTML(p.name)}</strong>
+                    <small>${p.hasBarcode === false ? `ไม่มีบาร์โค้ด · ${Utils.escapeHTML(p.internalCode || p.barcode)}` : Utils.escapeHTML(p.barcode)}</small>
+                    <div class="stock-mobile-facts">
+                        <span><b>ขาย</b> ฿${Utils.formatCurrency(p.price)}</span>
+                        <span><b>ทุน</b> ฿${Utils.formatCurrency(p.cost || 0)}</span>
+                        <span class="${p.stock <= 5 ? 'stock-mobile-low' : ''}"><b>เหลือ</b> ${p.stock} ${Utils.escapeHTML(p.unitLabel || 'ชิ้น')}</span>
+                    </div>
+                    ${p.unitsPerBox > 1 ? `<small>${App.formatStockBreakdown(p)}</small>` : ''}
+                </div>
+                <div class="stock-mobile-actions" aria-label="จัดการ ${Utils.escapeHTML(p.name)}">
+                    <button class="icon-btn" onclick="App.openProductModal('${p.id}')" title="แก้ไขสินค้า"><span class="material-symbols-rounded">edit</span></button>
+                    <button class="icon-btn" onclick="App.editProductCategory('${p.id}')" title="จัดหมวดหมู่"><span class="material-symbols-rounded">folder_open</span></button>
+                    <button class="icon-btn dangerous" onclick="App.deleteProduct('${p.id}')" title="ลบสินค้า"><span class="material-symbols-rounded">delete</span></button>
+                </div>
+            </article>
+        `).join('');
 
         return `
             <div style="padding-bottom:20px;">
                 <!-- Scroll Hint -->
-                <div style="font-size:10px; color:#999; text-align:right; margin-bottom:5px; display:flex; align-items:center; justify-content:flex-end; gap:4px;">
+                <div class="stock-scroll-hint" style="font-size:10px; color:#999; text-align:right; margin-bottom:5px; display:flex; align-items:center; justify-content:flex-end; gap:4px;">
                     <span class="material-symbols-rounded" style="font-size:12px;">arrow_forward</span> เลื่อนขวาเพื่อจัดการ
                 </div>
-                
-                <div style="overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:8px; border:1px solid #eee; background:white;">
+
+                <div class="stock-mobile-list">${mobileRowsHtml}</div>
+                <div class="stock-desktop-table" style="overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:8px; border:1px solid #eee; background:white;">
                     <table style="width:100%; min-width:600px; border-collapse:collapse; overflow:hidden;">
                     <thead>
                         <tr style="background:var(--neutral-100); text-align:left; font-size:13px; color:#666;">
