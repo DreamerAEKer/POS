@@ -83,6 +83,13 @@ const Utils = {
         if (el) el.classList.toggle('hidden');
     },
 
+    isScannerTerminator: (key) => key === 'Enter' || key === 'Tab',
+    isLikelyScannerInput: (value, elapsedMs) => {
+        const code = String(value || '').trim();
+        const validFormat = /^\d{6,18}$/.test(code) || /^[A-Za-z0-9-]{8,32}$/.test(code);
+        return validFormat && Number(elapsedMs) <= Math.max(1400, code.length * 130);
+    },
+
     // New: Universal Image Compressor for existing Base64 strings
     compressImage: (base64, maxWidth = 200, quality = 0.5) => {
         return new Promise((resolve, reject) => {
@@ -112,4 +119,6 @@ const Utils = {
         });
     }
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = Utils;
 

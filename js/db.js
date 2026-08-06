@@ -16,21 +16,10 @@ const firebaseConfig = {
     measurementId: "G-P1FF8V2L3C"
 };
 
-// Initialize Firebase
+// Firebase is loaded after the local POS has rendered. This keeps first paint
+// independent from mobile network speed while preserving the same auth/session.
 let firebaseApp, auth, dbFirestore;
-try {
-    if (typeof firebase !== 'undefined') {
-        firebaseApp = firebase.initializeApp(firebaseConfig);
-        auth = firebase.auth();
-        dbFirestore = firebase.firestore();
-        // Enable offline persistence
-        dbFirestore.enablePersistence().catch((err) => {
-            console.warn("Firestore Persistence Error:", err);
-        });
-    }
-} catch (e) {
-    console.error("Firebase Init Error", e);
-}
+const pendingAuthCallbacks = [];
 
 const DB = {
     STOCK_COLLECTION: 'stock',
@@ -87,7 +76,42 @@ const DB = {
 
     // --- Firebase Auth ---
     currentUser: null,
+    initializeFirebase: () => {
+        if (auth && dbFirestore) return true;
+        if (typeof firebase === 'undefined') return false;
+        try {
+            firebaseApp = firebase.apps?.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            dbFirestore = firebase.firestore();
+            dbFirestore.enablePersistence().catch((err) => {
+                console.warn("Firestore Persistence Error:", err);
+            });
+            pendingAuthCallbacks.forEach(callback => DB.attachAuthStateListener(callback));
+            return true;
+        } catch (e) {
+            console.error("Firebase Init Error", e);
+            return false;
+        }
+    },
+    attachAuthStateListener: (callback) => {
+        if (!auth || callback._firebaseAttached) return;
+        callback._firebaseAttached = true;
+        auth.onAuthStateChanged(async (user) => {
+            DB.currentUser = user;
+            DB.userRole = 'staff';
+            if (user && dbFirestore) {
+                try {
+                    const adminDoc = await dbFirestore.collection('admins').doc(user.email).get();
+                    if (adminDoc.exists) DB.userRole = 'admin';
+                } catch (e) {
+                    console.error("Role fetch error:", e);
+                }
+            }
+            callback(user);
+        });
+    },
     login: async (email, password) => {
+        if (!auth) return { success: false, message: 'กำลังเชื่อมต่อระบบ กรุณารอสักครู่แล้วลองอีกครั้ง' };
         try {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             DB.currentUser = userCredential.user;
@@ -101,24 +125,8 @@ const DB = {
         DB.currentUser = null;
     },
     onAuthStateChanged: (callback) => {
-        if (auth) {
-            auth.onAuthStateChanged(async (user) => {
-                DB.currentUser = user;
-                DB.userRole = 'staff'; // Default role
-                if (user && dbFirestore) {
-                    try {
-                        // Check if user is in 'admins' collection
-                        const adminDoc = await dbFirestore.collection('admins').doc(user.email).get();
-                        if (adminDoc.exists) {
-                            DB.userRole = 'admin';
-                        }
-                    } catch (e) {
-                        console.error("Role fetch error:", e);
-                    }
-                }
-                callback(user);
-            });
-        }
+        if (!pendingAuthCallbacks.includes(callback)) pendingAuthCallbacks.push(callback);
+        if (auth) DB.attachAuthStateListener(callback);
     },
 
     // Initial Mock Data
@@ -127,19 +135,17 @@ const DB = {
         if (!isMigrated) {
             console.log("Migrating data to IndexedDB...");
             const keysToMigrate = Object.values(DB.KEYS).concat(['store_parked_trash']);
-            for (let key of keysToMigrate) {
+            await Promise.all(keysToMigrate.map(async key => {
                 const val = localStorage.getItem(key);
-                if (val) {
-                    try { await localforage.setItem(key, JSON.parse(val)); } catch (e) {}
-                }
-            }
+                if (!val) return;
+                try { await localforage.setItem(key, JSON.parse(val)); } catch (e) {}
+            }));
             localStorage.setItem('migrated_to_idb', 'true');
         }
 
         const keysToLoad = Object.values(DB.KEYS).concat(['store_parked_trash']);
-        for (let key of keysToLoad) {
-            DB.cache[key] = await localforage.getItem(key);
-        }
+        const loadedValues = await Promise.all(keysToLoad.map(key => localforage.getItem(key)));
+        keysToLoad.forEach((key, index) => { DB.cache[key] = loadedValues[index]; });
 
         // Seed demo data only on a genuinely new database. An intentionally empty
         // product list must stay empty after the next reload.

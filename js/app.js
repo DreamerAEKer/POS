@@ -18,7 +18,7 @@ const App = {
             startDate: new Date().toISOString().split('T')[0], // Default Today
             endDate: new Date().toISOString().split('T')[0]
         },
-        cameraScanner: { stream: null, detector: null, reader: null, active: false, detecting: false, facingEnvironment: true, torchOn: false, lastCode: null, lastAt: 0 }
+        cameraScanner: { stream: null, detector: null, reader: null, active: false, detecting: false, detectingNow: false, detectionTimer: null, lastDetectionAt: 0, facingEnvironment: true, torchOn: false, lastCode: null, lastAt: 0 }
     },
 
     elements: {
@@ -131,6 +131,11 @@ const App = {
             // Set Global Version Display
             const versionEl = document.getElementById('app-version-display');
             if (versionEl) versionEl.textContent = 'v' + App.VERSION;
+
+            // The local sales screen is ready. Network services start afterwards
+            // so a slow mobile connection cannot delay first use of the POS.
+            App.loadFirebaseSdkInBackground();
+            App.preloadScannerFallback();
 
             console.log('App Initialized Successfully');
         } catch (e) {
@@ -914,7 +919,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.11 (30/07/2026)', // Tap scan result to edit price first
+    VERSION: '0.99.12 (06/08/2026)', // Faster launch, camera scan and Bluetooth scanner handling
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -2872,52 +2877,47 @@ const App = {
         // 2. Global Keydown Listener (Robust Speed-Based)
         // Works even if input is focused (e.g. on-screen keyboard involved)
         let scanBuffer = '';
+        let scanStartedAt = 0;
         let lastKeyTime = 0;
-        let isScanning = false;
 
         document.addEventListener('keydown', (e) => {
+            if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
             const now = Date.now();
             const timeDiff = now - lastKeyTime;
             lastKeyTime = now;
 
-            // Scanners send keys very fast (usually < 50ms)
-            // Humans usually type > 100ms
-            if (!isScanning && timeDiff > 200) {
-                scanBuffer = ''; // Reset if too slow (likely human start)
-                isScanning = false;
+            // Bluetooth scanners act like keyboards. Some budget scanners send
+            // more slowly on Android, so allow up to 250ms between characters.
+            if (timeDiff > 250) {
+                scanBuffer = '';
+                scanStartedAt = now;
             }
 
-            if (e.key === 'Enter') {
-                // Check if buffer looks like a barcode
-                if (scanBuffer.length >= 8 && /^\d+$/.test(scanBuffer)) {
+            if (Utils.isScannerTerminator(e.key)) {
+                const elapsed = scanStartedAt ? now - scanStartedAt : 0;
+                if (Utils.isLikelyScannerInput(scanBuffer, elapsed)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('Global Scan Captured:', scanBuffer);
+                    console.log('Bluetooth/USB Scan Captured:', scanBuffer);
 
-                    // Clear any focused input to prevent double entry (optional but good)
-                    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
-                        document.activeElement.value = '';
-                        document.activeElement.blur(); // Close keyboard? Maybe better to keep focus? 
-                        // Let's just blur to be safe and hide keyboard if possible
-                        document.activeElement.blur();
+                    if (document.activeElement === App.elements.globalSearch) {
+                        App.elements.globalSearch.value = '';
+                        App.state.searchQuery = '';
                     }
-
                     App.handleBarcodeScan(scanBuffer);
                 }
                 scanBuffer = '';
-                isScanning = false;
+                scanStartedAt = 0;
                 return;
             }
 
-            // Printable chars
             if (e.key.length === 1) {
-                // If fast typing detected, assume scanning
-                if (timeDiff < 60) {
-                    isScanning = true;
-                }
-
-                // Allow buffer to grow even if slow initially (first char)
+                if (!scanBuffer) scanStartedAt = now;
                 scanBuffer += e.key;
+                if (scanBuffer.length > 32) {
+                    scanBuffer = '';
+                    scanStartedAt = 0;
+                }
             }
         }, true); // Capture phase to intervene early
 
@@ -2967,6 +2967,9 @@ const App = {
         const scanner = App.state.cameraScanner;
         scanner.active = false;
         scanner.detecting = false;
+        scanner.detectingNow = false;
+        clearTimeout(scanner.detectionTimer);
+        scanner.detectionTimer = null;
         if (scanner.reader) { try { scanner.reader.reset(); } catch (_) {} scanner.reader = null; }
         if (scanner.stream) scanner.stream.getTracks().forEach(track => track.stop());
         scanner.stream = null;
@@ -2989,7 +2992,7 @@ const App = {
         empty.classList.add('hidden');
         video.style.display = 'block';
         App.setCameraScannerStatus('กำลังเปิดกล้อง...');
-        const constraints = { video: { facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+        const constraints = { video: { facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user', width: { ideal: 960, max: 1280 }, height: { ideal: 540, max: 720 } }, audio: false };
         try {
             if ('BarcodeDetector' in window) {
                 scanner.detector ||= new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] });
@@ -3001,7 +3004,10 @@ const App = {
                 App.detectCameraBarcode();
                 return;
             }
-            if (!window.ZXing) throw new Error('เบราว์เซอร์นี้ไม่รองรับตัวอ่านบาร์โค้ด');
+            if (!window.ZXing) {
+                App.setCameraScannerStatus('กำลังเตรียมตัวอ่านบาร์โค้ด...');
+                await App.loadZXing();
+            }
             scanner.reader = new ZXing.BrowserMultiFormatReader();
             App.setCameraScannerStatus('พร้อมสแกน', 'ok');
             await scanner.reader.decodeFromConstraints(constraints, 'camera-scanner-video', (result) => {
@@ -3016,17 +3022,68 @@ const App = {
         }
     },
 
+    loadExternalScript: (src) => {
+        App._scriptPromises ||= {};
+        if (App._scriptPromises[src]) return App._scriptPromises[src];
+        App._scriptPromises[src] = new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[src="${src}"]`);
+            if (existing?.dataset.loaded === 'true') return resolve();
+            const script = existing || document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.onload = () => { script.dataset.loaded = 'true'; resolve(); };
+            script.onerror = () => reject(new Error(`โหลด ${src} ไม่สำเร็จ`));
+            if (!existing) document.head.appendChild(script);
+        });
+        return App._scriptPromises[src];
+    },
+
+    loadFirebaseSdkInBackground: async () => {
+        try {
+            await App.loadExternalScript('https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js');
+            await Promise.all([
+                App.loadExternalScript('https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js'),
+                App.loadExternalScript('https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js')
+            ]);
+            DB.initializeFirebase();
+        } catch (error) {
+            console.error('Firebase background load error:', error);
+        }
+    },
+
+    loadZXing: async () => {
+        if (window.ZXing) return window.ZXing;
+        await App.loadExternalScript('https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js');
+        if (!window.ZXing) throw new Error('โหลดตัวอ่านบาร์โค้ดไม่สำเร็จ');
+        return window.ZXing;
+    },
+
+    preloadScannerFallback: () => {
+        if ('BarcodeDetector' in window || window.ZXing) return;
+        const preload = () => App.loadZXing().catch(error => console.warn('Scanner preload error:', error));
+        if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 2500 });
+        else setTimeout(preload, 1200);
+    },
+
     detectCameraBarcode: async () => {
         const scanner = App.state.cameraScanner;
         const video = document.getElementById('camera-scanner-video');
         if (!scanner.active || !scanner.detecting) return;
+        if (scanner.detectingNow) return;
+        scanner.detectingNow = true;
         try {
             if (video.readyState >= 2) {
                 const results = await scanner.detector.detect(video);
                 if (results[0]?.rawValue) await App.acceptCameraBarcode(results[0].rawValue);
             }
         } catch (_) {}
-        if (scanner.active && scanner.detecting) requestAnimationFrame(App.detectCameraBarcode);
+        finally {
+            scanner.detectingNow = false;
+            scanner.lastDetectionAt = Date.now();
+        }
+        if (scanner.active && scanner.detecting) {
+            scanner.detectionTimer = setTimeout(App.detectCameraBarcode, 110);
+        }
     },
 
     acceptCameraBarcode: async (rawCode) => {
