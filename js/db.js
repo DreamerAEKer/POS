@@ -44,7 +44,10 @@ const DB = {
         store_payment_prefs: null,
         store_tables: null,
         store_auto_cart: null,
-        store_parked_trash: null
+        store_parked_trash: null,
+        store_customers: null,
+        store_orders: null,
+        store_payments: null
     },
 
     KEYS: {
@@ -57,7 +60,10 @@ const DB = {
         GROUP_IMAGES: 'store_group_images',
         PAYMENT_PREFS: 'store_payment_prefs',
         TABLES: 'store_tables',
-        AUTO_CART: 'store_auto_cart'
+        AUTO_CART: 'store_auto_cart',
+        CUSTOMERS: 'store_customers',
+        ORDERS: 'store_orders',
+        PAYMENTS: 'store_payments'
     },
 
     // Helper for safe parsing
@@ -230,6 +236,126 @@ const DB = {
             await DB.syncSharedSettingsToFirebase(updated);
         }
         return updated;
+    },
+
+    // --- Shared shop operations (local-first + Firestore) ---
+    operationUnsubscribers: [],
+    normalizePhone: (value = '') => String(value).replace(/\D/g, ''),
+    makeRecordId: (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    getCustomers: () => DB.safeGet(DB.KEYS.CUSTOMERS, []).slice().sort((a, b) =>
+        String(a.name || '').localeCompare(String(b.name || ''), 'th')
+    ),
+    getOrders: () => DB.safeGet(DB.KEYS.ORDERS, []).slice().sort((a, b) =>
+        Number(b.updatedAt || 0) - Number(a.updatedAt || 0)
+    ),
+    getPayments: () => DB.safeGet(DB.KEYS.PAYMENTS, []).slice().sort((a, b) =>
+        Number(b.updatedAt || 0) - Number(a.updatedAt || 0)
+    ),
+    snapshotOrderItems: (items = []) => items.map(item => ({
+        id: item.id || '',
+        parentId: item.parentId || null,
+        barcode: item.barcode || '',
+        name: item.name || '',
+        price: Number(item.price || 0),
+        qty: Number(item.qty || 0),
+        discount: Number(item.discount || 0),
+        finalLineTotal: item.finalLineTotal === undefined ? null : Number(item.finalLineTotal),
+        packSize: item.packSize || null,
+        unitLabel: item.unitLabel || ''
+    })),
+    saveSharedRecord: async (key, collection, record) => {
+        const now = Date.now();
+        const normalized = { ...record, id: String(record.id || DB.makeRecordId(collection.slice(0, 3))), updatedAt: now };
+        const list = DB.safeGet(key, []).slice();
+        const index = list.findIndex(item => String(item.id) === normalized.id);
+        if (index >= 0) list[index] = { ...list[index], ...normalized };
+        else list.push(normalized);
+        await DB.saveToLocalStorage(key, list);
+        if (dbFirestore && DB.currentUser) {
+            try {
+                await dbFirestore.collection(collection).doc(normalized.id).set({
+                    ...normalized,
+                    updatedBy: DB.currentUser.email || '',
+                    serverUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            } catch (error) {
+                console.error(`Cloud save ${collection} error:`, error);
+                normalized.syncPending = true;
+                const pendingIndex = list.findIndex(item => String(item.id) === normalized.id);
+                if (pendingIndex >= 0) list[pendingIndex] = { ...list[pendingIndex], syncPending: true };
+                await DB.saveToLocalStorage(key, list);
+            }
+        }
+        return normalized;
+    },
+    saveCustomer: async (customer) => DB.saveSharedRecord(DB.KEYS.CUSTOMERS, 'customers', {
+        ...customer,
+        phone: DB.normalizePhone(customer.phone),
+        name: String(customer.name || '').trim()
+    }),
+    saveOrder: async (order) => DB.saveSharedRecord(DB.KEYS.ORDERS, 'orders', {
+        ...order,
+        items: DB.snapshotOrderItems(order.items || [])
+    }),
+    savePayment: async (payment) => DB.saveSharedRecord(DB.KEYS.PAYMENTS, 'payments', payment),
+    mergeRemoteRecords: async (key, remoteRecords) => {
+        const merged = new Map(DB.safeGet(key, []).map(item => [String(item.id), item]));
+        remoteRecords.forEach(remote => {
+            const id = String(remote.id);
+            const local = merged.get(id);
+            if (!local || Number(remote.updatedAt || 0) >= Number(local.updatedAt || 0)) merged.set(id, remote);
+        });
+        await DB.saveToLocalStorage(key, Array.from(merged.values()));
+    },
+    stopOperationsRealtimeSync: () => {
+        DB.operationUnsubscribers.forEach(unsubscribe => { try { unsubscribe(); } catch (_) {} });
+        DB.operationUnsubscribers = [];
+    },
+    startOperationsRealtimeSync: (onChange) => {
+        DB.stopOperationsRealtimeSync();
+        if (!dbFirestore || !DB.currentUser) return;
+        [
+            ['customers', DB.KEYS.CUSTOMERS],
+            ['orders', DB.KEYS.ORDERS],
+            ['payments', DB.KEYS.PAYMENTS]
+        ].forEach(([collection, key]) => {
+            const unsubscribe = dbFirestore.collection(collection).onSnapshot(async snapshot => {
+                const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                await DB.mergeRemoteRecords(key, records);
+                if (onChange) onChange(collection);
+            }, error => console.error(`Realtime ${collection} error:`, error));
+            DB.operationUnsubscribers.push(unsubscribe);
+        });
+    },
+    mirrorParkedOrder: (bill, extra = {}) => {
+        if (!bill || !bill.id) return Promise.resolve(null);
+        const total = (bill.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+        return DB.saveOrder({
+            id: String(bill.id),
+            legacyBillId: String(bill.id),
+            source: 'legacy_parked_cart',
+            orderType: bill.deliveryTime ? 'delivery' : (extra.orderType || 'parked'),
+            customerId: bill.customerId || null,
+            customerSnapshot: { name: bill.note || '', phone: bill.customerPhone || '' },
+            items: DB.snapshotOrderItems(bill.items || []),
+            total,
+            fulfillmentStatus: bill.deliveryTime ? 'scheduled' : 'open',
+            paymentStatus: bill.paymentStatus || 'unpaid',
+            paymentMethod: bill.paymentMethod || '',
+            scheduledAt: bill.deliveryTime || null,
+            deliveryDetails: bill.deliveryDetails || null,
+            createdAt: bill.timestamp || Date.now(),
+            ...extra
+        }).catch(error => { console.error('Mirror parked order error:', error); return null; });
+    },
+    migrateLegacyOperations: async () => {
+        const tables = DB.getTables();
+        const tableByBill = new Map(tables.filter(t => t.billId).map(t => [String(t.billId), t]));
+        const jobs = DB.getParkedCarts().map(bill => {
+            const table = tableByBill.get(String(bill.id));
+            return DB.mirrorParkedOrder(bill, table ? { orderType: 'table', tableId: table.id, tableName: table.name } : {});
+        });
+        await Promise.all(jobs);
     },
 
     getSharedSettingsPayload: (settings = DB.getSettings()) => {
@@ -672,6 +798,8 @@ const DB = {
             });
         }
         DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, parked);
+        const savedBill = customId ? parked.find(item => item.id === customId) : parked[parked.length - 1];
+        DB.mirrorParkedOrder(savedBill);
     },
 
     updateParkedNote: (id, newNote) => {
@@ -680,6 +808,7 @@ const DB = {
         if (item) {
             item.note = newNote;
             DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, parked);
+            DB.mirrorParkedOrder(item);
         }
     },
 
@@ -719,6 +848,8 @@ const DB = {
             // Remove from Active
             const newParked = parked.filter(c => c.id !== id);
             DB.saveToLocalStorage(DB.KEYS.PARKED_CARTS, newParked);
+            const order = DB.getOrders().find(candidate => String(candidate.id) === String(id));
+            if (order) DB.saveOrder({ ...order, fulfillmentStatus: 'cancelled', cancelledAt: Date.now() });
         }
     },
 
@@ -807,6 +938,33 @@ const DB = {
         await DB.saveToLocalStorage(DB.KEYS.PRODUCTS, nextProducts);
         try {
             await DB.saveToLocalStorage(DB.KEYS.SALES, nextSales);
+
+            const paidAt = new Date().toISOString();
+            await DB.saveOrder({
+                id: committedSale.billId,
+                legacyBillId: committedSale.billId,
+                source: 'sale',
+                orderType: committedSale.orderType || 'walk_in',
+                customerId: committedSale.customerId || null,
+                customerSnapshot: committedSale.customerSnapshot || null,
+                items: DB.snapshotOrderItems(committedSale.items || cartItems),
+                total: Number(committedSale.total || 0),
+                fulfillmentStatus: 'completed',
+                paymentStatus: committedSale.paymentStatus || 'paid',
+                paymentMethod: committedSale.paymentMethod || 'cash',
+                createdAt: committedSale.date ? new Date(committedSale.date).getTime() : Date.now(),
+                completedAt: paidAt
+            });
+            await DB.savePayment({
+                id: `PAY-${committedSale.billId}`,
+                orderId: committedSale.billId,
+                customerId: committedSale.customerId || null,
+                amount: Number(committedSale.total || 0),
+                received: Number(committedSale.received || committedSale.total || 0),
+                method: committedSale.paymentMethod || 'cash',
+                status: committedSale.paymentStatus || 'paid',
+                paidAt
+            });
 
             if (dbFirestore && DB.currentUser) {
                 const operationRef = dbFirestore.collection('stock_operations').doc(committedSale.billId);

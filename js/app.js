@@ -79,10 +79,17 @@ const App = {
                     
                     await DB.syncSharedSettingsFromFirebase();
                     await DB.syncStocksFromFirebase();
+                    await DB.migrateLegacyOperations();
+                    DB.startOperationsRealtimeSync(() => {
+                        if (['customers', 'tables'].includes(App.state.currentView)) {
+                            App.renderView(App.state.currentView);
+                        }
+                    });
                     App.state.products = DB.getProducts();
                     App.renderView(App.state.currentView); // Refresh view based on role and cloud stock
                 } else {
                     console.log("User logged out");
+                    DB.stopOperationsRealtimeSync();
                     if (overlay && loginModal) {
                         overlay.classList.remove('hidden');
                         loginModal.classList.remove('hidden');
@@ -281,7 +288,101 @@ const App = {
             App.renderApprovalsView(container);
         } else if (viewName === 'tables') {
             App.renderTablesView(container);
+        } else if (viewName === 'customers') {
+            App.renderCustomersView(container);
         }
+    },
+
+    escapeHtml: (value = '') => String(value).replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    })[char]),
+
+    renderCustomersView: (container) => {
+        const customers = DB.getCustomers();
+        const orders = DB.getOrders();
+        const query = String(App.state.customerSearch || '').trim().toLowerCase();
+        const filtered = customers.filter(customer => {
+            const haystack = [customer.name, customer.phone, customer.alias, customer.route, customer.address]
+                .join(' ').toLowerCase();
+            return !query || haystack.includes(query);
+        });
+        const unpaidOrders = orders.filter(order => !['paid', 'cancelled'].includes(order.paymentStatus)).length;
+        container.innerHTML = `
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin-bottom:15px;">
+                <div>
+                    <h2 style="margin:0;">ลูกค้าและประวัติออเดอร์</h2>
+                    <div style="font-size:13px; color:#666;">${customers.length} ราย · รอชำระ ${unpaidOrders} ออเดอร์ · ซิงค์ผ่าน Firebase</div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="secondary-btn" onclick="App.renderView('tables')">กลับหน้าโต๊ะ/ส่ง</button>
+                    <button class="primary-btn" onclick="App.openCustomerEditor()">+ เพิ่มลูกค้า</button>
+                </div>
+            </div>
+            <input type="search" value="${App.escapeHtml(App.state.customerSearch || '')}" placeholder="ค้นหาชื่อ เบอร์โทร ชื่อเรียก หรือเส้นทาง..."
+                oninput="App.state.customerSearch=this.value; App.renderCustomersView(App.elements.viewContainer)"
+                style="width:100%; padding:12px 14px; font-size:17px; border:1px solid #ccc; border-radius:12px; margin-bottom:12px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px;">
+                ${filtered.map(customer => {
+                    const history = orders.filter(order => order.customerId === customer.id ||
+                        (customer.phone && order.customerSnapshot && DB.normalizePhone(order.customerSnapshot.phone) === customer.phone));
+                    const spent = history.filter(order => order.paymentStatus === 'paid').reduce((sum, order) => sum + Number(order.total || 0), 0);
+                    const due = history.filter(order => !['paid', 'cancelled'].includes(order.paymentStatus)).reduce((sum, order) => sum + Number(order.total || 0), 0);
+                    return `<button type="button" onclick="App.showCustomerHistory('${App.escapeHtml(customer.id)}')" style="text-align:left; background:white; border:1px solid #ddd; border-radius:12px; padding:14px; cursor:pointer;">
+                        <div style="font-size:18px; font-weight:bold;">${App.escapeHtml(customer.name || 'ไม่ระบุชื่อ')}</div>
+                        <div style="color:#555; margin-top:3px;">${App.escapeHtml(customer.phone || 'ไม่มีเบอร์โทร')}</div>
+                        <div style="font-size:13px; color:#777; margin-top:5px;">${App.escapeHtml(customer.route || customer.alias || customer.address || '')}</div>
+                        <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:13px;"><span>${history.length} ออเดอร์ · ซื้อแล้ว ฿${Utils.formatCurrency(spent)}</span><span style="color:${due ? '#d32f2f' : '#2e7d32'};">ค้าง ฿${Utils.formatCurrency(due)}</span></div>
+                    </button>`;
+                }).join('') || '<div style="padding:30px; text-align:center; color:#888;">ยังไม่พบข้อมูลลูกค้า</div>'}
+            </div>`;
+    },
+
+    openCustomerEditor: (customerId = null) => {
+        const customer = customerId ? DB.getCustomers().find(item => item.id === customerId) : null;
+        App.closeModals();
+        const modal = document.getElementById('price-check-modal');
+        modal.innerHTML = `<h3>${customer ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h3>
+            <label>ชื่อลูกค้า *</label><input id="customer-name" value="${App.escapeHtml(customer?.name || '')}" style="width:100%;padding:10px;margin:5px 0 10px;">
+            <label>เบอร์โทร</label><input id="customer-phone" inputmode="tel" value="${App.escapeHtml(customer?.phone || '')}" style="width:100%;padding:10px;margin:5px 0 10px;">
+            <label>ชื่อเรียก / จุดสังเกต</label><input id="customer-alias" value="${App.escapeHtml(customer?.alias || '')}" style="width:100%;padding:10px;margin:5px 0 10px;">
+            <label>เส้นทางจัดส่ง</label><input id="customer-route" value="${App.escapeHtml(customer?.route || '')}" placeholder="เช่น สายตลาด-วัด" style="width:100%;padding:10px;margin:5px 0 10px;">
+            <label>ที่อยู่ / หมายเหตุ</label><textarea id="customer-address" style="width:100%;padding:10px;margin:5px 0 10px;min-height:70px;">${App.escapeHtml(customer?.address || '')}</textarea>
+            <label style="display:flex;align-items:center;gap:8px;margin:5px 0 15px;"><input id="customer-credit" type="checkbox" ${customer?.allowCredit ? 'checked' : ''}> อนุญาตให้ค้างชำระ</label>
+            <div style="display:flex;gap:8px;"><button class="secondary-btn" onclick="App.closeModals()" style="flex:1;">ยกเลิก</button><button class="primary-btn" onclick="App.saveCustomerEditor('${App.escapeHtml(customer?.id || '')}')" style="flex:2;">บันทึกและซิงค์</button></div>`;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+        modal.classList.remove('hidden');
+        setTimeout(() => document.getElementById('customer-name')?.focus(), 50);
+    },
+
+    saveCustomerEditor: async (customerId) => {
+        const name = document.getElementById('customer-name').value.trim();
+        if (!name) return App.alert('กรุณาระบุชื่อลูกค้า');
+        await DB.saveCustomer({
+            id: customerId || undefined,
+            name,
+            phone: document.getElementById('customer-phone').value,
+            alias: document.getElementById('customer-alias').value.trim(),
+            route: document.getElementById('customer-route').value.trim(),
+            address: document.getElementById('customer-address').value.trim(),
+            allowCredit: document.getElementById('customer-credit').checked,
+            createdAt: customerId ? (DB.getCustomers().find(item => item.id === customerId)?.createdAt || Date.now()) : Date.now()
+        });
+        App.closeModals();
+        App.renderView('customers');
+    },
+
+    showCustomerHistory: (customerId) => {
+        const customer = DB.getCustomers().find(item => item.id === customerId);
+        if (!customer) return;
+        const orders = DB.getOrders().filter(order => order.customerId === customerId ||
+            (customer.phone && order.customerSnapshot && DB.normalizePhone(order.customerSnapshot.phone) === customer.phone));
+        App.closeModals();
+        const modal = document.getElementById('price-check-modal');
+        modal.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:start;gap:8px;"><div><h3 style="margin:0;">${App.escapeHtml(customer.name)}</h3><div>${App.escapeHtml(customer.phone || '')}</div></div><button class="icon-btn" onclick="App.closeModals()"><span class="material-symbols-rounded">close</span></button></div>
+            <button class="secondary-btn" onclick="App.openCustomerEditor('${App.escapeHtml(customer.id)}')" style="margin:12px 0;">แก้ไขข้อมูลลูกค้า</button>
+            <div style="max-height:55vh;overflow:auto;">${orders.map(order => `<div style="border-top:1px solid #eee;padding:10px 0;"><b>${App.escapeHtml(order.orderType || 'order')} · ฿${Utils.formatCurrency(order.total || 0)}</b><div style="font-size:13px;color:#666;">${new Date(order.createdAt || order.updatedAt).toLocaleString('th-TH')} · งาน: ${App.escapeHtml(order.fulfillmentStatus || '-')} · ชำระ: ${App.escapeHtml(order.paymentStatus || '-')} ${order.paymentMethod ? '· ' + App.escapeHtml(order.paymentMethod) : ''}</div></div>`).join('') || '<p style="color:#888;">ยังไม่มีประวัติออเดอร์ที่ผูกกับลูกค้ารายนี้</p>'}</div>`;
+        document.getElementById('modal-overlay').classList.remove('hidden');
+        modal.classList.remove('hidden');
     },
 
     // --- Sales History View ---
@@ -921,7 +1022,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.14 (06/08/2026)', // Bulk mobile category organizer
+    VERSION: '0.99.15 (06/08/2026)', // Firebase customers, orders and payments
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -4887,6 +4988,13 @@ const App = {
             <div style="text-align:center; font-size:48px; font-weight:bold; color:var(--primary-color); margin:20px 0;">
                 ฿${Utils.formatCurrency(total)}
             </div>
+            <label for="pay-method" style="display:block;font-weight:bold;margin-bottom:6px;">วิธีชำระเงิน</label>
+            <select id="pay-method" style="width:100%;padding:11px;font-size:17px;border:1px solid #ccc;border-radius:9px;margin-bottom:12px;">
+                <option value="cash">เงินสด</option>
+                <option value="bank_qr">สแกน QR ธนาคาร</option>
+                <option value="government_scheme">สิทธิ์โครงการรัฐ/คนละครึ่ง</option>
+                <option value="mixed">ชำระหลายทาง</option>
+            </select>
             <div style="display:flex; flex-direction:column; align-items:center;">
                 <input type="text" id="pay-input" style="font-size:32px; padding:15px; width:100%; text-align:center; margin-bottom:10px; border:2px solid var(--primary-color); border-radius:8px; font-weight:bold;" placeholder="0.00" readonly>
                 
@@ -5021,7 +5129,12 @@ const App = {
                 items: App.state.cart.map(item => ({ ...item, finalLineTotal: App.calcItemTotal(item) })),
                 total: total,
                 received: received,
-                change: change
+                change: change,
+                paymentMethod: document.getElementById('pay-method').value,
+                paymentStatus: 'paid',
+                orderType: App.state.activeBill?.deliveryTime ? 'delivery' : (App.state.activeBill ? 'table_or_parked' : 'walk_in'),
+                customerId: App.state.activeBill?.customerId || null,
+                customerSnapshot: App.state.activeBill ? { name: App.state.activeBill.note || '', phone: App.state.activeBill.customerPhone || '' } : null
                 }, App.state.cart);
             } catch (error) {
                 App.state.isProcessingPayment = false;
@@ -5184,6 +5297,9 @@ const App = {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <h2 style="margin:0;">จัดการโต๊ะ (Dine-in)</h2>
                 <div style="display:flex; gap:10px;">
+                    <button class="secondary-btn" onclick="App.renderView('customers')" style="display:flex; align-items:center; gap:5px; padding:8px 12px;">
+                        <span class="material-symbols-rounded">contacts</span> ลูกค้า/ประวัติ
+                    </button>
                     <button class="primary-btn" onclick="App.openNewDeliveryModal()" style="display:flex; align-items:center; gap:5px; padding:8px 15px;">
                         <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง/ล่วงหน้า
                     </button>
