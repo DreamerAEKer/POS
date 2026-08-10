@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.26 (10/08/2026)', // Persistent in-app microphone and camera controls
+    VERSION: '0.99.27 (10/08/2026)', // Whole-app mobile visual density and consistency pass
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -1719,15 +1719,15 @@ const App = {
             const coverImage = groupImages[groupName] || items[0].image;
 
             return `
-                <div class="product-card" onclick="App.openVariantModal('${groupName}')" style="border: 2px solid var(--primary-color);">
-                    <div style="height:120px; background:#e0ecff; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative;">
-                        ${coverImage ? `<img src="${coverImage}" style="width:100%; height:100%; object-fit:cover; opacity:0.9;">` : ''}
-                        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.2);">
-                            <span class="material-symbols-rounded" style="font-size:48px; color:var(--primary-color); text-shadow:0 0 5px white;">folder</span>
+                <div class="product-card product-group-card" onclick="App.openVariantModal('${groupName}')">
+                    <div class="product-card-media product-group-cover">
+                        ${coverImage ? `<img src="${coverImage}" alt="">` : ''}
+                        <div class="product-group-icon">
+                            <span class="material-symbols-rounded">folder</span>
                         </div>
                     </div>
-                    <div class="p-info" style="background:var(--primary-light);">
-                        <div class="p-name" style="color:var(--primary-color); font-weight:bold;">${groupName}</div>
+                    <div class="p-info">
+                        <div class="p-name">${Utils.escapeHTML(groupName)}</div>
                         <div class="p-price">${items.length} รายการ</div>
                     </div>
                 </div>
@@ -1769,11 +1769,11 @@ const App = {
                 ${p.hasBarcode === false ? '<div class="stock-badge no-barcode">แตะขาย · ไม่มีบาร์โค้ด</div>' : ''}
                 ${displayStock <= 5 ? '<div class="stock-badge low">Low Stock</div>' : ''}
                 ${badgeHtml}
-                <div style="height:120px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                    ${p.image ? `<img src="${p.image}" style="width:100%; height:100%; object-fit:cover;">` : '<span class="material-symbols-rounded" style="font-size:48px; color:#ccc;">image</span>'}
+                <div class="product-card-media">
+                    ${p.image ? `<img src="${p.image}" alt="">` : '<span class="material-symbols-rounded product-card-placeholder">image</span>'}
                 </div>
                 <div class="p-info">
-                    <div class="p-name">${p.name}</div>
+                    <div class="p-name">${Utils.escapeHTML(p.name)}</div>
                     <div class="p-price">฿${Utils.formatCurrency(p.price)}</div>
                     <div class="p-stock">${displayStock} ${p.unitLabel || 'ชิ้น'}</div>
                     ${p.unitsPerBox > 1 ? `
@@ -4666,17 +4666,19 @@ const App = {
         const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
         const badge = document.getElementById('mobile-cart-count');
         const badgeTotal = document.getElementById('mobile-cart-total');
+        const mobileCartButton = document.getElementById('btn-mobile-cart');
+        mobileCartButton?.classList.toggle('has-items', count > 0);
         if (badge) badge.textContent = count;
         if (badgeTotal) {
             badgeTotal.textContent = `฿${Utils.formatCurrency(total)}`;
             if (count > 0) {
                 badgeTotal.style.display = 'inline';
-                document.getElementById('btn-mobile-cart').style.borderRadius = '30px';
-                document.getElementById('btn-mobile-cart').style.padding = '0 18px';
+                mobileCartButton.style.borderRadius = '30px';
+                mobileCartButton.style.padding = '0 18px';
             } else {
                 badgeTotal.style.display = 'none';
-                document.getElementById('btn-mobile-cart').style.borderRadius = '50%';
-                document.getElementById('btn-mobile-cart').style.padding = '0';
+                mobileCartButton.style.borderRadius = '50%';
+                mobileCartButton.style.padding = '0';
             }
         }
     },
