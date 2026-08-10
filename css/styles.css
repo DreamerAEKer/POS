@@ -535,6 +535,14 @@ button {
 .account-sheet-action { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px; margin-top: 8px; border-radius: 12px; color: #1d4f91; background: #eef5ff; }
 .account-sheet-action > .material-symbols-rounded { font-size: 30px; }
 .account-sheet-action.danger { color: #b71c1c; background: #fff1f1; }
+.account-permissions { margin: 14px 0; padding: 12px; border: 1px solid #e4e7ec; border-radius: 12px; }
+.account-permissions h3 { margin: 0 0 8px; font-size: 16px; }
+.account-permissions label { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #eee; }
+.account-permissions label > .material-symbols-rounded { color: var(--primary-color); font-size: 27px; }
+.account-permissions label > span:nth-child(2) { display: flex; flex-direction: column; }
+.account-permissions label small { color: #667085; }
+.account-permissions input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--primary-color); }
+.account-permissions p { margin: 8px 0 0; color: #667085; font-size: 12px; line-height: 1.45; }
 
 @media (max-width: 600px) {
     .scanner-price-result { width: calc(100% - 24px); padding: 20px 16px; }

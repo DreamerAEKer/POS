@@ -34,6 +34,11 @@ assert(app.includes('logoutCurrentUser:'), 'account menu must support sign out')
 assert(html.includes('id="mobile-price-check-mode"'), 'mobile price-check control must move out of the crowded search bar');
 assert(css.includes('#btn-scan-trigger { color: #fff; background: #1976d2;'), 'mobile scan button must remain visibly distinct');
 assert(css.includes('#btn-price-check-mode { display: none; }'), 'desktop price mode button must not crowd the mobile scanner');
+assert(db.includes('microphoneEnabled: true'), 'microphone preference must persist');
+assert(db.includes('cameraEnabled: true'), 'camera preference must persist');
+assert(app.includes('setMediaAccess:'), 'account menu must control in-app media access');
+assert(app.includes("DB.getSettings().microphoneEnabled === false"), 'voice search must honor the microphone switch');
+assert(app.includes("DB.getSettings().cameraEnabled === false"), 'camera scanner must honor the camera switch');
 assert(app.includes('startVoiceRecognitionSession:'), 'missing voice session restart helper');
 assert(css.includes('.price-check-mode-btn.active'), 'missing active mode styling');
 assert(css.includes('.scanner-price-result'), 'missing result modal styling');

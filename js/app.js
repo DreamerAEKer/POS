@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.25 (10/08/2026)', // Mobile scanner button layout fix
+    VERSION: '0.99.26 (10/08/2026)', // Persistent in-app microphone and camera controls
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -1054,6 +1054,7 @@ const App = {
     openAccountModal: () => {
         const user = DB.currentUser;
         if (!user) return;
+        const mediaPrefs = DB.getSettings();
         App.closeModals();
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('account-modal');
@@ -1064,10 +1065,30 @@ const App = {
                 <button type="button" onclick="App.closeModals()" aria-label="ปิด"><span class="material-symbols-rounded">close</span></button>
             </div>
             <div class="account-sheet-status"><span class="material-symbols-rounded">cloud_done</span><div><strong>Firebase เชื่อมต่อแล้ว</strong><small>สิทธิ์: ${DB.userRole === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน'}</small></div></div>
+            <div class="account-permissions">
+                <h3>สิทธิ์ไมค์และกล้องในแอป</h3>
+                <label><span class="material-symbols-rounded">mic</span><span><strong>ค้นหาด้วยเสียง</strong><small>จำการตั้งค่านี้ไว้ในเครื่อง</small></span><input type="checkbox" ${mediaPrefs.microphoneEnabled !== false ? 'checked' : ''} onchange="App.setMediaAccess('microphone', this.checked)"></label>
+                <label><span class="material-symbols-rounded">photo_camera</span><span><strong>กล้องสแกนบาร์โค้ด</strong><small>จำการตั้งค่านี้ไว้ในเครื่อง</small></span><input type="checkbox" ${mediaPrefs.cameraEnabled !== false ? 'checked' : ''} onchange="App.setMediaAccess('camera', this.checked)"></label>
+                <p>สวิตช์นี้หยุดแอปไม่ให้ใช้ไมค์หรือกล้อง หากต้องการถอนสิทธิ์ของ Safari ให้เปลี่ยนที่ “การตั้งค่าเว็บไซต์” ของ iPhone</p>
+            </div>
             <button class="account-sheet-action" type="button" onclick="App.sendCurrentUserPasswordReset()"><span class="material-symbols-rounded">lock_reset</span><span><strong>ตั้งรหัสผ่านใหม่</strong><small>ส่งลิงก์ไปยังอีเมลบัญชีนี้</small></span></button>
             <button class="account-sheet-action danger" type="button" onclick="App.logoutCurrentUser()"><span class="material-symbols-rounded">logout</span><span><strong>ออกจากระบบ</strong><small>ข้อมูลสต็อกใน Firebase จะไม่ถูกลบ</small></span></button>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+    },
+
+    setMediaAccess: async (feature, enabled) => {
+        if (feature === 'microphone') {
+            await DB.saveSettings({ microphoneEnabled: enabled });
+            if (!enabled && App.state.voiceListening) {
+                App.state.voiceListening = false;
+                try { App.voiceRecognition?.abort(); } catch (_) {}
+                App.updateVoiceSearchButton();
+            }
+        } else if (feature === 'camera') {
+            await DB.saveSettings({ cameraEnabled: enabled });
+            if (!enabled && App.state.cameraScanner.active) App.closeCameraScanner();
+        }
     },
 
     sendCurrentUserPasswordReset: async () => {
@@ -3296,6 +3317,10 @@ const App = {
     },
 
     startVoiceSearch: () => {
+        if (DB.getSettings().microphoneEnabled === false) {
+            App.alert('ปิดการใช้ไมโครโฟนไว้ในเมนูบัญชี\nแตะแถบบัญชีแล้วเปิด “ค้นหาด้วยเสียง” ก่อน');
+            return;
+        }
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             App.alert('เครื่องนี้ยังไม่รองรับการค้นหาด้วยเสียง กรุณาพิมพ์ชื่อสินค้าแทน');
@@ -3543,6 +3568,10 @@ const App = {
     },
 
     openCameraScanner: async () => {
+        if (DB.getSettings().cameraEnabled === false) {
+            await App.alert('ปิดการใช้กล้องไว้ในเมนูบัญชี\nแตะแถบบัญชีแล้วเปิด “กล้องสแกนบาร์โค้ด” ก่อน');
+            return;
+        }
         const overlay = document.getElementById('camera-scanner-overlay');
         overlay.classList.remove('hidden');
         App.hideCameraScanResult(true);
