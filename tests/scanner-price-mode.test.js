@@ -26,6 +26,11 @@ assert(html.includes('id="btn-forgot-password"'), 'login must provide password r
 assert(db.includes('auth.sendPasswordResetEmail'), 'password reset must use Firebase Auth');
 assert(app.includes('checkForAppUpdate:'), 'installed app must check for a newer release');
 assert(app.includes("fetch(`version.json?t=${Date.now()}`"), 'version check must bypass cache');
+assert(html.includes('id="user-session-bar"'), 'signed-in user must be visible in the main app');
+assert(html.includes('id="account-modal"'), 'missing account details modal');
+assert(app.includes('renderUserSession:'), 'missing Firebase user status renderer');
+assert(app.includes('sendCurrentUserPasswordReset:'), 'account menu must support password reset');
+assert(app.includes('logoutCurrentUser:'), 'account menu must support sign out');
 assert(app.includes('startVoiceRecognitionSession:'), 'missing voice session restart helper');
 assert(css.includes('.price-check-mode-btn.active'), 'missing active mode styling');
 assert(css.includes('.scanner-price-result'), 'missing result modal styling');

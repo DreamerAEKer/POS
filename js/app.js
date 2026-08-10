@@ -49,6 +49,7 @@ const App = {
                 const loginModal = document.getElementById('login-modal');
                 if (user) {
                     console.log("User logged in:", user.email);
+                    App.renderUserSession(user, 'syncing');
                     if (loginModal && !loginModal.classList.contains('hidden')) {
                         overlay.classList.add('hidden');
                         loginModal.classList.add('hidden');
@@ -91,9 +92,11 @@ const App = {
                         }
                     });
                     App.state.products = DB.getProducts();
+                    App.renderUserSession(user, 'synced');
                     App.renderView(App.state.currentView); // Refresh view based on role and cloud stock
                 } else {
                     console.log("User logged out");
+                    App.renderUserSession(null);
                     DB.stopOperationsRealtimeSync();
                     if (overlay && loginModal) {
                         overlay.classList.remove('hidden');
@@ -1029,7 +1032,57 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.23 (10/08/2026)', // Password reset and installed-app update check
+    VERSION: '0.99.24 (10/08/2026)', // Visible Firebase user session and account controls
+
+    renderUserSession: (user, syncState = 'synced') => {
+        const bar = document.getElementById('user-session-bar');
+        if (!bar) return;
+        if (!user) {
+            bar.classList.add('hidden');
+            return;
+        }
+        const email = document.getElementById('user-session-email');
+        const role = document.getElementById('user-session-role');
+        const cloud = document.getElementById('user-session-cloud');
+        if (email) email.textContent = user.email || 'บัญชี Firebase';
+        if (role) role.textContent = `${DB.userRole === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน'} · ${syncState === 'syncing' ? 'กำลังซิงค์ข้อมูล' : 'Firebase เชื่อมต่อแล้ว'}`;
+        if (cloud) cloud.textContent = syncState === 'syncing' ? 'cloud_sync' : 'cloud_done';
+        bar.classList.toggle('syncing', syncState === 'syncing');
+        bar.classList.remove('hidden');
+    },
+
+    openAccountModal: () => {
+        const user = DB.currentUser;
+        if (!user) return;
+        App.closeModals();
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('account-modal');
+        modal.innerHTML = `
+            <div class="account-sheet-header">
+                <span class="material-symbols-rounded">account_circle</span>
+                <div><h2>บัญชีที่กำลังใช้งาน</h2><p>${Utils.escapeHTML(user.email || '')}</p></div>
+                <button type="button" onclick="App.closeModals()" aria-label="ปิด"><span class="material-symbols-rounded">close</span></button>
+            </div>
+            <div class="account-sheet-status"><span class="material-symbols-rounded">cloud_done</span><div><strong>Firebase เชื่อมต่อแล้ว</strong><small>สิทธิ์: ${DB.userRole === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน'}</small></div></div>
+            <button class="account-sheet-action" type="button" onclick="App.sendCurrentUserPasswordReset()"><span class="material-symbols-rounded">lock_reset</span><span><strong>ตั้งรหัสผ่านใหม่</strong><small>ส่งลิงก์ไปยังอีเมลบัญชีนี้</small></span></button>
+            <button class="account-sheet-action danger" type="button" onclick="App.logoutCurrentUser()"><span class="material-symbols-rounded">logout</span><span><strong>ออกจากระบบ</strong><small>ข้อมูลสต็อกใน Firebase จะไม่ถูกลบ</small></span></button>`;
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    sendCurrentUserPasswordReset: async () => {
+        const email = DB.currentUser?.email;
+        if (!email) return;
+        const result = await DB.sendPasswordReset(email);
+        if (result.success) await App.alert(`ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่\n${email}\n\nกรุณาตรวจกล่องจดหมายและจดหมายขยะ`);
+        else await App.alert(result.message);
+    },
+
+    logoutCurrentUser: async () => {
+        if (!await App.confirm('ต้องการออกจากระบบบัญชีนี้ใช่หรือไม่?', 'ออกจากระบบ')) return;
+        App.closeModals();
+        await DB.logout();
+    },
 
     checkForAppUpdate: async () => {
         try {

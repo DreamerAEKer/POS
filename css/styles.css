@@ -501,6 +501,39 @@ button {
 .login-reset-status.success { color: #1b5e20; padding: 9px; background: #e8f5e9; border-radius: 8px; }
 .login-reset-status.error { color: #b71c1c; }
 
+.user-session-bar {
+    width: calc(100% - 32px);
+    max-width: 720px;
+    min-height: 48px;
+    margin: 8px auto 2px;
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #1f4f27;
+    background: #edf8ef;
+    border: 1px solid #cce7d0;
+    border-radius: 14px;
+    text-align: left;
+}
+.user-session-avatar { font-size: 30px; color: var(--primary-color); }
+.user-session-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.user-session-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.user-session-copy small { color: #56705a; font-size: 11px; }
+.user-session-cloud { color: var(--primary-color); }
+.user-session-bar.syncing .user-session-cloud { animation: voice-pulse 1.2s infinite; }
+.account-sheet-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.account-sheet-header > .material-symbols-rounded { color: var(--primary-color); font-size: 54px; }
+.account-sheet-header h2, .account-sheet-header p { margin: 0; }
+.account-sheet-header p { color: #666; overflow-wrap: anywhere; }
+.account-sheet-header button { width: 42px; height: 42px; border-radius: 50%; background: #f2f2f2; }
+.account-sheet-status { display: flex; align-items: center; gap: 10px; margin: 18px 0; padding: 12px; color: #1b5e20; background: #e8f5e9; border-radius: 12px; }
+.account-sheet-status div, .account-sheet-action span:last-child { display: flex; flex-direction: column; text-align: left; }
+.account-sheet-status small, .account-sheet-action small { color: #667085; }
+.account-sheet-action { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px; margin-top: 8px; border-radius: 12px; color: #1d4f91; background: #eef5ff; }
+.account-sheet-action > .material-symbols-rounded { font-size: 30px; }
+.account-sheet-action.danger { color: #b71c1c; background: #fff1f1; }
+
 @media (max-width: 600px) {
     .scanner-price-result { width: calc(100% - 24px); padding: 20px 16px; }
     .scanner-price-image { width: 112px; height: 112px; margin-top: 18px; }
@@ -509,6 +542,7 @@ button {
     .scanner-price-quick-bill { grid-template-columns: 1fr auto; }
     .scanner-price-total { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; }
     .scanner-price-actions { grid-template-columns: 1fr 1.35fr; }
+    .user-session-bar { width: calc(100% - 24px); margin-top: 5px; }
 }
 
 .badge {
