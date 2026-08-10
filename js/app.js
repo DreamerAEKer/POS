@@ -39,6 +39,7 @@ const App = {
 
     init: async () => {
         try {
+            App.checkForAppUpdate();
             // Initialize DB (load from localforage to cache)
             await DB.init();
 
@@ -116,6 +117,7 @@ const App = {
                     }
                 });
             }
+            document.getElementById('btn-forgot-password')?.addEventListener('click', App.requestPasswordReset);
 
             // Load Data
             App.state.products = DB.getProducts();
@@ -1027,7 +1029,49 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.22 (10/08/2026)', // Faster interim voice search results
+    VERSION: '0.99.23 (10/08/2026)', // Password reset and installed-app update check
+
+    checkForAppUpdate: async () => {
+        try {
+            const response = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+            if (!response.ok) return;
+            const remote = await response.json();
+            const current = App.VERSION.split(' ')[0];
+            if (remote.version && remote.version !== current) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('v', remote.version);
+                window.location.replace(url.toString());
+            }
+        } catch (_) {}
+    },
+
+    requestPasswordReset: async () => {
+        const emailInput = document.getElementById('login-email');
+        const status = document.getElementById('password-reset-status');
+        const button = document.getElementById('btn-forgot-password');
+        if (!emailInput || !status || !button) return;
+        const email = emailInput.value.trim();
+        status.className = 'login-reset-status';
+        status.textContent = '';
+        if (!email) {
+            status.classList.add('error');
+            status.textContent = 'กรุณากรอกอีเมล แล้วกดลืมรหัสผ่านอีกครั้ง';
+            emailInput.focus();
+            return;
+        }
+        button.disabled = true;
+        button.textContent = 'กำลังส่งอีเมล…';
+        const result = await DB.sendPasswordReset(email);
+        button.disabled = false;
+        button.textContent = 'ลืมรหัสผ่าน?';
+        if (result.success) {
+            status.classList.add('success');
+            status.textContent = `ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่ ${email} แล้ว กรุณาตรวจกล่องจดหมายและจดหมายขยะ`;
+        } else {
+            status.classList.add('error');
+            status.textContent = result.message;
+        }
+    },
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);

@@ -393,6 +393,22 @@ const DB = {
             return false;
         }
     },
+    sendPasswordReset: async (email) => {
+        const normalizedEmail = String(email || '').trim();
+        if (!normalizedEmail) return { success: false, message: 'กรุณากรอกอีเมลก่อน' };
+        if (!auth) return { success: false, message: 'กำลังเชื่อมต่อระบบ กรุณารอสักครู่แล้วลองอีกครั้ง' };
+        try {
+            await auth.sendPasswordResetEmail(normalizedEmail);
+            return { success: true };
+        } catch (error) {
+            const messages = {
+                'auth/invalid-email': 'รูปแบบอีเมลไม่ถูกต้อง',
+                'auth/too-many-requests': 'ส่งคำขอหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่',
+                'auth/network-request-failed': 'เชื่อมต่ออินเทอร์เน็ตไม่ได้ กรุณาตรวจสอบสัญญาณ'
+            };
+            return { success: false, message: messages[error.code] || 'ส่งอีเมลตั้งรหัสผ่านใหม่ไม่สำเร็จ กรุณาลองอีกครั้ง' };
+        }
+    },
 
     // --- Payment Preferences ---
     getPaymentPrefs: () => {

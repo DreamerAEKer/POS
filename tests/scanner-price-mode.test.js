@@ -22,6 +22,10 @@ assert(app.includes('printReceiptFromHistory:'), 'receipt printing must remain a
 assert(app.includes('voiceListening: false'), 'missing voice on/off state');
 assert(app.includes('recognition.continuous = true'), 'missing continuous listening mode');
 assert(app.includes('recognition.interimResults = true'), 'voice results should appear before the phrase is finalized');
+assert(html.includes('id="btn-forgot-password"'), 'login must provide password reset');
+assert(db.includes('auth.sendPasswordResetEmail'), 'password reset must use Firebase Auth');
+assert(app.includes('checkForAppUpdate:'), 'installed app must check for a newer release');
+assert(app.includes("fetch(`version.json?t=${Date.now()}`"), 'version check must bypass cache');
 assert(app.includes('startVoiceRecognitionSession:'), 'missing voice session restart helper');
 assert(css.includes('.price-check-mode-btn.active'), 'missing active mode styling');
 assert(css.includes('.scanner-price-result'), 'missing result modal styling');

@@ -487,6 +487,20 @@ button {
 .scanner-price-not-found .scanner-price-image > .material-symbols-rounded,
 .scanner-price-not-found .scanner-price-name { color: #c62828; }
 
+.login-forgot-btn {
+    margin-top: 10px;
+    padding: 10px 14px;
+    color: #1565c0;
+    background: transparent;
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: underline;
+}
+.login-forgot-btn:disabled { color: #999; }
+.login-reset-status { min-height: 20px; margin-top: 8px; font-size: 13px; line-height: 1.4; }
+.login-reset-status.success { color: #1b5e20; padding: 9px; background: #e8f5e9; border-radius: 8px; }
+.login-reset-status.error { color: #b71c1c; }
+
 @media (max-width: 600px) {
     .scanner-price-result { width: calc(100% - 24px); padding: 20px 16px; }
     .scanner-price-image { width: 112px; height: 112px; margin-top: 18px; }
