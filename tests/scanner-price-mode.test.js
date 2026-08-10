@@ -14,8 +14,14 @@ assert(app.includes("navigator.wakeLock.request('screen')"), 'missing screen wak
 assert(app.includes("document.addEventListener('visibilitychange'"), 'missing wake-lock reacquire listener');
 assert(app.includes('showScannerPriceResult:'), 'missing found-product result');
 assert(app.includes('showScannerPriceNotFound:'), 'missing not-found result');
+assert(app.includes('priceCheckCart: []'), 'missing isolated quick price cart');
+assert(app.includes('startPriceCheckCheckout:'), 'missing quick checkout handoff');
+assert(app.includes("DB.getSettings().scannerPriceCheckMode === true"), 'missing price-mode search routing');
+assert(!html.includes('id="btn-quick-print"'), 'print action should not be prominent on the sales screen');
+assert(app.includes('printReceiptFromHistory:'), 'receipt printing must remain available from sales history');
 assert(css.includes('.price-check-mode-btn.active'), 'missing active mode styling');
 assert(css.includes('.scanner-price-result'), 'missing result modal styling');
+assert(css.includes('.scanner-price-quick-bill'), 'missing quick total styling');
 
 const handlerStart = app.indexOf('handleBarcodeScan: async');
 const handlerEnd = app.indexOf('// --- Product Flash Popup', handlerStart);

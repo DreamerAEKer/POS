@@ -452,6 +452,35 @@ button {
 .scanner-price-facts { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .scanner-price-facts span { padding: 8px 12px; border-radius: 12px; background: #f3f5f4; font-weight: 700; }
 .scanner-price-facts .danger { color: #b71c1c; background: #ffebee; }
+.scanner-price-quick-bill {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 12px;
+    border: 2px solid #dcebdd;
+    border-radius: 16px;
+    text-align: left;
+}
+.scanner-price-quick-bill small { display: block; color: #777; }
+.scanner-price-quick-bill strong { display: block; font-size: 20px; }
+.scanner-price-stepper { display: flex; gap: 6px; }
+.scanner-price-stepper button {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 12px;
+    background: #edf4ee;
+    color: var(--primary-color);
+    font-size: 28px;
+    font-weight: 900;
+}
+.scanner-price-total { text-align: right; }
+.scanner-price-total strong { color: var(--primary-color); font-size: 30px; }
+.scanner-price-actions { display: grid; grid-template-columns: 1fr 1.5fr; gap: 10px; margin-top: 12px; }
+.scanner-price-actions button { min-height: 52px; border-radius: 14px; font-size: 18px; font-weight: 800; }
+.scanner-price-reset { border: 1px solid #ddd; color: #666; background: #f7f7f7; }
 .scanner-price-ready { margin-top: 20px; padding: 12px; color: white; background: var(--primary-color); border-radius: 14px; font-weight: 800; }
 .scanner-price-ready .material-symbols-rounded { vertical-align: middle; }
 .scanner-price-not-found .scanner-price-image { background: #ffebee; }
@@ -463,6 +492,9 @@ button {
     .scanner-price-image { width: 112px; height: 112px; margin-top: 18px; }
     .scanner-price-value { font-size: 58px; }
     .scanner-price-close { top: 10px; right: 10px; }
+    .scanner-price-quick-bill { grid-template-columns: 1fr auto; }
+    .scanner-price-total { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; }
+    .scanner-price-actions { grid-template-columns: 1fr 1.35fr; }
 }
 
 .badge {

@@ -21,7 +21,8 @@ const App = {
             endDate: new Date().toISOString().split('T')[0]
         },
         cameraScanner: { stream: null, detector: null, reader: null, active: false, detecting: false, detectingNow: false, detectionTimer: null, lastDetectionAt: 0, facingEnvironment: true, torchOn: false, lastCode: null, lastAt: 0 },
-        priceCheckWakeLock: null
+        priceCheckWakeLock: null,
+        priceCheckCart: []
     },
 
     elements: {
@@ -1024,7 +1025,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.19 (10/08/2026)', // Hands-free Bluetooth scanner price-check mode
+    VERSION: '0.99.20 (10/08/2026)', // Voice-assisted quick price and checkout mode
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -3163,7 +3164,12 @@ const App = {
 
     selectQuickSearchProduct: (productId) => {
         const product = App.state.products.find(p => p.id === productId);
-        if (product) App.addToCart(product);
+        if (product && DB.getSettings().scannerPriceCheckMode === true) {
+            App.addPriceCheckItem(product, false);
+            App.showScannerPriceResult(product, product.barcode || 'ค้นหาด้วยเสียง');
+        } else if (product) {
+            App.addToCart(product);
+        }
         App.clearProductSearch();
     },
 
@@ -3662,6 +3668,7 @@ const App = {
         // A scanner can keep sending keyboard input while this result modal is open.
         if (DB.getSettings().scannerPriceCheckMode === true) {
             if (match) {
+                App.addPriceCheckItem(match.product, match.isPack);
                 App.showScannerPriceResult(match.product, barcode, { isPack: match.isPack });
                 App.playScanFeedback(true);
             } else {
@@ -6090,6 +6097,38 @@ const App = {
     },
 
     // --- Price Check ---
+    addPriceCheckItem: (product, isPack = false) => {
+        const qty = isPack ? (Number(product.wholesaleQty || product.unitsPerBox) || 1) : 1;
+        const existing = App.state.priceCheckCart.find(item => item.id === product.id);
+        if (existing) existing.qty += qty;
+        else App.state.priceCheckCart.push({ ...product, qty });
+    },
+
+    updatePriceCheckItem: (productId, change) => {
+        const item = App.state.priceCheckCart.find(entry => entry.id === productId);
+        if (!item) return;
+        item.qty += change;
+        if (item.qty <= 0) App.state.priceCheckCart = App.state.priceCheckCart.filter(entry => entry.id !== productId);
+        const product = App.state.products.find(entry => entry.id === productId) || item;
+        App.showScannerPriceResult(product, product.barcode || 'รายการด่วน');
+    },
+
+    clearPriceCheckCart: () => {
+        App.state.priceCheckCart = [];
+        App.closeModals();
+    },
+
+    startPriceCheckCheckout: async () => {
+        if (!App.state.priceCheckCart.length) return;
+        App.state.cart = App.state.priceCheckCart.map(item => ({ ...item }));
+        App.state.priceCheckCart = [];
+        await DB.saveSettings({ scannerPriceCheckMode: false });
+        App.updateScannerPriceCheckButton();
+        await App.releasePriceCheckWakeLock();
+        App.renderCart();
+        App.showPaymentModal();
+    },
+
     showScannerPriceResult: (product, barcode, options = {}) => {
         App.closeModals();
         const overlay = document.getElementById('modal-overlay');
@@ -6105,6 +6144,10 @@ const App = {
         const imageHtml = product.image
             ? `<img src="${product.image}" alt="รูป ${Utils.escapeHTML(product.name)}">`
             : '<span class="material-symbols-rounded">inventory_2</span>';
+        const quickItem = App.state.priceCheckCart.find(item => item.id === product.id);
+        const quickQty = quickItem?.qty || 0;
+        const quickCount = App.state.priceCheckCart.reduce((sum, item) => sum + item.qty, 0);
+        const quickTotal = App.state.priceCheckCart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
 
         modal.className = 'modal scanner-price-result';
         modal.innerHTML = `
@@ -6125,6 +6168,18 @@ const App = {
                     <span class="${stock <= 0 ? 'danger' : ''}">คงเหลือ ${stock} ${unitLabel}</span>
                     ${packQty > 1 ? `<span>ประมาณ ${Math.floor(stock / packQty)} กล่อง ${stock % packQty} ${unitLabel}</span>` : ''}
                     ${product.location ? `<span>จุดวาง: ${Utils.escapeHTML(product.location)}</span>` : ''}
+                </div>
+                <div class="scanner-price-quick-bill">
+                    <div><small>รายการนี้</small><strong>${quickQty} ${unitLabel}</strong></div>
+                    <div class="scanner-price-stepper">
+                        <button type="button" onclick="App.updatePriceCheckItem('${product.id}', -1)" aria-label="ลดจำนวน">−</button>
+                        <button type="button" onclick="App.updatePriceCheckItem('${product.id}', 1)" aria-label="เพิ่มจำนวน">+</button>
+                    </div>
+                    <div class="scanner-price-total"><small>${quickCount} ชิ้น · ยอดรวม</small><strong>฿${Utils.formatCurrency(quickTotal)}</strong></div>
+                </div>
+                <div class="scanner-price-actions">
+                    <button type="button" class="scanner-price-reset" onclick="App.clearPriceCheckCart()">เริ่มยอดใหม่</button>
+                    <button type="button" class="primary-btn" onclick="App.startPriceCheckCheckout()">รับเงิน</button>
                 </div>
                 <div class="scanner-price-ready"><span class="material-symbols-rounded">barcode_scanner</span> พร้อมสแกนชิ้นต่อไป</div>
             </div>`;
