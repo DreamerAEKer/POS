@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.24 (10/08/2026)', // Visible Firebase user session and account controls
+    VERSION: '0.99.25 (10/08/2026)', // Mobile scanner button layout fix
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3446,10 +3446,13 @@ const App = {
     },
 
     setupScannerPriceCheckMode: () => {
-        const button = document.getElementById('btn-price-check-mode');
-        if (!button || button.dataset.ready === 'true') return;
-        button.dataset.ready = 'true';
-        button.addEventListener('click', App.toggleScannerPriceCheckMode);
+        const buttons = document.querySelectorAll('.price-check-mode-btn');
+        if (!buttons.length) return;
+        buttons.forEach(button => {
+            if (button.dataset.ready === 'true') return;
+            button.dataset.ready = 'true';
+            button.addEventListener('click', App.toggleScannerPriceCheckMode);
+        });
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && DB.getSettings().scannerPriceCheckMode) {
                 App.requestPriceCheckWakeLock();
@@ -3460,13 +3463,13 @@ const App = {
     },
 
     updateScannerPriceCheckButton: () => {
-        const button = document.getElementById('btn-price-check-mode');
-        if (!button) return;
         const enabled = DB.getSettings().scannerPriceCheckMode === true;
-        button.classList.toggle('active', enabled);
-        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-        button.setAttribute('aria-label', enabled ? 'ปิดโหมดสแกนเช็กราคา' : 'เปิดโหมดสแกนเช็กราคา');
-        button.title = enabled ? 'กำลังเช็กราคา — สแกนแล้วไม่เข้าบิล' : 'เปิดโหมดสแกนเช็กราคา';
+        document.querySelectorAll('.price-check-mode-btn').forEach(button => {
+            button.classList.toggle('active', enabled);
+            button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            button.setAttribute('aria-label', enabled ? 'ปิดโหมดสแกนเช็กราคา' : 'เปิดโหมดสแกนเช็กราคา');
+            button.title = enabled ? 'กำลังเช็กราคา — สแกนแล้วไม่เข้าบิล' : 'เปิดโหมดสแกนเช็กราคา';
+        });
     },
 
     requestPriceCheckWakeLock: async () => {

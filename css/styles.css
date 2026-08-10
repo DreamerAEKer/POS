@@ -506,7 +506,7 @@ button {
     max-width: 720px;
     min-height: 48px;
     margin: 8px auto 2px;
-    padding: 7px 10px;
+    padding: 5px;
     display: flex;
     align-items: center;
     gap: 9px;
@@ -516,6 +516,8 @@ button {
     border-radius: 14px;
     text-align: left;
 }
+.user-session-account { min-width: 0; flex: 1; display: flex; align-items: center; gap: 9px; padding: 2px 5px; color: inherit; background: transparent; text-align: left; }
+.mobile-price-check-mode { display: none; }
 .user-session-avatar { font-size: 30px; color: var(--primary-color); }
 .user-session-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; }
 .user-session-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
@@ -542,7 +544,18 @@ button {
     .scanner-price-quick-bill { grid-template-columns: 1fr auto; }
     .scanner-price-total { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; }
     .scanner-price-actions { grid-template-columns: 1fr 1.35fr; }
+    .top-bar { gap: 0; }
+    .top-bar .search-container { width: 100%; min-width: 0; padding: 5px 6px 5px 10px; gap: 1px; }
+    .top-bar .search-container > .material-symbols-rounded { flex: 0 0 32px; }
+    .top-bar .search-container input { width: 0; min-width: 0; margin: 0 3px; font-size: 18px; }
+    #btn-voice-search, #btn-scan-trigger { flex: 0 0 46px; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+    #btn-scan-trigger { color: #fff; background: #1976d2; box-shadow: 0 3px 9px rgba(25,118,210,.28); }
+    #btn-scan-trigger .material-symbols-rounded { font-size: 27px; }
+    #btn-price-check-mode { display: none; }
+    .status-indicators { display: none; }
     .user-session-bar { width: calc(100% - 24px); margin-top: 5px; }
+    .mobile-price-check-mode { flex: 0 0 58px; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; border-radius: 11px; color: #1b5e20; background: #dff1e2; }
+    .mobile-price-check-mode small { font-size: 9px; font-weight: 800; }
 }
 
 .badge {
