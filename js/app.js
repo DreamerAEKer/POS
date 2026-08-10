@@ -22,7 +22,9 @@ const App = {
         },
         cameraScanner: { stream: null, detector: null, reader: null, active: false, detecting: false, detectingNow: false, detectionTimer: null, lastDetectionAt: 0, facingEnvironment: true, torchOn: false, lastCode: null, lastAt: 0 },
         priceCheckWakeLock: null,
-        priceCheckCart: []
+        priceCheckCart: [],
+        voiceListening: false,
+        voiceTranscript: ''
     },
 
     elements: {
@@ -1025,7 +1027,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.20 (10/08/2026)', // Voice-assisted quick price and checkout mode
+    VERSION: '0.99.21 (10/08/2026)', // Toggle voice listening with horizontal product choices
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -3141,23 +3143,24 @@ const App = {
                 const bName = (b.name || '').toLowerCase();
                 return Number(!aName.startsWith(query)) - Number(!bName.startsWith(query)) || aName.localeCompare(bName, 'th');
             })
-            .slice(0, 6);
+            .slice(0, 12);
         const groups = [...new Set(matches.map(p => p.group).filter(Boolean))].slice(0, 4);
         if (!matches.length) {
-            panel.innerHTML = '<div class="quick-search-empty">ไม่พบสินค้า — ลองพิมพ์คำสั้นลงหรือเลือกหมวดหมู่</div>';
+            panel.innerHTML = `${App.state.voiceTranscript ? `<div class="quick-search-heard"><span class="material-symbols-rounded">hearing</span> ได้ยิน: “${Utils.escapeHTML(App.state.voiceTranscript)}”</div>` : ''}<div class="quick-search-empty">ไม่พบสินค้า — ลองพูดคำสั้นลง เช่น “โค้ก” หรือชื่อหมวดหมู่</div>`;
             panel.classList.remove('hidden');
             return;
         }
 
         panel.innerHTML = `
+            ${App.state.voiceTranscript ? `<div class="quick-search-heard"><span class="material-symbols-rounded">hearing</span> ได้ยิน: “${Utils.escapeHTML(App.state.voiceTranscript)}”</div>` : ''}
             ${groups.length ? `<div class="quick-search-groups">${groups.map(group => `<button type="button" onclick="App.chooseQuickSearchCategory('${encodeURIComponent(group)}')">${Utils.escapeHTML(group)}</button>`).join('')}</div>` : ''}
-            ${matches.map(p => `
-                <button type="button" class="quick-search-item" onclick="App.selectQuickSearchProduct('${p.id}')">
-                    <span class="quick-search-thumb">${p.image ? `<img src="${p.image}" alt="">` : '<span class="material-symbols-rounded">inventory_2</span>'}</span>
-                    <span class="quick-search-copy"><strong>${Utils.escapeHTML(p.name)}</strong><small>${p.hasBarcode === false ? 'ไม่มีบาร์โค้ด' : Utils.escapeHTML(p.group || 'สินค้า')} · คงเหลือ ${Number(p.stock) || 0}</small></span>
-                    <strong class="quick-search-price">฿${Utils.formatCurrency(p.price)}</strong>
-                </button>
-            `).join('')}
+            <div class="quick-search-products">${matches.map(p => `
+                    <button type="button" class="quick-search-item" onclick="App.selectQuickSearchProduct('${p.id}')">
+                        <span class="quick-search-thumb">${p.image ? `<img src="${p.image}" alt="">` : '<span class="material-symbols-rounded">inventory_2</span>'}</span>
+                        <span class="quick-search-copy"><strong>${Utils.escapeHTML(p.name)}</strong><small>${Utils.escapeHTML(p.group || 'สินค้า')} · เหลือ ${Number(p.stock) || 0}</small></span>
+                        <strong class="quick-search-price">฿${Utils.formatCurrency(p.price)}</strong>
+                    </button>
+                `).join('')}</div>
         `;
         panel.classList.remove('hidden');
     },
@@ -3180,9 +3183,19 @@ const App = {
 
     clearProductSearch: () => {
         App.state.searchQuery = '';
+        App.state.voiceTranscript = '';
         if (App.elements.globalSearch) App.elements.globalSearch.value = '';
         App.renderQuickSearchResults('');
         if (App.state.currentView === 'pos') App.renderProductGrid();
+    },
+
+    updateVoiceSearchButton: () => {
+        const button = document.getElementById('btn-voice-search');
+        if (!button) return;
+        button.classList.toggle('listening', App.state.voiceListening);
+        button.setAttribute('aria-pressed', App.state.voiceListening ? 'true' : 'false');
+        button.setAttribute('aria-label', App.state.voiceListening ? 'ปิดการฟังเสียง' : 'เปิดการฟังเสียงเพื่อค้นหาสินค้า');
+        button.title = App.state.voiceListening ? 'กำลังฟังอยู่ — แตะเพื่อปิด' : 'แตะเพื่อเปิดฟังเสียงค้นหาสินค้า';
     },
 
     startVoiceSearch: () => {
@@ -3191,31 +3204,65 @@ const App = {
             App.alert('เครื่องนี้ยังไม่รองรับการค้นหาด้วยเสียง กรุณาพิมพ์ชื่อสินค้าแทน');
             return;
         }
-        if (App.voiceRecognition) {
-            try { App.voiceRecognition.stop(); } catch (_) {}
+        if (App.state.voiceListening) {
+            App.state.voiceListening = false;
+            App.updateVoiceSearchButton();
+            if (App.voiceRecognition) {
+                try { App.voiceRecognition.abort(); } catch (_) {}
+            }
+            return;
         }
+        App.state.voiceListening = true;
+        App.updateVoiceSearchButton();
+        App.startVoiceRecognitionSession(SpeechRecognition);
+    },
+
+    startVoiceRecognitionSession: (SpeechRecognition) => {
+        if (!App.state.voiceListening || document.visibilityState !== 'visible') return;
         const button = document.getElementById('btn-voice-search');
         const recognition = new SpeechRecognition();
         App.voiceRecognition = recognition;
         recognition.lang = 'th-TH';
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
-        recognition.onstart = () => button?.classList.add('listening');
-        recognition.onend = () => button?.classList.remove('listening');
-        recognition.onerror = () => button?.classList.remove('listening');
+        recognition.continuous = true;
+        recognition.onstart = () => App.updateVoiceSearchButton();
+        recognition.onend = () => {
+            if (App.voiceRecognition === recognition) App.voiceRecognition = null;
+            if (App.state.voiceListening && document.visibilityState === 'visible') {
+                setTimeout(() => App.startVoiceRecognitionSession(SpeechRecognition), 350);
+            } else {
+                App.updateVoiceSearchButton();
+            }
+        };
+        recognition.onerror = event => {
+            if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(event.error)) {
+                App.state.voiceListening = false;
+                App.updateVoiceSearchButton();
+            }
+        };
         recognition.onresult = (event) => {
-            const spoken = event.results?.[0]?.[0]?.transcript?.trim();
+            const spoken = event.results?.[event.results.length - 1]?.[0]?.transcript?.trim();
             if (!spoken) return;
+            App.state.voiceTranscript = spoken;
             App.elements.globalSearch.value = spoken;
             App.elements.globalSearch.dispatchEvent(new Event('input', { bubbles: true }));
         };
-        recognition.start();
+        try { recognition.start(); } catch (_) {}
     },
 
     setupGlobalInput: () => {
         const input = App.elements.globalSearch;
 
         document.getElementById('btn-voice-search')?.addEventListener('click', App.startVoiceSearch);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && App.voiceRecognition) {
+                try { App.voiceRecognition.abort(); } catch (_) {}
+            } else if (document.visibilityState === 'visible' && App.state.voiceListening && !App.voiceRecognition) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) App.startVoiceRecognitionSession(SpeechRecognition);
+            }
+        });
         input.addEventListener('focus', () => App.renderQuickSearchResults(input.value));
         input.addEventListener('blur', () => setTimeout(() => document.getElementById('quick-search-results')?.classList.add('hidden'), 180));
 

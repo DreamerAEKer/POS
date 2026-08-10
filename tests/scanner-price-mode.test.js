@@ -19,9 +19,13 @@ assert(app.includes('startPriceCheckCheckout:'), 'missing quick checkout handoff
 assert(app.includes("DB.getSettings().scannerPriceCheckMode === true"), 'missing price-mode search routing');
 assert(!html.includes('id="btn-quick-print"'), 'print action should not be prominent on the sales screen');
 assert(app.includes('printReceiptFromHistory:'), 'receipt printing must remain available from sales history');
+assert(app.includes('voiceListening: false'), 'missing voice on/off state');
+assert(app.includes('recognition.continuous = true'), 'missing continuous listening mode');
+assert(app.includes('startVoiceRecognitionSession:'), 'missing voice session restart helper');
 assert(css.includes('.price-check-mode-btn.active'), 'missing active mode styling');
 assert(css.includes('.scanner-price-result'), 'missing result modal styling');
 assert(css.includes('.scanner-price-quick-bill'), 'missing quick total styling');
+assert(css.includes('.quick-search-products'), 'missing horizontal voice product choices');
 
 const handlerStart = app.indexOf('handleBarcodeScan: async');
 const handlerEnd = app.indexOf('// --- Product Flash Popup', handlerStart);
