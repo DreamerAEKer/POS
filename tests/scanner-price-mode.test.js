@@ -21,6 +21,7 @@ assert(!html.includes('id="btn-quick-print"'), 'print action should not be promi
 assert(app.includes('printReceiptFromHistory:'), 'receipt printing must remain available from sales history');
 assert(app.includes('voiceListening: false'), 'missing voice on/off state');
 assert(app.includes('recognition.continuous = true'), 'missing continuous listening mode');
+assert(app.includes('recognition.interimResults = true'), 'voice results should appear before the phrase is finalized');
 assert(app.includes('startVoiceRecognitionSession:'), 'missing voice session restart helper');
 assert(css.includes('.price-check-mode-btn.active'), 'missing active mode styling');
 assert(css.includes('.scanner-price-result'), 'missing result modal styling');

@@ -1027,7 +1027,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.21 (10/08/2026)', // Toggle voice listening with horizontal product choices
+    VERSION: '0.99.22 (10/08/2026)', // Faster interim voice search results
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -3223,14 +3223,16 @@ const App = {
         const recognition = new SpeechRecognition();
         App.voiceRecognition = recognition;
         recognition.lang = 'th-TH';
-        recognition.interimResults = false;
+        // Show candidates while the user is still speaking instead of waiting
+        // for the speech service to finalize the whole phrase.
+        recognition.interimResults = true;
         recognition.maxAlternatives = 1;
         recognition.continuous = true;
         recognition.onstart = () => App.updateVoiceSearchButton();
         recognition.onend = () => {
             if (App.voiceRecognition === recognition) App.voiceRecognition = null;
             if (App.state.voiceListening && document.visibilityState === 'visible') {
-                setTimeout(() => App.startVoiceRecognitionSession(SpeechRecognition), 350);
+                setTimeout(() => App.startVoiceRecognitionSession(SpeechRecognition), 80);
             } else {
                 App.updateVoiceSearchButton();
             }
@@ -3242,10 +3244,15 @@ const App = {
             }
         };
         recognition.onresult = (event) => {
-            const spoken = event.results?.[event.results.length - 1]?.[0]?.transcript?.trim();
+            const spoken = Array.from(event.results || [])
+                .slice(event.resultIndex || 0)
+                .map(result => result?.[0]?.transcript || '')
+                .join(' ')
+                .trim();
             if (!spoken) return;
             App.state.voiceTranscript = spoken;
             App.elements.globalSearch.value = spoken;
+            App.renderQuickSearchResults(spoken);
             App.elements.globalSearch.dispatchEvent(new Event('input', { bubbles: true }));
         };
         try { recognition.start(); } catch (_) {}
