@@ -218,6 +218,7 @@ const DB = {
             printerFeedLines: 5,  // New: Paper feed length
             printLogo: true,      // New: Toggle Logo
             printQr: true,        // New: Toggle QR
+            scannerPriceCheckMode: false,
             logo: null,           // New: Base64 Image
             qrCode: null          // New: Base64 Image
         };

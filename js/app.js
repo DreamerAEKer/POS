@@ -20,7 +20,8 @@ const App = {
             startDate: new Date().toISOString().split('T')[0], // Default Today
             endDate: new Date().toISOString().split('T')[0]
         },
-        cameraScanner: { stream: null, detector: null, reader: null, active: false, detecting: false, detectingNow: false, detectionTimer: null, lastDetectionAt: 0, facingEnvironment: true, torchOn: false, lastCode: null, lastAt: 0 }
+        cameraScanner: { stream: null, detector: null, reader: null, active: false, detecting: false, detectingNow: false, detectionTimer: null, lastDetectionAt: 0, facingEnvironment: true, torchOn: false, lastCode: null, lastAt: 0 },
+        priceCheckWakeLock: null
     },
 
     elements: {
@@ -132,6 +133,7 @@ const App = {
             App.setupGlobalInput();
             App.setupCartActions();
             App.setupCameraScanner();
+            App.setupScannerPriceCheckMode();
 
             // Initial Render
             App.renderView('pos');
@@ -1022,7 +1024,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.18 (06/08/2026)', // Compact mobile lists and stock management
+    VERSION: '0.99.19 (10/08/2026)', // Hands-free Bluetooth scanner price-check mode
 
     formatStockBreakdown: (product, stockValue = null) => {
         const stock = Math.max(0, Number(stockValue === null ? product.stock : stockValue) || 0);
@@ -3286,6 +3288,70 @@ const App = {
         document.getElementById('btn-scan-trigger').addEventListener('click', App.openCameraScanner);
     },
 
+    setupScannerPriceCheckMode: () => {
+        const button = document.getElementById('btn-price-check-mode');
+        if (!button || button.dataset.ready === 'true') return;
+        button.dataset.ready = 'true';
+        button.addEventListener('click', App.toggleScannerPriceCheckMode);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && DB.getSettings().scannerPriceCheckMode) {
+                App.requestPriceCheckWakeLock();
+            }
+        });
+        App.updateScannerPriceCheckButton();
+        if (DB.getSettings().scannerPriceCheckMode) App.requestPriceCheckWakeLock();
+    },
+
+    updateScannerPriceCheckButton: () => {
+        const button = document.getElementById('btn-price-check-mode');
+        if (!button) return;
+        const enabled = DB.getSettings().scannerPriceCheckMode === true;
+        button.classList.toggle('active', enabled);
+        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        button.setAttribute('aria-label', enabled ? 'ปิดโหมดสแกนเช็กราคา' : 'เปิดโหมดสแกนเช็กราคา');
+        button.title = enabled ? 'กำลังเช็กราคา — สแกนแล้วไม่เข้าบิล' : 'เปิดโหมดสแกนเช็กราคา';
+    },
+
+    requestPriceCheckWakeLock: async () => {
+        if (!DB.getSettings().scannerPriceCheckMode || document.visibilityState !== 'visible') return false;
+        if (!('wakeLock' in navigator)) return false;
+        try {
+            if (App.state.priceCheckWakeLock && !App.state.priceCheckWakeLock.released) return true;
+            App.state.priceCheckWakeLock = await navigator.wakeLock.request('screen');
+            App.state.priceCheckWakeLock.addEventListener('release', () => {
+                App.state.priceCheckWakeLock = null;
+            });
+            return true;
+        } catch (error) {
+            console.warn('Screen Wake Lock unavailable:', error);
+            return false;
+        }
+    },
+
+    releasePriceCheckWakeLock: async () => {
+        const lock = App.state.priceCheckWakeLock;
+        App.state.priceCheckWakeLock = null;
+        if (lock && !lock.released) {
+            try { await lock.release(); } catch (_) {}
+        }
+    },
+
+    toggleScannerPriceCheckMode: async () => {
+        const enabled = DB.getSettings().scannerPriceCheckMode !== true;
+        await DB.saveSettings({ scannerPriceCheckMode: enabled });
+        App.updateScannerPriceCheckButton();
+        if (enabled) {
+            const wakeLockActive = await App.requestPriceCheckWakeLock();
+            await App.alert(
+                `เปิดโหมดสแกนเช็กราคาแล้ว\n\nยิงบาร์โค้ดจากเครื่องสแกนได้ทันที และสินค้าจะไม่ถูกเพิ่มเข้าบิล${wakeLockActive ? '\nระบบกำลังป้องกันหน้าจอดับ' : '\nเครื่องนี้ไม่อนุญาตให้เว็บป้องกันหน้าจอดับ กรุณาตั้งเวลาล็อกหน้าจอให้นานขึ้น'}`
+            );
+        } else {
+            await App.releasePriceCheckWakeLock();
+            App.closeModals();
+            await App.alert('ปิดโหมดเช็กราคาแล้ว\nการสแกนในหน้าขายจะกลับไปเพิ่มสินค้าเข้าบิลตามปกติ');
+        }
+    },
+
     setupCameraScanner: () => {
         const overlay = document.getElementById('camera-scanner-overlay');
         if (!overlay || overlay.dataset.ready === 'true') return;
@@ -3591,6 +3657,19 @@ const App = {
 
     handleBarcodeScan: async (barcode) => {
         const match = DB.getProductByBarcode(barcode);
+
+        // Hands-free price-check mode is intentionally isolated from sales.
+        // A scanner can keep sending keyboard input while this result modal is open.
+        if (DB.getSettings().scannerPriceCheckMode === true) {
+            if (match) {
+                App.showScannerPriceResult(match.product, barcode, { isPack: match.isPack });
+                App.playScanFeedback(true);
+            } else {
+                App.showScannerPriceNotFound(barcode);
+                App.playScanFeedback(false);
+            }
+            return;
+        }
 
         if (match) {
             const product = match.product;
@@ -6011,6 +6090,66 @@ const App = {
     },
 
     // --- Price Check ---
+    showScannerPriceResult: (product, barcode, options = {}) => {
+        App.closeModals();
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('price-check-modal');
+        const unitLabel = product.unitLabel || 'ชิ้น';
+        const stock = Number(product.stock) || 0;
+        const packQty = Number(product.wholesaleQty || product.unitsPerBox) || 1;
+        const isPack = options.isPack === true;
+        const price = isPack
+            ? (Number(product.wholesalePrice) > 0 ? Number(product.wholesalePrice) : Number(product.price || 0) * packQty)
+            : Number(product.price) || 0;
+        const priceLabel = isPack ? `ราคาลัง/แพ็ก (${packQty} ${unitLabel})` : `ราคาต่อ ${unitLabel}`;
+        const imageHtml = product.image
+            ? `<img src="${product.image}" alt="รูป ${Utils.escapeHTML(product.name)}">`
+            : '<span class="material-symbols-rounded">inventory_2</span>';
+
+        modal.className = 'modal scanner-price-result';
+        modal.innerHTML = `
+            <div class="scanner-price-mode-badge">
+                <span class="material-symbols-rounded">price_check</span>
+                โหมดเช็กราคา · ไม่เข้าบิล
+            </div>
+            <button class="scanner-price-close" type="button" onclick="App.closeModals()" aria-label="ปิด">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+            <div class="scanner-price-image">${imageHtml}</div>
+            <div class="scanner-price-body">
+                <div class="scanner-price-name">${Utils.escapeHTML(product.name)}</div>
+                <div class="scanner-price-code">อ่านได้: ${Utils.escapeHTML(barcode)}</div>
+                <div class="scanner-price-label">${priceLabel}</div>
+                <div class="scanner-price-value">฿${Utils.formatCurrency(price)}</div>
+                <div class="scanner-price-facts">
+                    <span class="${stock <= 0 ? 'danger' : ''}">คงเหลือ ${stock} ${unitLabel}</span>
+                    ${packQty > 1 ? `<span>ประมาณ ${Math.floor(stock / packQty)} กล่อง ${stock % packQty} ${unitLabel}</span>` : ''}
+                    ${product.location ? `<span>จุดวาง: ${Utils.escapeHTML(product.location)}</span>` : ''}
+                </div>
+                <div class="scanner-price-ready"><span class="material-symbols-rounded">barcode_scanner</span> พร้อมสแกนชิ้นต่อไป</div>
+            </div>`;
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    showScannerPriceNotFound: (barcode) => {
+        App.closeModals();
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('price-check-modal');
+        modal.className = 'modal scanner-price-result scanner-price-not-found';
+        modal.innerHTML = `
+            <div class="scanner-price-mode-badge"><span class="material-symbols-rounded">price_check</span> โหมดเช็กราคา · ไม่เข้าบิล</div>
+            <button class="scanner-price-close" type="button" onclick="App.closeModals()" aria-label="ปิด"><span class="material-symbols-rounded">close</span></button>
+            <div class="scanner-price-image"><span class="material-symbols-rounded">barcode_off</span></div>
+            <div class="scanner-price-body">
+                <div class="scanner-price-name">ไม่พบสินค้าในสต็อก</div>
+                <div class="scanner-price-code">อ่านได้: ${Utils.escapeHTML(barcode)}</div>
+                <div class="scanner-price-ready"><span class="material-symbols-rounded">barcode_scanner</span> สแกนใหม่ได้ทันที</div>
+            </div>`;
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
     showPriceCheckModal: () => {
         App.closeModals(); // Prevent Overlap
         const overlay = document.getElementById('modal-overlay');

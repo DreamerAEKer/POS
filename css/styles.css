@@ -394,6 +394,77 @@ button {
     color: var(--danger-color);
 }
 
+.price-check-mode-btn.active {
+    color: #145a20;
+    background: #fff3b0;
+    box-shadow: 0 0 0 3px #f5c400, 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.scanner-price-result {
+    position: relative;
+    max-width: 560px;
+    padding: 28px;
+    text-align: center;
+    overflow: visible;
+}
+
+.scanner-price-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    color: #145a20;
+    background: #fff3b0;
+    font-weight: 800;
+}
+
+.scanner-price-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 50%;
+    color: #555;
+    background: #f2f2f2;
+}
+
+.scanner-price-image {
+    width: 150px;
+    height: 150px;
+    margin: 22px auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 20px;
+    background: #eef7ef;
+}
+
+.scanner-price-image img { width: 100%; height: 100%; object-fit: contain; }
+.scanner-price-image > .material-symbols-rounded { font-size: 72px; color: var(--primary-color); }
+.scanner-price-name { font-size: clamp(26px, 7vw, 38px); font-weight: 900; line-height: 1.15; }
+.scanner-price-code { margin-top: 5px; color: #777; font-size: 16px; }
+.scanner-price-label { margin-top: 14px; color: #555; font-weight: 700; }
+.scanner-price-value { color: var(--primary-color); font-size: clamp(58px, 16vw, 86px); font-weight: 900; line-height: 1.05; }
+.scanner-price-facts { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.scanner-price-facts span { padding: 8px 12px; border-radius: 12px; background: #f3f5f4; font-weight: 700; }
+.scanner-price-facts .danger { color: #b71c1c; background: #ffebee; }
+.scanner-price-ready { margin-top: 20px; padding: 12px; color: white; background: var(--primary-color); border-radius: 14px; font-weight: 800; }
+.scanner-price-ready .material-symbols-rounded { vertical-align: middle; }
+.scanner-price-not-found .scanner-price-image { background: #ffebee; }
+.scanner-price-not-found .scanner-price-image > .material-symbols-rounded,
+.scanner-price-not-found .scanner-price-name { color: #c62828; }
+
+@media (max-width: 600px) {
+    .scanner-price-result { width: calc(100% - 24px); padding: 20px 16px; }
+    .scanner-price-image { width: 112px; height: 112px; margin-top: 18px; }
+    .scanner-price-value { font-size: 58px; }
+    .scanner-price-close { top: 10px; right: 10px; }
+}
+
 .badge {
     background: var(--danger-color);
     color: white;
