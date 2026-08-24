@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.33 (24/08/2026)', // 3s countdown auto-close on price check
+    VERSION: '0.99.34 (24/08/2026)', // Enlarge flash popup price font and smooth animation
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -4316,36 +4316,37 @@ const App = {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.88);
             color: white;
-            padding: 30px;
-            border-radius: 15px;
-            z-index: 9999;
+            padding: 24px 32px;
+            border-radius: 20px;
+            z-index: 50000;
             text-align: center;
-            min-width: 300px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            animation: fadeInOut 1.5s ease-in-out forwards;
+            min-width: 280px;
+            max-width: 90vw;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+            animation: fadeInOut 1.4s ease-in-out forwards;
             pointer-events: none; /* Let clicks pass through */
         `;
 
         popup.innerHTML = `
-            <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #fff;">${Utils.escapeHTML(product.name)}</div>
-            <div style="font-size: 48px; font-weight: bold; color: #4caf50; margin-bottom: 10px;">
+            <div style="font-size: 22px; font-weight: bold; margin-bottom: 6px; color: #fff; line-height: 1.2;">${Utils.escapeHTML(product.name)}</div>
+            <div style="font-size: clamp(54px, 14vw, 78px); font-weight: 900; color: #4caf50; margin-bottom: 8px; line-height: 1.05; text-shadow: 0 2px 10px rgba(76,175,80,0.4);">
                 ฿${Utils.formatCurrency(product.price)}
             </div>
             ${product.location ? `
-                <div style="font-size: 20px; color: #ffeb3b; background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; display: inline-block;">
+                <div style="font-size: 18px; color: #ffeb3b; background: rgba(255,255,255,0.15); padding: 4px 14px; border-radius: 20px; display: inline-block; font-weight: bold;">
                     📍 ${Utils.escapeHTML(product.location)}
                 </div>
-            ` : '<div style="font-size: 16px; color: #ccc;">(ไม่ระบุจุดวาง)</div>'}
+            ` : '<div style="font-size: 14px; color: #aaa;">(ไม่ระบุจุดวาง)</div>'}
         `;
 
         document.body.appendChild(popup);
 
-        // Auto remove after animation (1s delay + fade out)
+        // Auto remove after animation (1.3s)
         setTimeout(() => {
             if (popup.parentNode) popup.parentNode.removeChild(popup);
-        }, 1200);
+        }, 1300);
     },
 
     // --- Cart & Wholesale Logic Helpers ---
