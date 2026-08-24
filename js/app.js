@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.27 (10/08/2026)', // Whole-app mobile visual density and consistency pass
+    VERSION: '0.99.30 (24/08/2026)', // Whole-app mobile visual density and consistency pass
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -2484,7 +2484,12 @@ const App = {
         const suppliers = DB.getSuppliers();
 
         modal.innerHTML = `
-            <h2>${product ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="margin:0;">${product ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h2>
+                <button type="button" onclick="App.closeModals()" style="background:transparent; border:none; cursor:pointer; color:#888; padding:5px; margin-right:-5px;">
+                    <span class="material-symbols-rounded" style="font-size:28px;">close</span>
+                </button>
+            </div>
             <form id="product-form" style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
                 <input type="hidden" id="p-id" value="${product ? product.id : ''}">
                 
@@ -3426,6 +3431,13 @@ const App = {
         let lastKeyTime = 0;
 
         document.addEventListener('keydown', (e) => {
+            // Global Hotkeys
+            if (e.key === 'F3') {
+                e.preventDefault();
+                App.showPriceCheckModal();
+                return;
+            }
+
             if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
             const now = Date.now();
             const timeDiff = now - lastKeyTime;
@@ -6394,16 +6406,40 @@ const App = {
         App.closeModals(); // Prevent Overlap
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
+        
+        // Make modal larger for better visibility
+        modal.style.maxWidth = "800px";
+        modal.style.width = "95%";
+        modal.style.padding = "0";
+        modal.style.overflow = "hidden";
+        modal.style.borderRadius = "16px";
+        
         modal.innerHTML = `
-            <div style="text-align:center;">
-                <span class="material-symbols-rounded" style="font-size:64px; color:var(--secondary-color);">price_check</span>
-                <h2>เช็คราคาสินค้า</h2>
-                <p>ยิงบาร์โค้ด หรือ พิมพ์ค้นหา</p>
-                <input type="text" id="check-input" style="font-size:24px; padding:10px; width:100%; text-align:center; margin-top:20px;" autofocus placeholder="รหัสสินค้า">
-                <div id="check-result" style="margin-top:20px; min-height:100px;"></div>
-                <button class="secondary-btn" style="width:100%; margin-top:20px;" onclick="App.closeModals()">ปิด</button>
+            <div style="display:flex; flex-direction:column; height: 80vh; max-height: 700px;">
+                <div style="background:var(--primary-color); color:white; padding:15px 20px; display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="material-symbols-rounded" style="font-size:32px;">price_check</span>
+                        <div>
+                            <h2 style="margin:0; color:white; font-size:20px;">เช็คราคาสินค้า (Check Price)</h2>
+                        </div>
+                    </div>
+                    <button onclick="App.closeModals()" style="background:transparent; border:none; color:white; cursor:pointer; padding:5px;">
+                        <span class="material-symbols-rounded" style="font-size:32px;">close</span>
+                    </button>
+                </div>
+                
+                <div style="padding:20px; text-align:center; flex-shrink:0; background:white; border-bottom:1px solid #eee;">
+                    <input type="text" id="check-input" style="font-size:24px; padding:15px; width:100%; max-width:500px; text-align:center; border:2px solid var(--primary-color); border-radius:12px; box-shadow:var(--shadow-sm);" autofocus placeholder="สแกนบาร์โค้ดตรงนี้...">
+                </div>
+                
+                <div id="check-result" style="flex:1; padding:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#f9f9f9; overflow-y:auto;">
+                    <div style="color:#aaa; font-size:20px; text-align:center;">
+                        <span class="material-symbols-rounded" style="font-size:64px; opacity:0.5; margin-bottom:10px; display:block;">barcode_scanner</span>
+                        รอรับการสแกนบาร์โค้ด...
+                    </div>
+                </div>
             </div>
-`;
+        `;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
 
@@ -6418,27 +6454,57 @@ const App = {
         input.addEventListener('input', (e) => {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
-                const val = e.target.value;
-                if (!val) { result.innerHTML = ''; return; }
+                const val = e.target.value.trim();
+                if (!val) { 
+                    result.innerHTML = `
+                        <div style="color:#aaa; font-size:20px; text-align:center;">
+                            <span class="material-symbols-rounded" style="font-size:64px; opacity:0.5; margin-bottom:10px; display:block;">barcode_scanner</span>
+                            รอรับการสแกนบาร์โค้ด...
+                        </div>`; 
+                    return; 
+                }
 
                 const match = DB.getProductByBarcode(val);
-                const product = match ? match.product : App.state.products.find(p => p.name.includes(val));
+                const product = match ? match.product : App.state.products.find(p => p.name.includes(val) || p.barcode === val);
 
                 if (product) {
+                    const isOutOfStock = product.stock <= 0;
+                    const stockColor = isOutOfStock ? '#d32f2f' : (product.stock < 5 ? '#f57c00' : '#388e3c');
+                    const stockText = isOutOfStock ? 'สินค้าหมดสต็อก' : `คงเหลือ: ${product.stock} ${product.unit}`;
+                    const stockIcon = isOutOfStock ? 'error' : 'inventory_2';
+                    
                     result.innerHTML = `
-                        <div style="font-size:24px; font-weight:bold;">${Utils.escapeHTML(product.name)}</div>
-                        ${product.image && product.image.startsWith('data:image/') ? '<img src="' + Utils.escapeHTML(product.image) + '" style="max-height:100px; margin:10px 0;" alt="">' : ''}
-                        <div style="font-size:48px; color:var(--primary-color);">฿${Utils.formatCurrency(product.price)}</div>
-                        <div style="color:${product.stock < 5 ? 'red' : 'gray'}">คงเหลือ: ${product.stock}</div>
-`;
-                    input.value = '';
+                        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; text-align:center; animation: fadeIn 0.2s ease-out;">
+                            ${product.image && product.image.startsWith('data:image/') ? `<img src="${Utils.escapeHTML(product.image)}" style="max-height:200px; max-width:100%; object-fit:contain; border-radius:12px; margin-bottom:15px; box-shadow:var(--shadow-sm);">` : `<div style="width:120px; height:120px; background:#e0e0e0; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:15px;"><span class="material-symbols-rounded" style="font-size:48px; color:#999;">image_not_supported</span></div>`}
+                            
+                            <div style="font-size:clamp(20px, 4vw, 32px); font-weight:bold; color:#333; margin-bottom:5px; line-height:1.3;">${Utils.escapeHTML(product.name)}</div>
+                            <div style="font-size:16px; color:#666; margin-bottom:15px;">บาร์โค้ด: ${product.barcode}</div>
+                            
+                            <div style="font-size:clamp(40px, 8vw, 80px); font-weight:bold; color:var(--primary-color); line-height:1; margin-bottom:20px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
+                                ฿${Utils.formatCurrency(product.price)}
+                            </div>
+                            
+                            <div style="display:inline-flex; align-items:center; gap:8px; padding:12px 24px; border-radius:30px; background:${stockColor}20; color:${stockColor}; font-size:clamp(16px, 3vw, 22px); font-weight:bold;">
+                                <span class="material-symbols-rounded" style="font-size:28px;">${stockIcon}</span>
+                                ${stockText}
+                            </div>
+                        </div>
+                    `;
+                    input.value = ''; // clear for next scan
+                    input.focus();
                 } else {
-                    if (val.length > 8) result.innerHTML = '<div style="color:red; font-size:20px;">ไม่พบสินค้า</div>';
+                    result.innerHTML = `
+                        <div style="display:flex; flex-direction:column; align-items:center; color:#d32f2f; text-align:center;">
+                            <span class="material-symbols-rounded" style="font-size:80px; margin-bottom:15px;">search_off</span>
+                            <div style="font-size:28px; font-weight:bold;">ไม่พบสินค้า</div>
+                            <div style="font-size:18px; margin-top:10px; color:#666;">รหัส: "${Utils.escapeHTML(val)}"<br>ลองค้นหาด้วยชื่อ หรือตรวจสอบบาร์โค้ดอีกครั้ง</div>
+                        </div>
+                    `;
                 }
-            }, 300);
+            }, 250);
         });
     },
-
+    
     closeModals: () => {
         document.getElementById('modal-overlay').classList.add('hidden');
         document.querySelectorAll('.modal').forEach(m => {
