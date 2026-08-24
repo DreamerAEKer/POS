@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.32 (24/08/2026)', // Fast scanner, high-z-index price modal, huge price font
+    VERSION: '0.99.33 (24/08/2026)', // 3s countdown auto-close on price check
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -6331,6 +6331,30 @@ const App = {
         App.showPaymentModal();
     },
 
+    startPriceCheckCountdown: (seconds = 3) => {
+        if (App._priceCheckTimer) {
+            clearInterval(App._priceCheckTimer);
+            App._priceCheckTimer = null;
+        }
+        let remaining = seconds;
+        const updateText = () => {
+            const countEl = document.getElementById('price-check-countdown');
+            if (countEl) countEl.textContent = remaining;
+        };
+        updateText();
+        App._priceCheckTimer = setInterval(() => {
+            remaining--;
+            updateText();
+            if (remaining <= 0) {
+                if (App._priceCheckTimer) {
+                    clearInterval(App._priceCheckTimer);
+                    App._priceCheckTimer = null;
+                }
+                App.closeModals();
+            }
+        }, 1000);
+    },
+
     showScannerPriceResult: (product, barcode, options = {}) => {
         App.closeModals();
         const overlay = document.getElementById('modal-overlay');
@@ -6383,10 +6407,11 @@ const App = {
                     <button type="button" class="scanner-price-reset" onclick="App.clearPriceCheckCart()">เริ่มยอดใหม่</button>
                     <button type="button" class="primary-btn" onclick="App.startPriceCheckCheckout()">รับเงิน</button>
                 </div>
-                <button type="button" class="scanner-price-ready" onclick="App.closeModals()"><span class="material-symbols-rounded">barcode_scanner</span> พร้อมสแกนชิ้นต่อไป</button>
+                <button type="button" class="scanner-price-ready" onclick="App.closeModals()"><span class="material-symbols-rounded">barcode_scanner</span> พร้อมสแกนชิ้นต่อไป (<span id="price-check-countdown">3</span>วิ)</button>
             </div>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+        App.startPriceCheckCountdown(3);
     },
 
     showScannerPriceNotFound: (barcode) => {
@@ -6401,10 +6426,11 @@ const App = {
             <div class="scanner-price-body">
                 <div class="scanner-price-name">ไม่พบสินค้าในสต็อก</div>
                 <div class="scanner-price-code">อ่านได้: ${Utils.escapeHTML(barcode)}</div>
-                <button type="button" class="scanner-price-ready" onclick="App.closeModals()"><span class="material-symbols-rounded">barcode_scanner</span> สแกนใหม่ได้ทันที</button>
+                <button type="button" class="scanner-price-ready" onclick="App.closeModals()"><span class="material-symbols-rounded">barcode_scanner</span> สแกนใหม่ได้ทันที (<span id="price-check-countdown">3</span>วิ)</button>
             </div>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+        App.startPriceCheckCountdown(3);
     },
 
     showPriceCheckModal: () => {
@@ -6511,6 +6537,10 @@ const App = {
     },
     
     closeModals: () => {
+        if (App._priceCheckTimer) {
+            clearInterval(App._priceCheckTimer);
+            App._priceCheckTimer = null;
+        }
         document.getElementById('modal-overlay').classList.add('hidden');
         document.querySelectorAll('.modal').forEach(m => {
             m.classList.add('hidden');
