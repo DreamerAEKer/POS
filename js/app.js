@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.31 (24/08/2026)', // Fix app update loop & price check UI
+    VERSION: '0.99.32 (24/08/2026)', // Fast scanner, high-z-index price modal, huge price font
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3565,7 +3565,7 @@ const App = {
             const code = input.value.trim();
             if (!code) return;
             input.value = '';
-            await App.acceptCameraBarcode(code);
+            await App.acceptCameraBarcode(code, true);
         });
         overlay.addEventListener('click', event => {
             if (event.target === overlay) App.closeCameraScanner();
@@ -3700,9 +3700,9 @@ const App = {
         if (scanner.detectingNow) return;
         scanner.detectingNow = true;
         try {
-            if (video.readyState >= 2) {
+            if (video.readyState >= 2 && video.videoWidth > 0) {
                 const results = await scanner.detector.detect(video);
-                if (results[0]?.rawValue) await App.acceptCameraBarcode(results[0].rawValue);
+                if (results && results[0]?.rawValue) await App.acceptCameraBarcode(results[0].rawValue);
             }
         } catch (_) {}
         finally {
@@ -3710,20 +3710,25 @@ const App = {
             scanner.lastDetectionAt = Date.now();
         }
         if (scanner.active && scanner.detecting) {
-            scanner.detectionTimer = setTimeout(App.detectCameraBarcode, 110);
+            scanner.detectionTimer = setTimeout(App.detectCameraBarcode, 40);
         }
     },
 
-    acceptCameraBarcode: async (rawCode) => {
+    acceptCameraBarcode: async (rawCode, isManual = false) => {
         const code = String(rawCode || '').trim();
         if (!code) return;
         const scanner = App.state.cameraScanner;
         const now = Date.now();
-        if (scanner.lastCode === code && now - scanner.lastAt < 1800) return;
+        if (!isManual && scanner.lastCode === code && now - scanner.lastAt < 1200) return;
         scanner.lastCode = code;
         scanner.lastAt = now;
         App.setCameraScannerStatus(`อ่านบาร์โค้ด ${code} — กำลังตรวจสอบ...`);
         await App.handleBarcodeScan(code);
+        if (scanner.active && !DB.getSettings().scannerPriceCheckMode) {
+            setTimeout(() => {
+                if (scanner.active) App.setCameraScannerStatus('พร้อมสแกน', 'ok');
+            }, 1000);
+        }
     },
 
     playScanFeedback: (success = true) => {
@@ -6378,7 +6383,7 @@ const App = {
                     <button type="button" class="scanner-price-reset" onclick="App.clearPriceCheckCart()">เริ่มยอดใหม่</button>
                     <button type="button" class="primary-btn" onclick="App.startPriceCheckCheckout()">รับเงิน</button>
                 </div>
-                <div class="scanner-price-ready"><span class="material-symbols-rounded">barcode_scanner</span> พร้อมสแกนชิ้นต่อไป</div>
+                <button type="button" class="scanner-price-ready" onclick="App.closeModals()"><span class="material-symbols-rounded">barcode_scanner</span> พร้อมสแกนชิ้นต่อไป</button>
             </div>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
@@ -6396,7 +6401,7 @@ const App = {
             <div class="scanner-price-body">
                 <div class="scanner-price-name">ไม่พบสินค้าในสต็อก</div>
                 <div class="scanner-price-code">อ่านได้: ${Utils.escapeHTML(barcode)}</div>
-                <div class="scanner-price-ready"><span class="material-symbols-rounded">barcode_scanner</span> สแกนใหม่ได้ทันที</div>
+                <button type="button" class="scanner-price-ready" onclick="App.closeModals()"><span class="material-symbols-rounded">barcode_scanner</span> สแกนใหม่ได้ทันที</button>
             </div>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
@@ -6513,6 +6518,11 @@ const App = {
                 m.innerHTML = '';
             }
         });
+        if (App.state.cameraScanner.active) {
+            App.state.cameraScanner.lastCode = null;
+            App.state.cameraScanner.lastAt = 0;
+            App.setCameraScannerStatus('พร้อมสแกน', 'ok');
+        }
     },
 
     // --- APPROVALS VIEW ---
