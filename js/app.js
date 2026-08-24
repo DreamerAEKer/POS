@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.34 (24/08/2026)', // Enlarge flash popup price font and smooth animation
+    VERSION: '0.99.35 (24/08/2026)', // Compact payment modal with collapsible receipt options
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -5319,78 +5319,108 @@ const App = {
         const modal = document.getElementById('payment-modal');
         const prefs = DB.getPaymentPrefs(); // Load saved preferences
 
+        modal.className = 'modal';
+        modal.style.maxWidth = '400px';
+        modal.style.padding = '12px 14px';
+
         modal.innerHTML = `
-            <h2 style="text-align:center;">สรุปยอดชำระ</h2>
-            <div style="text-align:center; font-size:48px; font-weight:bold; color:var(--primary-color); margin:20px 0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                <h2 style="margin:0; font-size:17px; color:#444;">สรุปยอดชำระ</h2>
+                <button type="button" onclick="App.cancelPayment()" style="background:transparent; border:none; color:#888; cursor:pointer; padding:2px;">
+                    <span class="material-symbols-rounded" style="font-size:24px;">close</span>
+                </button>
+            </div>
+            <div style="text-align:center; font-size:clamp(30px, 7.5vw, 40px); font-weight:900; color:var(--primary-color); margin:2px 0 6px; line-height:1;">
                 ฿${Utils.formatCurrency(total)}
             </div>
-            <label for="pay-method" style="display:block;font-weight:bold;margin-bottom:6px;">วิธีชำระเงิน</label>
-            <select id="pay-method" style="width:100%;padding:11px;font-size:17px;border:1px solid #ccc;border-radius:9px;margin-bottom:12px;">
-                <option value="cash">เงินสด</option>
-                <option value="bank_qr">สแกน QR ธนาคาร</option>
-                <option value="government_scheme">สิทธิ์โครงการรัฐ/คนละครึ่ง</option>
-                <option value="mixed">ชำระหลายทาง</option>
-            </select>
-            <div style="display:flex; flex-direction:column; align-items:center;">
-                <input type="text" id="pay-input" style="font-size:32px; padding:15px; width:100%; text-align:center; margin-bottom:10px; border:2px solid var(--primary-color); border-radius:8px; font-weight:bold;" placeholder="0.00" readonly>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                <label for="pay-method" style="font-weight:bold; font-size:14px; white-space:nowrap; color:#444;">วิธีชำระ:</label>
+                <select id="pay-method" style="flex:1; padding:5px 8px; font-size:15px; border:1px solid #ccc; border-radius:8px;">
+                    <option value="cash">เงินสด</option>
+                    <option value="bank_qr">สแกน QR ธนาคาร</option>
+                    <option value="government_scheme">สิทธิ์โครงการรัฐ/คนละครึ่ง</option>
+                    <option value="mixed">ชำระหลายทาง</option>
+                </select>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+                <input type="text" id="pay-input" style="font-size:24px; padding:6px 10px; width:100%; text-align:center; margin-bottom:6px; border:2px solid var(--primary-color); border-radius:8px; font-weight:bold; height:42px;" placeholder="0.00" readonly>
                 
                 <!-- Quick Amounts -->
-                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; width:100%; margin-bottom:10px;">
-                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(${Math.ceil(total)})">พอดี</button>
-                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(100)">100</button>
-                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(500)">500</button>
-                    <button class="secondary-btn" style="padding:8px;" onclick="App.setPayAmount(1000)">1000</button>
+                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; width:100%; margin-bottom:6px;">
+                    <button class="secondary-btn" style="padding:6px 2px; font-size:14px; font-weight:bold; border-radius:8px;" onclick="App.setPayAmount(${Math.ceil(total)})">พอดี</button>
+                    <button class="secondary-btn" style="padding:6px 2px; font-size:14px; font-weight:bold; border-radius:8px;" onclick="App.setPayAmount(100)">100</button>
+                    <button class="secondary-btn" style="padding:6px 2px; font-size:14px; font-weight:bold; border-radius:8px;" onclick="App.setPayAmount(500)">500</button>
+                    <button class="secondary-btn" style="padding:6px 2px; font-size:14px; font-weight:bold; border-radius:8px;" onclick="App.setPayAmount(1000)">1000</button>
                 </div>
 
                 <!-- Numpad -->
-                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; width:100%; max-width:300px;">
-                    <button class="numpad-btn" onclick="App.appendPayKey('7')">7</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('8')">8</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('9')">9</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('4')">4</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('5')">5</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('6')">6</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('1')">1</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('2')">2</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('3')">3</button>
-                    <button class="numpad-btn" style="color:red;" onclick="App.appendPayKey('C')">C</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('0')">0</button>
-                    <button class="numpad-btn" onclick="App.appendPayKey('.')">.</button>
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; width:100%; max-width:320px;">
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('7')">7</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('8')">8</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('9')">9</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('4')">4</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('5')">5</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('6')">6</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('1')">1</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('2')">2</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('3')">3</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px; color:red;" onclick="App.appendPayKey('C')">C</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('0')">0</button>
+                    <button class="numpad-btn" style="padding:6px 0; font-size:19px;" onclick="App.appendPayKey('.')">.</button>
                 </div>
             </div>
 
-            <div style="margin-top:20px; text-align:center; font-size:24px;" id="change-display">
+            <div style="margin-top:6px; text-align:center; font-size:18px; font-weight:bold;" id="change-display">
                 เงินทอน: -
             </div>
 
-            <!-- Print Options Toggles -->
-            <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; justify-content:center; background:#f9f9f9; padding:10px; border-radius:8px;">
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์โลโก้">
-                    <input type="checkbox" id="pay-print-logo" ${prefs.printLogo ? 'checked' : ''}>
-                    <span style="font-size:14px;">Logo</span>
-                </label>
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ชื่อร้าน">
-                    <input type="checkbox" id="pay-print-name" ${prefs.printName ? 'checked' : ''}>
-                    <span style="font-size:14px;">ชื่อร้าน</span>
-                </label>
-                 <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ที่อยู่/เบอร์โทร">
-                    <input type="checkbox" id="pay-print-contact" ${prefs.printContact ? 'checked' : ''}>
-                    <span style="font-size:14px;">ที่อยู่/โทร</span>
-                </label>
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ QR Code">
-                    <input type="checkbox" id="pay-print-qr" ${prefs.printQr ? 'checked' : ''}>
-                    <span style="font-size:14px;">QR Code</span>
-                </label>
+            <!-- Collapsible Print Options (Default: Collapsed/Hidden) -->
+            <div style="margin-top:4px; text-align:center;">
+                <button type="button" id="btn-toggle-print-opts" style="background:transparent; border:none; color:#666; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:6px;">
+                    <span class="material-symbols-rounded" style="font-size:17px; color:#1976d2;">receipt_long</span>
+                    <span>ตัวเลือกใบเสร็จ</span>
+                    <span id="print-opts-chevron" class="material-symbols-rounded" style="font-size:17px; transition:transform 0.2s;">expand_more</span>
+                </button>
+                <div id="print-opts-container" style="display:none; flex-wrap:wrap; gap:6px 12px; margin-top:4px; justify-content:center; background:#f9f9f9; padding:6px 10px; border-radius:8px; border:1px solid #eee;">
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์โลโก้">
+                        <input type="checkbox" id="pay-print-logo" ${prefs.printLogo ? 'checked' : ''}>
+                        <span style="font-size:13px;">Logo</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ชื่อร้าน">
+                        <input type="checkbox" id="pay-print-name" ${prefs.printName ? 'checked' : ''}>
+                        <span style="font-size:13px;">ชื่อร้าน</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ที่อยู่/เบอร์โทร">
+                        <input type="checkbox" id="pay-print-contact" ${prefs.printContact ? 'checked' : ''}>
+                        <span style="font-size:13px;">ที่อยู่/โทร</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="พิมพ์ QR Code">
+                        <input type="checkbox" id="pay-print-qr" ${prefs.printQr ? 'checked' : ''}>
+                        <span style="font-size:13px;">QR Code</span>
+                    </label>
+                </div>
             </div>
 
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="secondary-btn" style="flex:1; background:#f0f0f0; border:1px solid #ccc; color:#333;" onclick="App.cancelPayment()">กลับไปแก้ไข</button>
-                <button class="primary-btn" style="flex:2;" id="btn-confirm-pay" disabled>ยืนยันการรับเงิน</button>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="secondary-btn" style="flex:1; background:#f0f0f0; border:1px solid #ccc; color:#333; min-height:44px; font-size:15px; font-weight:bold; border-radius:8px;" onclick="App.cancelPayment()">กลับไปแก้ไข</button>
+                <button class="primary-btn" style="flex:2; min-height:44px; font-size:16px; font-weight:bold; border-radius:8px;" id="btn-confirm-pay" disabled>ยืนยันการรับเงิน</button>
             </div>
         `;
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+
+        // Toggle collapsible receipt options
+        const toggleBtn = document.getElementById('btn-toggle-print-opts');
+        const optsContainer = document.getElementById('print-opts-container');
+        const chevron = document.getElementById('print-opts-chevron');
+        if (toggleBtn && optsContainer) {
+            toggleBtn.addEventListener('click', () => {
+                const isHidden = optsContainer.style.display === 'none';
+                optsContainer.style.display = isHidden ? 'flex' : 'none';
+                if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+            });
+        }
 
         // New helper methods for keypad (attached to App for inline onclicks)
         App.currentPayInput = '';
@@ -5439,7 +5469,6 @@ const App = {
 
         // Focus & Highlight Input (Visual only since read-only)
         setTimeout(() => {
-            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
             input.style.borderColor = 'var(--secondary-color)';
             input.style.boxShadow = '0 0 0 4px rgba(76, 175, 80, 0.2)'; // Green glow
         }, 100);
