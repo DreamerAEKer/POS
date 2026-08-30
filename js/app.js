@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.37 (30/08/2026)', // Added Thai Voice Price Announcement & toggle button
+    VERSION: '0.99.38 (30/08/2026)', // Add product image to flash popup & mute voice in cart drawer
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3770,6 +3770,14 @@ const App = {
     speakPrice: (price) => {
         if (DB.getSettings().voicePriceSpeechEnabled === false) return;
         if (!('speechSynthesis' in window)) return;
+        
+        // Mute voice speech when mobile cart drawer is open or during payment
+        const rightPanel = document.getElementById('right-panel');
+        const isCartOpen = rightPanel && rightPanel.classList.contains('open') && window.innerWidth <= 1024;
+        const paymentModal = document.getElementById('payment-modal');
+        const isPaymentOpen = paymentModal && !paymentModal.classList.contains('hidden');
+        if (isCartOpen || isPaymentOpen) return;
+
         try {
             window.speechSynthesis.cancel();
             const num = Number(price) || 0;
@@ -4371,6 +4379,10 @@ const App = {
         const existing = document.getElementById('product-flash-popup');
         if (existing) existing.remove();
 
+        const imageHtml = product.image
+            ? `<div style="margin-bottom: 8px;"><img src="${product.image}" style="width: 80px; height: 80px; object-fit: contain; border-radius: 14px; background: #fff; padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);" alt=""></div>`
+            : '';
+
         const popup = document.createElement('div');
         popup.id = 'product-flash-popup';
         popup.style.cssText = `
@@ -4380,35 +4392,36 @@ const App = {
             transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.92);
             color: white;
-            padding: 24px 28px;
+            padding: 22px 26px;
             border-radius: 24px;
             z-index: 50000;
             text-align: center;
             width: min(92vw, 420px);
             box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1);
-            animation: fadeInOut 1.4s ease-in-out forwards;
+            animation: fadeInOut 1.5s ease-in-out forwards;
             pointer-events: none; /* Let clicks pass through */
         `;
 
         popup.innerHTML = `
-            <div style="font-size: clamp(20px, 5vw, 26px); font-weight: bold; margin-bottom: 8px; color: #fff; line-height: 1.25;">${Utils.escapeHTML(product.name)}</div>
+            ${imageHtml}
+            <div style="font-size: clamp(20px, 5vw, 26px); font-weight: bold; margin-bottom: 6px; color: #fff; line-height: 1.25;">${Utils.escapeHTML(product.name)}</div>
             <div style="font-size: clamp(64px, 17vw, 92px); font-weight: 900; color: #4caf50; margin-bottom: 8px; line-height: 1; text-shadow: 0 4px 20px rgba(76,175,80,0.5);">
                 ฿${Utils.formatCurrency(product.price)}
             </div>
             ${product.location ? `
-                <div style="font-size: clamp(16px, 4vw, 20px); color: #ffeb3b; background: rgba(255,255,255,0.18); padding: 5px 16px; border-radius: 20px; display: inline-block; font-weight: bold;">
+                <div style="font-size: clamp(15px, 3.8vw, 19px); color: #ffeb3b; background: rgba(255,255,255,0.18); padding: 4px 14px; border-radius: 20px; display: inline-block; font-weight: bold;">
                     📍 ${Utils.escapeHTML(product.location)}
                 </div>
-            ` : '<div style="font-size: 14px; color: #aaa;">(ไม่ระบุจุดวาง)</div>'}
+            ` : '<div style="font-size: 13px; color: #aaa;">(ไม่ระบุจุดวาง)</div>'}
         `;
 
         document.body.appendChild(popup);
         App.speakPrice(product.price);
 
-        // Auto remove after animation (1.3s)
+        // Auto remove after animation (1.4s)
         setTimeout(() => {
             if (popup.parentNode) popup.parentNode.removeChild(popup);
-        }, 1300);
+        }, 1400);
     },
 
     // --- Cart & Wholesale Logic Helpers ---
