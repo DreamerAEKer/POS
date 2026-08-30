@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.41 (30/08/2026)', // Redesign scan orientation toggle button with clear text label
+    VERSION: '0.99.42 (30/08/2026)', // Add interactive product image adjuster with 90° rotation, zoom, and pan
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -2474,6 +2474,164 @@ const App = {
         `;
     },
 
+    // --- Image Adjuster & Cropper (Rotate 90°, Zoom, Pan) ---
+    showImageAdjusterModal: (rawImageBase64, onSave) => {
+        if (!rawImageBase64) return;
+        const existing = document.getElementById('image-adjuster-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'image-adjuster-overlay';
+        overlay.className = 'image-adjuster-overlay';
+        overlay.innerHTML = `
+            <div class="image-adjuster-panel">
+                <div class="image-adjuster-header">
+                    <h3><span class="material-symbols-rounded" style="color:#38bdf8;">crop_rotate</span> ปรับแต่งรูปภาพสินค้า</h3>
+                    <button type="button" class="icon-btn" onclick="document.getElementById('image-adjuster-overlay').remove()">
+                        <span class="material-symbols-rounded">close</span>
+                    </button>
+                </div>
+                
+                <div class="image-crop-stage" id="image-crop-stage">
+                    <canvas id="image-crop-canvas" width="280" height="280"></canvas>
+                    <div class="image-crop-grid"></div>
+                </div>
+
+                <div class="image-adjuster-tools">
+                    <div class="image-adjuster-btn-row">
+                        <button type="button" class="image-tool-btn" id="btn-crop-rot-left">
+                            <span class="material-symbols-rounded">rotate_left</span> หมุนซ้าย 90°
+                        </button>
+                        <button type="button" class="image-tool-btn" id="btn-crop-rot-right">
+                            <span class="material-symbols-rounded">rotate_right</span> หมุนขวา 90°
+                        </button>
+                        <button type="button" class="image-tool-btn" id="btn-crop-reset">
+                            <span class="material-symbols-rounded">restart_alt</span> รีเซ็ต
+                        </button>
+                    </div>
+
+                    <div class="image-zoom-slider-row">
+                        <span class="material-symbols-rounded" style="font-size:18px; color:#94a3b8;">zoom_out</span>
+                        <input type="range" id="crop-zoom-slider" min="0.5" max="3.0" step="0.05" value="1.0">
+                        <span class="material-symbols-rounded" style="font-size:18px; color:#94a3b8;">zoom_in</span>
+                        <span id="crop-zoom-val" style="font-size:12px; font-weight:bold; min-width:38px; color:#38bdf8; text-align:right;">1.0x</span>
+                    </div>
+                </div>
+
+                <div style="font-size:11px; color:#94a3b8; text-align:center; margin-bottom:12px;">
+                    👆 ใช้นิ้วแตะลากเพื่อเลื่อนตำแหน่ง (Pan) และหมุน/ซูมให้พอดีกรอบ
+                </div>
+
+                <div class="image-adjuster-actions">
+                    <button type="button" class="secondary-btn" style="flex:1;" onclick="document.getElementById('image-adjuster-overlay').remove()">ยกเลิก</button>
+                    <button type="button" class="primary-btn" id="btn-crop-apply" style="flex:2;">ตกลง (ใช้รูปนี้)</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const canvas = document.getElementById('image-crop-canvas');
+        const ctx = canvas.getContext('2d');
+        const stage = document.getElementById('image-crop-stage');
+        const zoomSlider = document.getElementById('crop-zoom-slider');
+        const zoomVal = document.getElementById('crop-zoom-val');
+
+        const img = new Image();
+        let rotation = 0; // 0, 90, 180, 270
+        let scale = 1.0;
+        let baseScale = 1.0;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let startPointerX = 0;
+        let startPointerY = 0;
+
+        const draw = () => {
+            if (!img.complete || img.naturalWidth === 0) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width / 2 + offsetX, canvas.height / 2 + offsetY);
+            ctx.rotate((rotation * Math.PI) / 180);
+            ctx.scale(baseScale * scale, baseScale * scale);
+            ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2, img.naturalWidth, img.naturalHeight);
+            ctx.restore();
+        };
+
+        img.onload = () => {
+            const maxDim = Math.max(img.naturalWidth, img.naturalHeight);
+            baseScale = 280 / (maxDim || 280);
+            draw();
+        };
+        img.src = rawImageBase64;
+
+        // Rotation
+        document.getElementById('btn-crop-rot-left').onclick = () => {
+            rotation = (rotation - 90 + 360) % 360;
+            draw();
+        };
+        document.getElementById('btn-crop-rot-right').onclick = () => {
+            rotation = (rotation + 90) % 360;
+            draw();
+        };
+        document.getElementById('btn-crop-reset').onclick = () => {
+            rotation = 0;
+            scale = 1.0;
+            offsetX = 0;
+            offsetY = 0;
+            zoomSlider.value = 1.0;
+            zoomVal.textContent = '1.0x';
+            draw();
+        };
+
+        // Zoom Slider
+        zoomSlider.oninput = (e) => {
+            scale = parseFloat(e.target.value);
+            zoomVal.textContent = `${scale.toFixed(1)}x`;
+            draw();
+        };
+
+        // Pan / Dragging (Pointer Events)
+        stage.onpointerdown = (e) => {
+            isDragging = true;
+            startPointerX = e.clientX - offsetX;
+            startPointerY = e.clientY - offsetY;
+            stage.setPointerCapture(e.pointerId);
+        };
+        stage.onpointermove = (e) => {
+            if (!isDragging) return;
+            offsetX = e.clientX - startPointerX;
+            offsetY = e.clientY - startPointerY;
+            draw();
+        };
+        stage.onpointerup = stage.onpointercancel = (e) => {
+            isDragging = false;
+            try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+        };
+
+        // Apply & Export
+        document.getElementById('btn-crop-apply').onclick = () => {
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = 300;
+            outCanvas.height = 300;
+            const outCtx = outCanvas.getContext('2d');
+            
+            outCtx.fillStyle = '#ffffff';
+            outCtx.fillRect(0, 0, 300, 300);
+
+            outCtx.save();
+            const exportScale = 300 / 280;
+            outCtx.translate(150 + offsetX * exportScale, 150 + offsetY * exportScale);
+            outCtx.rotate((rotation * Math.PI) / 180);
+            outCtx.scale(baseScale * scale * exportScale, baseScale * scale * exportScale);
+            outCtx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2, img.naturalWidth, img.naturalHeight);
+            outCtx.restore();
+
+            const finalBase64 = outCanvas.toDataURL('image/jpeg', 0.75);
+            overlay.remove();
+            if (typeof onSave === 'function') onSave(finalBase64);
+        };
+    },
+
     // --- Modals (Product, Supplier, Security) ---
     openProductModal: (editId = null) => {
         App.closeModals(); // Prevent Overlap
@@ -2721,6 +2879,24 @@ const App = {
         setTimeout(() => {
             const fileInput = document.getElementById('p-image-input');
             const preview = document.getElementById('p-image-preview');
+
+            const handleImageAdjust = (base64) => {
+                App.showImageAdjusterModal(base64, (cropped) => {
+                    preview.innerHTML = `<img src="${cropped}" style="width:100%;height:100%;object-fit:cover;">`;
+                    preview.dataset.base64 = cropped;
+                });
+            };
+
+            preview.style.cursor = 'pointer';
+            preview.title = 'แตะเพื่อหมุน/ซูม/ปรับแต่งรูปภาพ';
+            preview.onclick = () => {
+                if (preview.dataset.base64) {
+                    handleImageAdjust(preview.dataset.base64);
+                } else {
+                    fileInput.click();
+                }
+            };
+
             // Toggle Visuals for Tags
             document.querySelectorAll('input[name="p-tags"]').forEach(chk => {
                 chk.addEventListener('change', (e) => {
@@ -2737,10 +2913,7 @@ const App = {
                 if (e.target.files[0]) {
                     try {
                         const originalBase64 = await Utils.fileToBase64(e.target.files[0]);
-                        // Universal Compressor for extra safety
-                        const compressed = await Utils.compressImage(originalBase64, 200, 0.5);
-                        preview.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover;">`;
-                        preview.dataset.base64 = compressed;
+                        handleImageAdjust(originalBase64);
                     } catch (err) {
                         console.error('File Upload Error:', err);
                         App.alert('ไม่สามารถอัปโหลดรูปภาพนี้ได้');
@@ -4240,10 +4413,21 @@ const App = {
                                 </label>
                             </div>
                         </div>
-                        <label>รูปสินค้า (ไม่บังคับ)
-                            <input id="qs-image" type="file" accept="image/*" style="width:100%;">
-                        </label>
-                        <div style="display:flex; gap:10px;">
+                        <div style="margin-top:5px;">
+                            <label style="font-weight:bold; color:var(--primary-color);">รูปสินค้า (ไม่บังคับ)</label>
+                            <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
+                                <div id="qs-image-preview" style="width:60px; height:60px; border-radius:10px; background:#f0f7ff; border:2px dashed var(--primary-color); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; flex-shrink:0;">
+                                    <span class="material-symbols-rounded" style="font-size:24px; color:var(--primary-color); opacity:0.6;">add_a_photo</span>
+                                </div>
+                                <div style="flex:1;">
+                                    <input id="qs-image" type="file" accept="image/*" style="display:none;">
+                                    <button type="button" class="secondary-btn" onclick="document.getElementById('qs-image').click()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; height:40px; font-size:13px; background:white; border:1px solid var(--primary-color); color:var(--primary-color);">
+                                        <span class="material-symbols-rounded">camera_alt</span> ถ่ายรูป / เลือกไฟล์
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:10px; margin-top:5px;">
                             <button type="button" class="secondary-btn" style="flex:1;" onclick="document.getElementById('quick-stock-overlay').remove()">ยกเลิก</button>
                             <button type="submit" class="primary-btn" style="flex:2;">บันทึกเข้าสต็อก</button>
                         </div>
@@ -4251,6 +4435,37 @@ const App = {
                 </div>
             </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
+        App._quickStockImage = null;
+        const qsFileInput = document.getElementById('qs-image');
+        const qsPreview = document.getElementById('qs-image-preview');
+
+        const handleQsImageAdjust = (base64) => {
+            App.showImageAdjusterModal(base64, (cropped) => {
+                App._quickStockImage = cropped;
+                if (qsPreview) {
+                    qsPreview.innerHTML = `<img src="${cropped}" style="width:100%;height:100%;object-fit:cover;">`;
+                }
+            });
+        };
+
+        if (qsPreview) {
+            qsPreview.onclick = () => {
+                if (App._quickStockImage) handleQsImageAdjust(App._quickStockImage);
+                else qsFileInput.click();
+            };
+        }
+
+        if (qsFileInput) {
+            qsFileInput.addEventListener('change', async (e) => {
+                if (e.target.files[0]) {
+                    try {
+                        const raw = await Utils.fileToBase64(e.target.files[0]);
+                        handleQsImageAdjust(raw);
+                    } catch (_) {}
+                }
+            });
+        }
+
         document.getElementById('quick-stock-form').addEventListener('submit', App.saveQuickStockProduct);
         App.setupCategorySuggestions('qs-group', 'qs-group-suggestions');
         document.getElementById('qs-name').focus();
@@ -4342,12 +4557,15 @@ const App = {
         const wholesaleQty = parseInt(document.getElementById('qs-wholesale-qty')?.value) || 0;
         const wholesalePrice = parseFloat(document.getElementById('qs-wholesale-price')?.value) || 0;
 
-        let image = null;
-        const imageFile = document.getElementById('qs-image').files[0];
-        if (imageFile) {
-            const rawImage = await Utils.fileToBase64(imageFile);
-            image = await Utils.compressImage(rawImage, 200, 0.5);
+        let image = App._quickStockImage || null;
+        if (!image) {
+            const imageFile = document.getElementById('qs-image')?.files[0];
+            if (imageFile) {
+                const rawImage = await Utils.fileToBase64(imageFile);
+                image = await Utils.compressImage(rawImage, 200, 0.5);
+            }
         }
+        App._quickStockImage = null;
 
         const product = {
             id: barcode,
