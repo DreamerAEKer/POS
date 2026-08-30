@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.46 (30/08/2026)', // Strictly mute voice price speech across all sales operations in pos view
+    VERSION: '0.99.47 (30/08/2026)', // Mute voice price in POS/Cart, speak in all other views with scan-popup mute button
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -4125,15 +4125,14 @@ const App = {
     updateVoicePriceButton: () => {
         const enabled = DB.getSettings().voicePriceSpeechEnabled !== false;
         const btn = document.getElementById('btn-toggle-voice-price');
-        const icon = document.getElementById('voice-price-icon');
         const label = document.getElementById('voice-price-label');
+        document.querySelectorAll('.voice-price-icon, #voice-price-icon').forEach(icon => {
+            icon.textContent = enabled ? 'volume_up' : 'volume_off';
+        });
         if (btn) {
             btn.classList.toggle('active', enabled);
             btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
             btn.title = enabled ? 'เสียงอ่านราคา: เปิดอยู่ (แตะเพื่อปิด)' : 'เสียงอ่านราคา: ปิดอยู่ (แตะเพื่อเปิด)';
-        }
-        if (icon) {
-            icon.textContent = enabled ? 'volume_up' : 'volume_off';
         }
         if (label) {
             label.textContent = enabled ? 'เสียงราคา' : 'ปิดเสียง';
@@ -4179,9 +4178,14 @@ const App = {
         result.innerHTML = `
             <div class="camera-scan-result-image">${imageHtml}</div>
             <div class="camera-scan-result-body">
-                <div class="camera-scan-result-state">
-                    <span class="camera-scan-result-check material-symbols-rounded">${addedToCart ? 'check_circle' : 'visibility'}</span>
-                    ${addedToCart ? `เพิ่มเข้าบิลแล้ว +${addedQty}` : 'พบสินค้าในระบบ'}
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="camera-scan-result-state">
+                        <span class="camera-scan-result-check material-symbols-rounded">${addedToCart ? 'check_circle' : 'visibility'}</span>
+                        ${addedToCart ? `เพิ่มเข้าบิลแล้ว +${addedQty}` : 'พบสินค้าในระบบ'}
+                    </div>
+                    <button type="button" class="voice-price-toggle-inline" onclick="event.stopPropagation(); App.toggleVoicePriceSpeech();" title="เปิด/ปิดเสียงอ่านราคา" style="background:rgba(0,0,0,0.06); border:none; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#475569;">
+                        <span class="material-symbols-rounded voice-price-icon" style="font-size:18px;">${DB.getSettings().voicePriceSpeechEnabled !== false ? 'volume_up' : 'volume_off'}</span>
+                    </button>
                 </div>
                 <div class="camera-scan-result-name">${Utils.escapeHTML(product.name)}</div>
                 <div class="camera-scan-result-code">${Utils.escapeHTML(barcode)}</div>
@@ -4215,9 +4219,7 @@ const App = {
             requestAnimationFrame(() => stage.classList.add('scan-success'));
             setTimeout(() => stage.classList.remove('scan-success'), 620);
         }
-        if (DB.getSettings().scannerPriceCheckMode) {
-            App.speakPrice(product.price);
-        }
+        App.speakPrice(product.price);
         App.state.cameraScanner.resultTimer = setTimeout(() => App.hideCameraScanResult(false), 4200);
     },
 
@@ -4792,8 +4794,8 @@ const App = {
             text-align: center;
             width: min(92vw, 420px);
             box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1);
-            animation: fadeInOut 1.5s ease-in-out forwards;
-            pointer-events: none; /* Let clicks pass through */
+            animation: fadeInOut 1.8s ease-in-out forwards;
+            pointer-events: auto;
         `;
 
         const comp = App.calcPriceComparison(product);
@@ -4804,6 +4806,11 @@ const App = {
             : '';
 
         popup.innerHTML = `
+            <div style="position: absolute; top: 12px; right: 12px; z-index: 10;">
+                <button type="button" class="voice-price-toggle-inline" onclick="event.stopPropagation(); App.toggleVoicePriceSpeech();" title="เปิด/ปิดเสียงอ่านราคา" style="background: rgba(255,255,255,0.18); border: none; color: #fff; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <span class="material-symbols-rounded voice-price-icon" style="font-size: 20px;">${DB.getSettings().voicePriceSpeechEnabled !== false ? 'volume_up' : 'volume_off'}</span>
+                </button>
+            </div>
             ${imageHtml}
             <div style="font-size: clamp(20px, 5vw, 26px); font-weight: bold; margin-bottom: 6px; color: #fff; line-height: 1.25;">${Utils.escapeHTML(product.name)}</div>
             <div style="font-size: clamp(64px, 17vw, 92px); font-weight: 900; color: #4caf50; margin-bottom: 8px; line-height: 1; text-shadow: 0 4px 20px rgba(76,175,80,0.5);">
@@ -4820,11 +4827,12 @@ const App = {
         `;
 
         document.body.appendChild(popup);
+        App.speakPrice(product.price);
 
-        // Auto remove after animation (1.4s)
+        // Auto remove after animation (1.8s)
         setTimeout(() => {
             if (popup.parentNode) popup.parentNode.removeChild(popup);
-        }, 1400);
+        }, 1800);
     },
 
     // --- Cart & Wholesale Logic Helpers ---
