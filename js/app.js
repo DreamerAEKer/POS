@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.40 (30/08/2026)', // Add vertical/horizontal camera scan toggle & orientation lock
+    VERSION: '0.99.41 (30/08/2026)', // Redesign scan orientation toggle button with clear text label
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3642,13 +3642,15 @@ const App = {
 
     toggleCameraScanOrientation: () => {
         const stage = document.querySelector('.camera-scanner-stage');
-        const icon = document.getElementById('icon-camera-orient');
+        const btn = document.getElementById('btn-camera-orient');
+        const label = document.getElementById('label-camera-orient');
         if (!stage) return;
         const isVertical = stage.classList.toggle('vertical-scan');
-        if (icon) {
-            icon.textContent = isVertical ? 'crop_portrait' : 'crop_landscape';
+        if (btn) btn.classList.toggle('active-vert', isVertical);
+        if (label) {
+            label.textContent = isVertical ? 'แนวนอน ↔' : 'แนวตั้ง ↕';
         }
-        App.setCameraScannerStatus(isVertical ? 'โหมดสแกนบาร์โค้ดแนวตั้ง ↕' : 'โหมดสแกนบาร์โค้ดแนวนอน ↔', 'ok');
+        App.setCameraScannerStatus(isVertical ? '🟢 เปิดโหมดสแกนแนวตั้ง ↕ (สำหรับสินค้าทรงยาว/กล่องโฟม/กระสอบ)' : 'พร้อมสแกน (โหมดแนวนอน ↔)', 'ok');
     },
 
     openCameraScanner: async () => {
