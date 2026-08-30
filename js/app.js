@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.42 (30/08/2026)', // Add interactive product image adjuster with 90° rotation, zoom, and pan
+    VERSION: '0.99.43 (30/08/2026)', // Minimal image adjuster with smooth multi-touch pinch zoom and pan
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -2474,7 +2474,7 @@ const App = {
         `;
     },
 
-    // --- Image Adjuster & Cropper (Rotate 90°, Zoom, Pan) ---
+    // --- Image Adjuster & Cropper (Rotate 90°, Smooth Touch Pinch & Pan) ---
     showImageAdjusterModal: (rawImageBase64, onSave) => {
         if (!rawImageBase64) return;
         const existing = document.getElementById('image-adjuster-overlay');
@@ -2486,7 +2486,7 @@ const App = {
         overlay.innerHTML = `
             <div class="image-adjuster-panel">
                 <div class="image-adjuster-header">
-                    <h3><span class="material-symbols-rounded" style="color:#38bdf8;">crop_rotate</span> ปรับแต่งรูปภาพสินค้า</h3>
+                    <h3><span class="material-symbols-rounded" style="color:#38bdf8;">crop_rotate</span> จัดตำแหน่งภาพสินค้า</h3>
                     <button type="button" class="icon-btn" onclick="document.getElementById('image-adjuster-overlay').remove()">
                         <span class="material-symbols-rounded">close</span>
                     </button>
@@ -2497,29 +2497,17 @@ const App = {
                     <div class="image-crop-grid"></div>
                 </div>
 
-                <div class="image-adjuster-tools">
-                    <div class="image-adjuster-btn-row">
-                        <button type="button" class="image-tool-btn" id="btn-crop-rot-left">
-                            <span class="material-symbols-rounded">rotate_left</span> หมุนซ้าย 90°
-                        </button>
-                        <button type="button" class="image-tool-btn" id="btn-crop-rot-right">
-                            <span class="material-symbols-rounded">rotate_right</span> หมุนขวา 90°
-                        </button>
-                        <button type="button" class="image-tool-btn" id="btn-crop-reset">
-                            <span class="material-symbols-rounded">restart_alt</span> รีเซ็ต
-                        </button>
-                    </div>
-
-                    <div class="image-zoom-slider-row">
-                        <span class="material-symbols-rounded" style="font-size:18px; color:#94a3b8;">zoom_out</span>
-                        <input type="range" id="crop-zoom-slider" min="0.5" max="3.0" step="0.05" value="1.0">
-                        <span class="material-symbols-rounded" style="font-size:18px; color:#94a3b8;">zoom_in</span>
-                        <span id="crop-zoom-val" style="font-size:12px; font-weight:bold; min-width:38px; color:#38bdf8; text-align:right;">1.0x</span>
-                    </div>
+                <div class="image-adjuster-minimal-tools">
+                    <button type="button" class="image-tool-btn" id="btn-crop-rotate">
+                        <span class="material-symbols-rounded">rotate_right</span> หมุน 90°
+                    </button>
+                    <button type="button" class="image-tool-btn" id="btn-crop-reset" style="background:#1e293b;">
+                        <span class="material-symbols-rounded">restart_alt</span> รีเซ็ต
+                    </button>
                 </div>
 
-                <div style="font-size:11px; color:#94a3b8; text-align:center; margin-bottom:12px;">
-                    👆 ใช้นิ้วแตะลากเพื่อเลื่อนตำแหน่ง (Pan) และหมุน/ซูมให้พอดีกรอบ
+                <div style="font-size:12px; color:#94a3b8; text-align:center; margin:8px 0 14px 0;">
+                    👆 <b>1 นิ้ว:</b> ลากเลื่อน • ✌️ <b>2 นิ้ว:</b> กาง/หุบเพื่อซูม
                 </div>
 
                 <div class="image-adjuster-actions">
@@ -2533,8 +2521,6 @@ const App = {
         const canvas = document.getElementById('image-crop-canvas');
         const ctx = canvas.getContext('2d');
         const stage = document.getElementById('image-crop-stage');
-        const zoomSlider = document.getElementById('crop-zoom-slider');
-        const zoomVal = document.getElementById('crop-zoom-val');
 
         const img = new Image();
         let rotation = 0; // 0, 90, 180, 270
@@ -2542,9 +2528,6 @@ const App = {
         let baseScale = 1.0;
         let offsetX = 0;
         let offsetY = 0;
-        let isDragging = false;
-        let startPointerX = 0;
-        let startPointerY = 0;
 
         const draw = () => {
             if (!img.complete || img.naturalWidth === 0) return;
@@ -2564,12 +2547,8 @@ const App = {
         };
         img.src = rawImageBase64;
 
-        // Rotation
-        document.getElementById('btn-crop-rot-left').onclick = () => {
-            rotation = (rotation - 90 + 360) % 360;
-            draw();
-        };
-        document.getElementById('btn-crop-rot-right').onclick = () => {
+        // Rotation & Reset
+        document.getElementById('btn-crop-rotate').onclick = () => {
             rotation = (rotation + 90) % 360;
             draw();
         };
@@ -2578,35 +2557,109 @@ const App = {
             scale = 1.0;
             offsetX = 0;
             offsetY = 0;
-            zoomSlider.value = 1.0;
-            zoomVal.textContent = '1.0x';
             draw();
         };
 
-        // Zoom Slider
-        zoomSlider.oninput = (e) => {
-            scale = parseFloat(e.target.value);
-            zoomVal.textContent = `${scale.toFixed(1)}x`;
-            draw();
-        };
+        // Smooth Multi-Touch Handling (1-finger Pan & 2-finger Pinch Zoom)
+        let touchMode = 'none'; // 'pan' | 'pinch'
+        let startPinchDist = 0;
+        let initialPinchScale = 1.0;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+        let lastTapTime = 0;
 
-        // Pan / Dragging (Pointer Events)
-        stage.onpointerdown = (e) => {
-            isDragging = true;
-            startPointerX = e.clientX - offsetX;
-            startPointerY = e.clientY - offsetY;
-            stage.setPointerCapture(e.pointerId);
-        };
-        stage.onpointermove = (e) => {
-            if (!isDragging) return;
-            offsetX = e.clientX - startPointerX;
-            offsetY = e.clientY - startPointerY;
+        stage.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                touchMode = 'pan';
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            } else if (e.touches.length >= 2) {
+                touchMode = 'pinch';
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                startPinchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                initialPinchScale = scale;
+                lastTouchX = (t1.clientX + t2.clientX) / 2;
+                lastTouchY = (t1.clientY + t2.clientY) / 2;
+            }
+        }, { passive: false });
+
+        stage.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (touchMode === 'pan' && e.touches.length === 1) {
+                const t = e.touches[0];
+                offsetX += (t.clientX - lastTouchX);
+                offsetY += (t.clientY - lastTouchY);
+                lastTouchX = t.clientX;
+                lastTouchY = t.clientY;
+                draw();
+            } else if (e.touches.length >= 2) {
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                if (startPinchDist > 0) {
+                    const factor = currentDist / startPinchDist;
+                    scale = Math.min(5.0, Math.max(0.3, initialPinchScale * factor));
+                }
+                const midX = (t1.clientX + t2.clientX) / 2;
+                const midY = (t1.clientY + t2.clientY) / 2;
+                offsetX += (midX - lastTouchX);
+                offsetY += (midY - lastTouchY);
+                lastTouchX = midX;
+                lastTouchY = midY;
+                draw();
+            }
+        }, { passive: false });
+
+        stage.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (e.touches.length === 1) {
+                touchMode = 'pan';
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            } else if (e.touches.length === 0) {
+                if (now - lastTapTime < 300) {
+                    // Double tap: toggle zoom
+                    if (scale > 1.2) {
+                        scale = 1.0;
+                        offsetX = 0;
+                        offsetY = 0;
+                    } else {
+                        scale = 1.8;
+                    }
+                    draw();
+                }
+                lastTapTime = now;
+                touchMode = 'none';
+            }
+        });
+
+        // Mouse Drag & Wheel Support
+        let isMouseDown = false;
+        let mouseStartX = 0;
+        let mouseStartY = 0;
+
+        stage.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            mouseStartX = e.clientX - offsetX;
+            mouseStartY = e.clientY - offsetY;
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isMouseDown) return;
+            offsetX = e.clientX - mouseStartX;
+            offsetY = e.clientY - mouseStartY;
             draw();
-        };
-        stage.onpointerup = stage.onpointercancel = (e) => {
-            isDragging = false;
-            try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
-        };
+        });
+        window.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+        stage.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+            scale = Math.min(5.0, Math.max(0.3, scale * zoomFactor));
+            draw();
+        }, { passive: false });
 
         // Apply & Export
         document.getElementById('btn-crop-apply').onclick = () => {
