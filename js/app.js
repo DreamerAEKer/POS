@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.45 (30/08/2026)', // Disable voice price announcement during normal POS cart selling mode
+    VERSION: '0.99.46 (30/08/2026)', // Strictly mute voice price speech across all sales operations in pos view
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -4084,16 +4084,19 @@ const App = {
         } catch (_) {}
     },
 
-    speakPrice: (price) => {
+    speakPrice: (price, force = false) => {
         if (DB.getSettings().voicePriceSpeechEnabled === false) return;
         if (!('speechSynthesis' in window)) return;
         
-        // Mute voice speech when mobile cart drawer is open or during payment
-        const rightPanel = document.getElementById('right-panel');
-        const isCartOpen = rightPanel && rightPanel.classList.contains('open') && window.innerWidth <= 1024;
-        const paymentModal = document.getElementById('payment-modal');
-        const isPaymentOpen = paymentModal && !paymentModal.classList.contains('hidden');
-        if (isCartOpen || isPaymentOpen) return;
+        // Mute voice speech whenever in POS selling view/mode (unless forced by price-check tools)
+        if (!force) {
+            const isPosSellingView = (App.state.currentView === 'pos' || document.getElementById('view-pos')?.classList.contains('active')) && !DB.getSettings().scannerPriceCheckMode;
+            const rightPanel = document.getElementById('right-panel');
+            const isCartOpen = rightPanel && rightPanel.classList.contains('open');
+            const paymentModal = document.getElementById('payment-modal');
+            const isPaymentOpen = paymentModal && !paymentModal.classList.contains('hidden');
+            if (isPosSellingView || isCartOpen || isPaymentOpen) return;
+        }
 
         try {
             window.speechSynthesis.cancel();
@@ -4115,7 +4118,7 @@ const App = {
         await DB.saveSettings({ voicePriceSpeechEnabled: next });
         App.updateVoicePriceButton();
         if (next) {
-            App.speakPrice(10);
+            App.speakPrice(10, true);
         }
     },
 
@@ -6978,7 +6981,7 @@ const App = {
             </div>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
-        App.speakPrice(price);
+        App.speakPrice(price, true);
         App.startPriceCheckCountdown(3);
     },
 
@@ -7093,7 +7096,7 @@ const App = {
                             </div>
                         </div>
                     `;
-                    App.speakPrice(product.price);
+                    App.speakPrice(product.price, true);
                     input.value = ''; // clear for next scan
                     input.focus();
                 } else {
