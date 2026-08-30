@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.36 (30/08/2026)', // Enhanced Bluetooth scanner price display & routing
+    VERSION: '0.99.37 (30/08/2026)', // Added Thai Voice Price Announcement & toggle button
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -1049,6 +1049,7 @@ const App = {
         if (cloud) cloud.textContent = syncState === 'syncing' ? 'cloud_sync' : 'cloud_done';
         bar.classList.toggle('syncing', syncState === 'syncing');
         bar.classList.remove('hidden');
+        App.updateVoicePriceButton();
     },
 
     openAccountModal: () => {
@@ -1066,7 +1067,8 @@ const App = {
             </div>
             <div class="account-sheet-status"><span class="material-symbols-rounded">cloud_done</span><div><strong>Firebase เชื่อมต่อแล้ว</strong><small>สิทธิ์: ${DB.userRole === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน'}</small></div></div>
             <div class="account-permissions">
-                <h3>สิทธิ์ไมค์และกล้องในแอป</h3>
+                <h3>สิทธิ์และการแจ้งเตือนในแอป</h3>
+                <label><span class="material-symbols-rounded">volume_up</span><span><strong>เสียงพูดอ่านราคา</strong><small>พูดบอกราคาอัตโนมัติเมื่อสแกนสินค้า</small></span><input type="checkbox" ${mediaPrefs.voicePriceSpeechEnabled !== false ? 'checked' : ''} onchange="App.setMediaAccess('voicePrice', this.checked)"></label>
                 <label><span class="material-symbols-rounded">mic</span><span><strong>ค้นหาด้วยเสียง</strong><small>จำการตั้งค่านี้ไว้ในเครื่อง</small></span><input type="checkbox" ${mediaPrefs.microphoneEnabled !== false ? 'checked' : ''} onchange="App.setMediaAccess('microphone', this.checked)"></label>
                 <label><span class="material-symbols-rounded">photo_camera</span><span><strong>กล้องสแกนบาร์โค้ด</strong><small>จำการตั้งค่านี้ไว้ในเครื่อง</small></span><input type="checkbox" ${mediaPrefs.cameraEnabled !== false ? 'checked' : ''} onchange="App.setMediaAccess('camera', this.checked)"></label>
                 <p>สวิตช์นี้หยุดแอปไม่ให้ใช้ไมค์หรือกล้อง หากต้องการถอนสิทธิ์ของ Safari ให้เปลี่ยนที่ “การตั้งค่าเว็บไซต์” ของ iPhone</p>
@@ -1088,6 +1090,10 @@ const App = {
         } else if (feature === 'camera') {
             await DB.saveSettings({ cameraEnabled: enabled });
             if (!enabled && App.state.cameraScanner.active) App.closeCameraScanner();
+        } else if (feature === 'voicePrice') {
+            await DB.saveSettings({ voicePriceSpeechEnabled: enabled });
+            App.updateVoicePriceButton();
+            if (enabled) App.speakPrice(10);
         }
     },
 
@@ -3761,6 +3767,51 @@ const App = {
         } catch (_) {}
     },
 
+    speakPrice: (price) => {
+        if (DB.getSettings().voicePriceSpeechEnabled === false) return;
+        if (!('speechSynthesis' in window)) return;
+        try {
+            window.speechSynthesis.cancel();
+            const num = Number(price) || 0;
+            const text = `${num % 1 === 0 ? num : Utils.formatCurrency(num)} บาท`;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'th-TH';
+            utterance.rate = 1.05;
+            const voices = window.speechSynthesis.getVoices();
+            const thaiVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('th'));
+            if (thaiVoice) utterance.voice = thaiVoice;
+            window.speechSynthesis.speak(utterance);
+        } catch (_) {}
+    },
+
+    toggleVoicePriceSpeech: async () => {
+        const current = DB.getSettings().voicePriceSpeechEnabled !== false;
+        const next = !current;
+        await DB.saveSettings({ voicePriceSpeechEnabled: next });
+        App.updateVoicePriceButton();
+        if (next) {
+            App.speakPrice(10);
+        }
+    },
+
+    updateVoicePriceButton: () => {
+        const enabled = DB.getSettings().voicePriceSpeechEnabled !== false;
+        const btn = document.getElementById('btn-toggle-voice-price');
+        const icon = document.getElementById('voice-price-icon');
+        const label = document.getElementById('voice-price-label');
+        if (btn) {
+            btn.classList.toggle('active', enabled);
+            btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            btn.title = enabled ? 'เสียงอ่านราคา: เปิดอยู่ (แตะเพื่อปิด)' : 'เสียงอ่านราคา: ปิดอยู่ (แตะเพื่อเปิด)';
+        }
+        if (icon) {
+            icon.textContent = enabled ? 'volume_up' : 'volume_off';
+        }
+        if (label) {
+            label.textContent = enabled ? 'เสียงราคา' : 'ปิดเสียง';
+        }
+    },
+
     hideCameraScanResult: (immediate = false) => {
         const result = document.getElementById('camera-scan-result');
         if (!result) return;
@@ -3836,6 +3887,7 @@ const App = {
             requestAnimationFrame(() => stage.classList.add('scan-success'));
             setTimeout(() => stage.classList.remove('scan-success'), 620);
         }
+        App.speakPrice(product.price);
         App.state.cameraScanner.resultTimer = setTimeout(() => App.hideCameraScanResult(false), 4200);
     },
 
@@ -4326,32 +4378,32 @@ const App = {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.88);
+            background: rgba(0, 0, 0, 0.92);
             color: white;
-            padding: 24px 32px;
-            border-radius: 20px;
+            padding: 24px 28px;
+            border-radius: 24px;
             z-index: 50000;
             text-align: center;
-            min-width: 280px;
-            max-width: 90vw;
-            box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+            width: min(92vw, 420px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1);
             animation: fadeInOut 1.4s ease-in-out forwards;
             pointer-events: none; /* Let clicks pass through */
         `;
 
         popup.innerHTML = `
-            <div style="font-size: 22px; font-weight: bold; margin-bottom: 6px; color: #fff; line-height: 1.2;">${Utils.escapeHTML(product.name)}</div>
-            <div style="font-size: clamp(54px, 14vw, 78px); font-weight: 900; color: #4caf50; margin-bottom: 8px; line-height: 1.05; text-shadow: 0 2px 10px rgba(76,175,80,0.4);">
+            <div style="font-size: clamp(20px, 5vw, 26px); font-weight: bold; margin-bottom: 8px; color: #fff; line-height: 1.25;">${Utils.escapeHTML(product.name)}</div>
+            <div style="font-size: clamp(64px, 17vw, 92px); font-weight: 900; color: #4caf50; margin-bottom: 8px; line-height: 1; text-shadow: 0 4px 20px rgba(76,175,80,0.5);">
                 ฿${Utils.formatCurrency(product.price)}
             </div>
             ${product.location ? `
-                <div style="font-size: 18px; color: #ffeb3b; background: rgba(255,255,255,0.15); padding: 4px 14px; border-radius: 20px; display: inline-block; font-weight: bold;">
+                <div style="font-size: clamp(16px, 4vw, 20px); color: #ffeb3b; background: rgba(255,255,255,0.18); padding: 5px 16px; border-radius: 20px; display: inline-block; font-weight: bold;">
                     📍 ${Utils.escapeHTML(product.location)}
                 </div>
             ` : '<div style="font-size: 14px; color: #aaa;">(ไม่ระบุจุดวาง)</div>'}
         `;
 
         document.body.appendChild(popup);
+        App.speakPrice(product.price);
 
         // Auto remove after animation (1.3s)
         setTimeout(() => {
@@ -6451,6 +6503,7 @@ const App = {
             </div>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+        App.speakPrice(price);
         App.startPriceCheckCountdown(3);
     },
 
@@ -6561,6 +6614,7 @@ const App = {
                             </div>
                         </div>
                     `;
+                    App.speakPrice(product.price);
                     input.value = ''; // clear for next scan
                     input.focus();
                 } else {

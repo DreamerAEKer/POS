@@ -20,9 +20,9 @@
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,1,0" />
 
-    <link rel="stylesheet" href="css/variables.css?v=0.99.36">
-    <link rel="stylesheet" href="css/styles.css?v=0.99.36">
-    <link rel="stylesheet" href="css/print.css?v=0.99.36">
+    <link rel="stylesheet" href="css/variables.css?v=0.99.37">
+    <link rel="stylesheet" href="css/styles.css?v=0.99.37">
+    <link rel="stylesheet" href="css/print.css?v=0.99.37">
 </head>
 
 <body>
@@ -106,6 +106,9 @@
                     <span class="user-session-copy"><strong id="user-session-email">ยังไม่ได้เข้าสู่ระบบ</strong><small id="user-session-role">Firebase</small></span>
                     <span id="user-session-cloud" class="user-session-cloud material-symbols-rounded">cloud_sync</span>
                     <span class="material-symbols-rounded">chevron_right</span>
+                </button>
+                <button id="btn-toggle-voice-price" class="mobile-voice-price-btn" type="button" onclick="App.toggleVoicePriceSpeech()" title="เปิด/ปิดเสียงพูดบอกราคา" aria-label="เปิด/ปิดเสียงพูดบอกราคา">
+                    <span class="material-symbols-rounded" id="voice-price-icon">volume_up</span><small id="voice-price-label">เสียงราคา</small>
                 </button>
                 <button id="mobile-price-check-mode" class="mobile-price-check-mode price-check-mode-btn" type="button" aria-label="เปิดโหมดสแกนเช็กราคา">
                     <span class="material-symbols-rounded">price_check</span><small>เช็กราคา</small>
@@ -293,9 +296,9 @@
 
     <!-- Scripts (Order matters for file:// compatibility without modules) -->
     <script src="js/localforage.min.js"></script>
-    <script src="js/utils.js?v=0.99.36"></script>
-    <script src="js/db.js?v=0.99.36"></script>
-    <script src="js/app.js?v=0.99.36"></script>
+    <script src="js/utils.js?v=0.99.37"></script>
+    <script src="js/db.js?v=0.99.37"></script>
+    <script src="js/app.js?v=0.99.37"></script>
 </body>
 
 </html>

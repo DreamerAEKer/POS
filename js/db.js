@@ -219,6 +219,7 @@ const DB = {
             printLogo: true,      // New: Toggle Logo
             printQr: true,        // New: Toggle QR
             scannerPriceCheckMode: false,
+            voicePriceSpeechEnabled: true,
             microphoneEnabled: true,
             cameraEnabled: true,
             logo: null,           // New: Base64 Image
