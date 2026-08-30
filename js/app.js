@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.39 (30/08/2026)', // Unified product forms & added retail vs wholesale price comparison
+    VERSION: '0.99.40 (30/08/2026)', // Add vertical/horizontal camera scan toggle & orientation lock
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3640,11 +3640,27 @@ const App = {
         status.className = 'camera-scanner-status' + (type ? ` ${type}` : '');
     },
 
+    toggleCameraScanOrientation: () => {
+        const stage = document.querySelector('.camera-scanner-stage');
+        const icon = document.getElementById('icon-camera-orient');
+        if (!stage) return;
+        const isVertical = stage.classList.toggle('vertical-scan');
+        if (icon) {
+            icon.textContent = isVertical ? 'crop_portrait' : 'crop_landscape';
+        }
+        App.setCameraScannerStatus(isVertical ? 'โหมดสแกนบาร์โค้ดแนวตั้ง ↕' : 'โหมดสแกนบาร์โค้ดแนวนอน ↔', 'ok');
+    },
+
     openCameraScanner: async () => {
         if (DB.getSettings().cameraEnabled === false) {
             await App.alert('ปิดการใช้กล้องไว้ในเมนูบัญชี\nแตะแถบบัญชีแล้วเปิด “กล้องสแกนบาร์โค้ด” ก่อน');
             return;
         }
+        try {
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('portrait').catch(() => {});
+            }
+        } catch (_) {}
         const overlay = document.getElementById('camera-scanner-overlay');
         overlay.classList.remove('hidden');
         App.hideCameraScanResult(true);
@@ -3668,6 +3684,11 @@ const App = {
 
     closeCameraScanner: () => {
         App.stopCameraScanner();
+        try {
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+        } catch (_) {}
         document.getElementById('camera-scanner-overlay').classList.add('hidden');
         App.elements.globalSearch.focus();
     },
@@ -3681,7 +3702,7 @@ const App = {
         empty.classList.add('hidden');
         video.style.display = 'block';
         App.setCameraScannerStatus('กำลังเปิดกล้อง...');
-        const constraints = { video: { facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user', width: { ideal: 960, max: 1280 }, height: { ideal: 540, max: 720 } }, audio: false };
+        const constraints = { video: { facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user', width: { ideal: 1280, max: 1920 }, height: { ideal: 720, max: 1080 } }, audio: false };
         try {
             if ('BarcodeDetector' in window) {
                 scanner.detector ||= new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] });
@@ -3697,7 +3718,21 @@ const App = {
                 App.setCameraScannerStatus('กำลังเตรียมตัวอ่านบาร์โค้ด...');
                 await App.loadZXing();
             }
-            scanner.reader = new ZXing.BrowserMultiFormatReader();
+            const hints = new Map();
+            if (window.ZXing.DecodeHintType) {
+                hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
+                hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                    window.ZXing.BarcodeFormat.EAN_13,
+                    window.ZXing.BarcodeFormat.EAN_8,
+                    window.ZXing.BarcodeFormat.UPC_A,
+                    window.ZXing.BarcodeFormat.UPC_E,
+                    window.ZXing.BarcodeFormat.CODE_128,
+                    window.ZXing.BarcodeFormat.CODE_39,
+                    window.ZXing.BarcodeFormat.ITF,
+                    window.ZXing.BarcodeFormat.QR_CODE
+                ]);
+            }
+            scanner.reader = new ZXing.BrowserMultiFormatReader(hints);
             App.setCameraScannerStatus('พร้อมสแกน', 'ok');
             await scanner.reader.decodeFromConstraints(constraints, 'camera-scanner-video', (result) => {
                 if (result && scanner.active) App.acceptCameraBarcode(result.getText());
