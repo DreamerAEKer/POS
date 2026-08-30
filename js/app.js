@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.44 (30/08/2026)', // Add dedicated Direct Camera button and Gallery Picker for Sunmi/Android devices
+    VERSION: '0.99.45 (30/08/2026)', // Disable voice price announcement during normal POS cart selling mode
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -4212,7 +4212,9 @@ const App = {
             requestAnimationFrame(() => stage.classList.add('scan-success'));
             setTimeout(() => stage.classList.remove('scan-success'), 620);
         }
-        App.speakPrice(product.price);
+        if (DB.getSettings().scannerPriceCheckMode) {
+            App.speakPrice(product.price);
+        }
         App.state.cameraScanner.resultTimer = setTimeout(() => App.hideCameraScanResult(false), 4200);
     },
 
@@ -4815,7 +4817,6 @@ const App = {
         `;
 
         document.body.appendChild(popup);
-        App.speakPrice(product.price);
 
         // Auto remove after animation (1.4s)
         setTimeout(() => {
