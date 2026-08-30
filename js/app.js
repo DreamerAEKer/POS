@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.38 (30/08/2026)', // Add product image to flash popup & mute voice in cart drawer
+    VERSION: '0.99.39 (30/08/2026)', // Unified product forms & added retail vs wholesale price comparison
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -2522,60 +2522,50 @@ const App = {
                 <label>ชื่อสินค้า (ระบุรสชาติ/ขนาด)</label>
                 <input type="text" id="p-name" value="${product ? product.name : ''}" required placeholder="เช่น โค้ก (กระป๋อง), เบอร์ 0 (10 ฟอง)" style="width:100%;">
                 
-                <div style="display:flex; flex-wrap:wrap; gap:15px;">
-                    <div style="flex: 1 1 150px;">
+                <div style="display:flex; flex-wrap:wrap; gap:12px;">
+                    <div style="flex: 1 1 140px;">
                         <label>ราคาขาย (บาท)</label>
                         <input type="number" step="0.5" id="p-price" value="${product ? product.price : ''}" required style="width:100%;">
                     </div>
-                    <div style="flex: 1 1 150px;">
+                    <div style="flex: 1 1 110px;">
+                        <label>หน่วยนับ</label>
+                        <select id="p-unit-label" style="width:100%; padding:9px; border:1px solid #ccc; border-radius:6px; font-size:15px;">
+                            ${['ชิ้น', 'ขวด', 'ซอง', 'กระป๋อง', 'กล่อง', 'แพ็ค', 'ฟอง', 'แก้ว', 'ถุง', 'อัน', 'โหล', 'หวี'].map(u => `<option value="${u}" ${((product?.unitLabel || 'ชิ้น') === u) ? 'selected' : ''}>${u}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div style="flex: 1 1 130px;">
                         <label>ต้นทุน (Cost)</label>
                         <input type="number" step="0.5" id="p-cost" value="${product ? (product.cost || '') : ''}" placeholder="ใส่เพื่อคิดกำไร" style="width:100%;">
                     </div>
-                    <div style="flex: 1 1 150px;">
+                    <div style="flex: 1 1 130px;">
                         <label>ราคาเป๋าตัง (60:40)</label>
                         <input type="number" step="0.5" id="p-tct-price" value="${product ? (product.thaiChuaiThaiPrice || '') : ''}" placeholder="ระบุราคาที่นี่" style="width:100%;">
                     </div>
                 </div>
 
-                 <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:flex-start;">
+                 <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:flex-start; margin-top:10px;">
                     <!-- Stock Column -->
                     <div style="flex: 1 1 250px;">
                          <!-- Stock / Bundle Switch -->
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                            <label style="margin:0;">จำนวนสต็อก</label>
+                            <label style="margin:0; font-weight:bold;">จำนวนสต็อกคงเหลือ</label>
                             <label style="font-size:12px; display:flex; align-items:center; gap:3px; cursor:pointer;">
                                 <input type="checkbox" id="p-is-bundle" ${product && product.parentId ? 'checked' : ''} onchange="App.toggleBundleMode()">
                                 ตัดสต็อกสินค้าอื่น
                             </label>
                         </div>
 
-                        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; background:#f5faff; padding:10px; border-radius:8px; border:1px solid #cce5ff;">
-                            <div style="width:100%; font-size:12px; font-weight:bold; color:var(--primary-color);">ตั้งค่าราคาขายส่ง (ต่อแพ็ค/ลัง)</div>
-                            <div style="flex: 1 1 120px;">
-                                <label style="font-size:12px;">ครบกี่ชิ้น=1แพ็ค</label>
-                                <input type="number" id="p-wholesale-qty" value="${product ? (product.wholesaleQty || '') : ''}" placeholder="เช่น 12" style="width:100%;">
-                            </div>
-                            <div style="flex: 1 1 120px;">
-                                <label style="font-size:12px;">ราคา/แพ็ค (บาท)</label>
-                                <input type="number" step="0.5" id="p-wholesale-price" value="${product ? (product.wholesalePrice || '') : ''}" placeholder="ระบุหรือไม่ระบุก็ได้" style="width:100%;">
-                            </div>
-                            <div style="flex: 1 1 100%;">
-                                <label style="font-size:12px;">บาร์โค้ดลัง/แพ็ค (ทางเลือก)</label>
-                                <input type="text" id="p-pack-barcode" value="${product ? (product.packBarcode || '') : ''}" placeholder="สแกนบาร์โค้ดลังที่นี่" style="width:100%;">
-                            </div>
-                        </div>
-
                         <!-- Normal Stock Input -->
                         <div id="stock-input-group">
                             <div style="display:flex; gap:5px;">
-                                <input type="number" id="p-stock" value="${product ? product.stock : ''}" style="flex:1;">
+                                <input type="number" id="p-stock" value="${product ? product.stock : ''}" style="flex:1;" placeholder="จำนวนชิ้นทั้งหมด">
                                 <button type="button" class="secondary-btn" onclick="Utils.toggle('stock-calc-panel')">
                                     <span class="material-symbols-rounded">calculate</span>
                                 </button>
                             </div>
                              <!-- Inline Stock Calculator -->
                              <div id="stock-calc-panel" class="hidden" style="background:var(--neutral-100); padding:10px; margin-top:5px; border-radius:8px; border:1px solid var(--neutral-300);">
-                                <div style="font-size:12px; color:#666; margin-bottom:5px;">เครื่องมือช่วยคำนวณ</div>
+                                <div style="font-size:12px; color:#666; margin-bottom:5px;">เครื่องมือช่วยคำนวณสต็อก</div>
                                 <div style="display:flex; gap:5px; align-items:center;">
                                     <input type="number" id="sc-packs" placeholder="ลัง" style="flex:1; padding:5px; text-align:center;" oninput="App.calcStockPreview()">
                                     <span>x</span>
@@ -2586,6 +2576,31 @@ const App = {
                                 <div style="display:flex; gap:5px; margin-top:5px;">
                                     <button type="button" class="primary-btn small" style="flex:1;" onclick="App.applyStockCalc(true)">+เพิ่ม</button>
                                     <button type="button" class="secondary-btn small" style="flex:1;" onclick="App.applyStockCalc(false)">แทนที่</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Collapsible Wholesale Section -->
+                        <div style="margin-top:12px; border:1px solid #b8daff; border-radius:10px; overflow:hidden; background:#f5faff;">
+                            <button type="button" id="btn-toggle-p-wholesale" onclick="App.toggleProductWholesaleSection()" style="width:100%; display:flex; justify-content:space-between; align-items:center; background:#e3f2fd; border:none; padding:9px 12px; font-weight:bold; font-size:13px; color:#0d47a1; cursor:pointer;">
+                                <span style="display:flex; align-items:center; gap:6px;">
+                                    <span class="material-symbols-rounded" style="font-size:18px;">inventory_2</span>
+                                    📦 ขายยกลัง / ขายยกแพ็ค (ทางเลือก)
+                                </span>
+                                <span id="p-wholesale-chevron" class="material-symbols-rounded" style="font-size:18px; transition:transform 0.2s;">${(product && (product.wholesaleQty > 0 || product.wholesalePrice > 0)) ? 'expand_less' : 'expand_more'}</span>
+                            </button>
+                            <div id="p-wholesale-fields" style="display:${(product && (product.wholesaleQty > 0 || product.wholesalePrice > 0)) ? 'flex' : 'none'}; flex-wrap:wrap; gap:10px; padding:12px;">
+                                <div style="flex: 1 1 120px;">
+                                    <label style="font-size:12px; font-weight:bold; color:#333;">1 แพ็ค/ลัง มีกี่ชิ้น</label>
+                                    <input type="number" id="p-wholesale-qty" value="${product ? (product.wholesaleQty || '') : ''}" placeholder="เช่น 12" style="width:100%;">
+                                </div>
+                                <div style="flex: 1 1 120px;">
+                                    <label style="font-size:12px; font-weight:bold; color:#333;">ราคาขายยกแพ็ค/ลัง (บาท)</label>
+                                    <input type="number" step="0.5" id="p-wholesale-price" value="${product ? (product.wholesalePrice || '') : ''}" placeholder="เช่น 100" style="width:100%;">
+                                </div>
+                                <div style="flex: 1 1 100%;">
+                                    <label style="font-size:12px; font-weight:bold; color:#333;">บาร์โค้ดลัง/แพ็ค (สแกนได้)</label>
+                                    <input type="text" id="p-pack-barcode" value="${product ? (product.packBarcode || '') : ''}" placeholder="สแกนบาร์โค้ดลังที่นี่" style="width:100%;">
                                 </div>
                             </div>
                         </div>
@@ -2820,12 +2835,15 @@ const App = {
                 const wholesalePrice = parseFloat(document.getElementById('p-wholesale-price').value) || 0;
                 const packBarcode = document.getElementById('p-pack-barcode').value.trim(); // Get Pack Barcode
 
+                const unitLabel = document.getElementById('p-unit-label')?.value || (product ? (product.unitLabel || 'ชิ้น') : 'ชิ้น');
+                const unitsPerBox = wholesaleQty > 0 ? wholesaleQty : (product ? (product.unitsPerBox || 0) : 0);
+
                 const newProduct = {
                     id, barcode, group, name, price, stock, image: newImage,
                     cost, thaiChuaiThaiPrice, expiryDate, tags, location, entryDate, // Save Location & Entry Date
                     parentId, packSize, wholesaleQty, wholesalePrice, packBarcode,
-                    unitsPerBox: product ? (product.unitsPerBox || 0) : 0,
-                    unitLabel: product ? (product.unitLabel || 'ชิ้น') : 'ชิ้น',
+                    unitsPerBox,
+                    unitLabel,
                     hasBarcode,
                     internalCode,
                     updatedAt: Date.now() // Auto-Timestamp
@@ -2859,6 +2877,33 @@ const App = {
     switchToEdit: (id) => {
         document.getElementById('dup-warning-overlay').remove();
         App.openProductModal(id);
+    },
+
+    openProductEditorToWholesale: (productId) => {
+        const product = App.state.products.find(p => String(p.id) === String(productId));
+        if (!product) return;
+        App.closeModals();
+        App.showProductModal(product);
+        setTimeout(() => {
+            const fields = document.getElementById('p-wholesale-fields');
+            const chevron = document.getElementById('p-wholesale-chevron');
+            if (fields) fields.style.display = 'flex';
+            if (chevron) chevron.textContent = 'expand_less';
+            const qtyInput = document.getElementById('p-wholesale-qty');
+            if (qtyInput) {
+                qtyInput.focus();
+                qtyInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 180);
+    },
+
+    toggleProductWholesaleSection: () => {
+        const fields = document.getElementById('p-wholesale-fields');
+        const chevron = document.getElementById('p-wholesale-chevron');
+        if (!fields) return;
+        const isHidden = fields.style.display === 'none';
+        fields.style.display = isHidden ? 'flex' : 'none';
+        if (chevron) chevron.textContent = isHidden ? 'expand_less' : 'expand_more';
     },
 
     calcStockPreview: () => {
@@ -4121,29 +4166,42 @@ const App = {
                         <label>ชื่อสินค้า
                             <input id="qs-name" required placeholder="ชื่อสินค้าและขนาด" style="width:100%;">
                         </label>
-                        <label>ราคาขาย (บาท)
-                            <input id="qs-price" type="number" min="0" step="0.5" required style="width:100%;">
-                        </label>
+                        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:10px;">
+                            <label>ราคาขาย (บาท)
+                                <input id="qs-price" type="number" min="0" step="0.5" required style="width:100%;">
+                            </label>
+                            <label>หน่วยนับ
+                                <select id="qs-unit-label" onchange="App.updateQuickStockPreview()" style="width:100%; padding:9px; border:1px solid #ccc; border-radius:6px; font-size:15px;">
+                                    ${['ชิ้น', 'ขวด', 'ซอง', 'กระป๋อง', 'กล่อง', 'แพ็ค', 'ฟอง', 'แก้ว', 'ถุง', 'อัน', 'โหล'].map(u => `<option value="${u}">${u}</option>`).join('')}
+                                </select>
+                            </label>
+                        </div>
                         <div style="background:#f4f8f4; border:1px solid #c8dfc9; border-radius:10px; padding:12px;">
                             <div style="font-weight:bold; margin-bottom:10px;">จำนวนเริ่มต้น (ไม่บังคับ)</div>
-                            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px;">
-                                <label>หน่วยย่อย
-                                    <select id="qs-unit-label" onchange="App.updateQuickStockPreview()" style="width:100%;">
-                                        <option value="ชิ้น">ชิ้น</option>
-                                        <option value="ขวด">ขวด</option>
-                                    </select>
-                                </label>
-                                <label>1 กล่องมีกี่ชิ้น/ขวด
+                            <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;">
+                                <label>1 กล่องมีกี่ชิ้น
                                     <input id="qs-units-per-box" type="number" min="1" placeholder="เช่น 12" oninput="App.updateQuickStockPreview()" style="width:100%;">
                                 </label>
                                 <label>จำนวนกล่อง
                                     <input id="qs-boxes" type="number" min="0" placeholder="0" oninput="App.updateQuickStockPreview()" style="width:100%;">
                                 </label>
-                                <label>ชิ้น/ขวดแยก
+                                <label>ชิ้นแยก
                                     <input id="qs-loose-units" type="number" min="0" placeholder="0" oninput="App.updateQuickStockPreview()" style="width:100%;">
                                 </label>
                             </div>
                             <div id="qs-stock-preview" style="margin-top:10px; padding:10px; background:white; border-radius:8px; text-align:center; font-weight:bold; color:var(--primary-color);">รวม 0 ชิ้น</div>
+                        </div>
+                        <!-- Optional Wholesale in Quick Add -->
+                        <div style="background:#f5faff; border:1px solid #b8daff; border-radius:10px; padding:12px;">
+                            <div style="font-weight:bold; color:#0d47a1; margin-bottom:8px;">📦 ขายยกลัง / ขายยกแพ็ค (ทางเลือก)</div>
+                            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;">
+                                <label style="font-size:12px;">1 แพ็ค/ลัง มีกี่ชิ้น
+                                    <input id="qs-wholesale-qty" type="number" min="2" placeholder="เช่น 12" style="width:100%;">
+                                </label>
+                                <label style="font-size:12px;">ราคาขายยกแพ็ค (บาท)
+                                    <input id="qs-wholesale-price" type="number" step="0.5" placeholder="เช่น 100" style="width:100%;">
+                                </label>
+                            </div>
                         </div>
                         <label>รูปสินค้า (ไม่บังคับ)
                             <input id="qs-image" type="file" accept="image/*" style="width:100%;">
@@ -4243,7 +4301,10 @@ const App = {
             await App.alert('กรุณาระบุว่า 1 กล่องมีกี่ชิ้นหรือกี่ขวด');
             return;
         }
-        const unitLabel = document.getElementById('qs-unit-label').value || 'ชิ้น';
+        const unitLabel = document.getElementById('qs-unit-label')?.value || 'ชิ้น';
+        const wholesaleQty = parseInt(document.getElementById('qs-wholesale-qty')?.value) || 0;
+        const wholesalePrice = parseFloat(document.getElementById('qs-wholesale-price')?.value) || 0;
+
         let image = null;
         const imageFile = document.getElementById('qs-image').files[0];
         if (imageFile) {
@@ -4258,7 +4319,9 @@ const App = {
             name,
             price,
             stock: quantity.total,
-            unitsPerBox: quantity.unitsPerBox > 1 ? quantity.unitsPerBox : 0,
+            unitsPerBox: quantity.unitsPerBox > 1 ? quantity.unitsPerBox : (wholesaleQty > 0 ? wholesaleQty : 0),
+            wholesaleQty,
+            wholesalePrice,
             unitLabel,
             image,
             cost: 0,
@@ -4402,15 +4465,25 @@ const App = {
             pointer-events: none; /* Let clicks pass through */
         `;
 
+        const comp = App.calcPriceComparison(product);
+        const wholesalePill = (comp && comp.hasWholesale && comp.isCheaper)
+            ? `<div style="font-size: clamp(13px, 3.4vw, 16px); color: #bbf7d0; background: rgba(5,150,105,0.3); border: 1px solid #10b981; padding: 4px 12px; border-radius: 16px; display: inline-block; font-weight: bold; margin-bottom: 6px;">
+                💡 ยกแพ็ค (${comp.wholesaleQty} ${comp.unitLabel}) ฿${Utils.formatCurrency(comp.wholesalePrice)} • ประหยัด ฿${Utils.formatCurrency(comp.savingTotal)}
+               </div>`
+            : '';
+
         popup.innerHTML = `
             ${imageHtml}
             <div style="font-size: clamp(20px, 5vw, 26px); font-weight: bold; margin-bottom: 6px; color: #fff; line-height: 1.25;">${Utils.escapeHTML(product.name)}</div>
             <div style="font-size: clamp(64px, 17vw, 92px); font-weight: 900; color: #4caf50; margin-bottom: 8px; line-height: 1; text-shadow: 0 4px 20px rgba(76,175,80,0.5);">
                 ฿${Utils.formatCurrency(product.price)}
             </div>
+            ${wholesalePill}
             ${product.location ? `
-                <div style="font-size: clamp(15px, 3.8vw, 19px); color: #ffeb3b; background: rgba(255,255,255,0.18); padding: 4px 14px; border-radius: 20px; display: inline-block; font-weight: bold;">
-                    📍 ${Utils.escapeHTML(product.location)}
+                <div>
+                    <div style="font-size: clamp(15px, 3.8vw, 19px); color: #ffeb3b; background: rgba(255,255,255,0.18); padding: 4px 14px; border-radius: 20px; display: inline-block; font-weight: bold;">
+                        📍 ${Utils.escapeHTML(product.location)}
+                    </div>
                 </div>
             ` : '<div style="font-size: 13px; color: #aaa;">(ไม่ระบุจุดวาง)</div>'}
         `;
@@ -4432,6 +4505,67 @@ const App = {
             return (packs * item.wholesalePrice) + (remainder * item.price);
         }
         return item.price * item.qty;
+    },
+
+    calcPriceComparison: (product) => {
+        if (!product) return null;
+        const price = Number(product.price) || 0;
+        const wholesaleQty = Number(product.wholesaleQty || product.unitsPerBox) || 0;
+        const wholesalePrice = Number(product.wholesalePrice) || 0;
+        const unitLabel = product.unitLabel || 'ชิ้น';
+
+        if (wholesaleQty > 1 && wholesalePrice > 0 && price > 0) {
+            const retailTotal = price * wholesaleQty;
+            const avgPricePerUnit = wholesalePrice / wholesaleQty;
+            const savingTotal = retailTotal - wholesalePrice;
+            const savingPerUnit = price - avgPricePerUnit;
+            return {
+                hasWholesale: true,
+                wholesaleQty,
+                wholesalePrice,
+                unitLabel,
+                price,
+                retailTotal,
+                avgPricePerUnit,
+                savingTotal,
+                savingPerUnit,
+                isCheaper: savingTotal > 0
+            };
+        }
+        return {
+            hasWholesale: false,
+            unitLabel,
+            price,
+            productId: product.id
+        };
+    },
+
+    renderPriceComparisonHtml: (product) => {
+        const comp = App.calcPriceComparison(product);
+        if (!comp) return '';
+
+        if (comp.hasWholesale) {
+            return `
+                <div class="price-comparison-box ${comp.isCheaper ? 'saving' : ''}">
+                    <div class="comparison-header">
+                        <span class="material-symbols-rounded">${comp.isCheaper ? 'savings' : 'inventory_2'}</span>
+                        <strong>ซื้อยกแพ็ค/ลัง (${comp.wholesaleQty} ${comp.unitLabel}) ฿${Utils.formatCurrency(comp.wholesalePrice)}</strong>
+                    </div>
+                    <div class="comparison-body">
+                        <span>เฉลี่ยชิ้นละ <strong>฿${Utils.formatCurrency(comp.avgPricePerUnit)}</strong> / ${comp.unitLabel}</span>
+                        ${comp.isCheaper ? `<div class="saving-badge">🎉 ประหยัด ฿${Utils.formatCurrency(comp.savingTotal)} (ลดลง ฿${Utils.formatCurrency(comp.savingPerUnit)}/${comp.unitLabel})</div>` : ''}
+                    </div>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="price-comparison-box none">
+                    <button type="button" class="btn-add-wholesale-hint" onclick="App.openProductEditorToWholesale('${product.id}')">
+                        <span class="material-symbols-rounded">add_circle</span> + ตั้งราคาขายยกแพ็ค/ลัง
+                    </button>
+                </div>
+            `;
+        }
     },
 
     getLineTotal: (item) => {
@@ -6500,6 +6634,7 @@ const App = {
                     ${packQty > 1 ? `<span>ประมาณ ${Math.floor(stock / packQty)} กล่อง ${stock % packQty} ${unitLabel}</span>` : ''}
                     ${product.location ? `<span>จุดวาง: ${Utils.escapeHTML(product.location)}</span>` : ''}
                 </div>
+                ${App.renderPriceComparisonHtml(product)}
                 <div class="scanner-price-quick-bill">
                     <div><small>รายการนี้</small><strong>${quickQty} ${unitLabel}</strong></div>
                     <div class="scanner-price-stepper">
@@ -6607,7 +6742,7 @@ const App = {
                 if (product) {
                     const isOutOfStock = product.stock <= 0;
                     const stockColor = isOutOfStock ? '#d32f2f' : (product.stock < 5 ? '#f57c00' : '#388e3c');
-                    const stockText = isOutOfStock ? 'สินค้าหมดสต็อก' : `คงเหลือ: ${product.stock} ${product.unit}`;
+                    const stockText = isOutOfStock ? 'สินค้าหมดสต็อก' : `คงเหลือ: ${product.stock} ${product.unitLabel || product.unit || 'ชิ้น'}`;
                     const stockIcon = isOutOfStock ? 'error' : 'inventory_2';
                     
                     result.innerHTML = `
@@ -6617,10 +6752,14 @@ const App = {
                             <div style="font-size:clamp(22px, 5vw, 36px); font-weight:bold; color:#333; margin-bottom:5px; line-height:1.3;">${Utils.escapeHTML(product.name)}</div>
                             <div style="font-size:16px; color:#666; margin-bottom:10px;">บาร์โค้ด: ${product.barcode}</div>
                             
-                            <div style="font-size:clamp(56px, 14vw, 95px); font-weight:900; color:var(--primary-color); line-height:1; margin-bottom:15px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
+                            <div style="font-size:clamp(56px, 14vw, 95px); font-weight:900; color:var(--primary-color); line-height:1; margin-bottom:10px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
                                 ฿${Utils.formatCurrency(product.price)}
                             </div>
                             
+                            <div style="margin-bottom:12px; width:100%; max-width:400px;">
+                                ${App.renderPriceComparisonHtml(product)}
+                            </div>
+
                             <div style="display:inline-flex; align-items:center; gap:8px; padding:12px 24px; border-radius:30px; background:${stockColor}20; color:${stockColor}; font-size:clamp(16px, 3vw, 22px); font-weight:bold;">
                                 <span class="material-symbols-rounded" style="font-size:28px;">${stockIcon}</span>
                                 ${stockText}
