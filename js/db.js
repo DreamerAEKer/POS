@@ -714,13 +714,36 @@ const DB = {
     },
 
     getProductByBarcode: (barcode) => {
+        const rawCode = String(barcode || '').trim();
+        if (!rawCode) return null;
         const products = DB.getProducts();
-        // Return object indicating if it matched the main barcode or the pack barcode
-        const mainMatch = products.find(p => p.hasBarcode !== false && p.barcode === barcode);
+
+        // 1. Exact match (main barcode or pack barcode)
+        const mainMatch = products.find(p => p.hasBarcode !== false && p.barcode === rawCode);
         if (mainMatch) return { product: mainMatch, isPack: false };
 
-        const packMatch = products.find(p => p.packBarcode === barcode);
+        const packMatch = products.find(p => p.packBarcode === rawCode);
         if (packMatch) return { product: packMatch, isPack: true };
+
+        // 2. Thai GS1 EAN-13 Fallback (if bluetooth scanner dropped leading '8' from '885...')
+        if (rawCode.length === 12 && rawCode.startsWith('85')) {
+            const thaiCandidate = '8' + rawCode;
+            const thaiMatch = products.find(p => p.hasBarcode !== false && p.barcode === thaiCandidate);
+            if (thaiMatch) return { product: thaiMatch, isPack: false };
+            const thaiPackMatch = products.find(p => p.packBarcode === thaiCandidate);
+            if (thaiPackMatch) return { product: thaiPackMatch, isPack: true };
+        }
+
+        // 3. UPC-A to EAN-13 Fallback (missing leading '0' or leading zero added)
+        if (rawCode.length === 12) {
+            const upcCandidate = '0' + rawCode;
+            const upcMatch = products.find(p => p.hasBarcode !== false && p.barcode === upcCandidate);
+            if (upcMatch) return { product: upcMatch, isPack: false };
+        } else if (rawCode.length === 13 && rawCode.startsWith('0')) {
+            const stripped = rawCode.substring(1);
+            const upcMatch = products.find(p => p.hasBarcode !== false && p.barcode === stripped);
+            if (upcMatch) return { product: upcMatch, isPack: false };
+        }
 
         return null;
     },

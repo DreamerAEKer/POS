@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.47 (30/08/2026)', // Mute voice price in POS/Cart, speak in all other views with scan-popup mute button
+    VERSION: '0.99.48 (30/08/2026)', // Fix Bluetooth scanner first-digit drop and add Thai GS1 885 prefix recovery
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3729,9 +3729,9 @@ const App = {
             const timeDiff = now - lastKeyTime;
             lastKeyTime = now;
 
-            // Bluetooth scanners act like keyboards. Some budget scanners send
-            // more slowly on Android, so allow up to 250ms between characters.
-            if (timeDiff > 250) {
+            // Bluetooth scanners act like keyboards. Some budget/wireless scanners send
+            // more slowly on Android or have wakeup latency, so allow up to 650ms between characters.
+            if (timeDiff > 650) {
                 scanBuffer = '';
                 scanStartedAt = now;
             }
