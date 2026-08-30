@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.43 (30/08/2026)', // Minimal image adjuster with smooth multi-touch pinch zoom and pan
+    VERSION: '0.99.44 (30/08/2026)', // Add dedicated Direct Camera button and Gallery Picker for Sunmi/Android devices
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -2872,16 +2872,22 @@ const App = {
                         <div style="margin-top:15px;">
                             <label style="font-weight:bold; color:var(--primary-color);">รูปภาพสินค้า</label>
                             <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
-                                <div id="p-image-preview" data-base64="${product && product.image ? product.image : ''}" style="width:80px; height:80px; background:#f0f7ff; border-radius:12px; overflow:hidden; flex-shrink:0; border:2px dashed var(--primary-color); display:flex; align-items:center; justify-content:center;">
+                                <div id="p-image-preview" data-base64="${product && product.image ? product.image : ''}" style="width:80px; height:80px; background:#f0f7ff; border-radius:12px; overflow:hidden; flex-shrink:0; border:2px dashed var(--primary-color); display:flex; align-items:center; justify-content:center; cursor:pointer;" title="แตะเพื่อหมุน/ซูม/ปรับแต่งรูปภาพ">
                                     ${product && product.image ? `<img src="${product.image}" style="width:100%;height:100%;object-fit:cover;">` : '<span class="material-symbols-rounded" style="font-size:32px; color:var(--primary-color); opacity:0.5;">add_a_photo</span>'}
                                 </div>
-                                <div style="flex:1;">
-                                    <input type="file" id="p-image-input" accept="image/*" style="display:none;">
-                                    <button type="button" class="secondary-btn" onclick="document.getElementById('p-image-input').click()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; height:45px; background:white; border:1px solid var(--primary-color); color:var(--primary-color);">
-                                        <span class="material-symbols-rounded">camera_alt</span>
-                                        ถ่ายรูป / เลือกไฟล์
-                                    </button>
-                                    <div style="font-size:11px; color:#888; margin-top:5px;">* รูปจะถูกย่อขนาดอัตโนมัติเพื่อประหยัดพื้นที่</div>
+                                <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                                    <input type="file" id="p-image-camera" accept="image/*" capture="environment" style="display:none;">
+                                    <input type="file" id="p-image-file" accept="image/*" style="display:none;">
+                                    
+                                    <div style="display:flex; gap:6px;">
+                                        <button type="button" class="primary-btn" onclick="document.getElementById('p-image-camera').click()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; height:38px; font-size:13px; padding:0 8px;">
+                                            <span class="material-symbols-rounded" style="font-size:18px;">photo_camera</span> ถ่ายรูป
+                                        </button>
+                                        <button type="button" class="secondary-btn" onclick="document.getElementById('p-image-file').click()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; height:38px; font-size:13px; padding:0 8px; background:white; border:1px solid #cbd5e1; color:#334155;">
+                                            <span class="material-symbols-rounded" style="font-size:18px;">image</span> เลือกรูป
+                                        </button>
+                                    </div>
+                                    <div style="font-size:11px; color:#888;">* แตะที่รูปเพื่อหมุน/ซูมปรับตำแหน่งได้</div>
                                 </div>
                             </div>
                         </div>
@@ -2930,7 +2936,8 @@ const App = {
         `;
 
         setTimeout(() => {
-            const fileInput = document.getElementById('p-image-input');
+            const camInput = document.getElementById('p-image-camera');
+            const fileInput = document.getElementById('p-image-file');
             const preview = document.getElementById('p-image-preview');
 
             const handleImageAdjust = (base64) => {
@@ -2940,13 +2947,11 @@ const App = {
                 });
             };
 
-            preview.style.cursor = 'pointer';
-            preview.title = 'แตะเพื่อหมุน/ซูม/ปรับแต่งรูปภาพ';
             preview.onclick = () => {
                 if (preview.dataset.base64) {
                     handleImageAdjust(preview.dataset.base64);
-                } else {
-                    fileInput.click();
+                } else if (camInput) {
+                    camInput.click();
                 }
             };
 
@@ -2962,8 +2967,8 @@ const App = {
                 }
             });
 
-            fileInput.addEventListener('change', async (e) => {
-                if (e.target.files[0]) {
+            const onFileSelected = async (e) => {
+                if (e.target.files && e.target.files[0]) {
                     try {
                         const originalBase64 = await Utils.fileToBase64(e.target.files[0]);
                         handleImageAdjust(originalBase64);
@@ -2971,8 +2976,12 @@ const App = {
                         console.error('File Upload Error:', err);
                         App.alert('ไม่สามารถอัปโหลดรูปภาพนี้ได้');
                     }
+                    e.target.value = ''; // Reset for re-selection
                 }
-            });
+            };
+
+            if (camInput) camInput.addEventListener('change', onFileSelected);
+            if (fileInput) fileInput.addEventListener('change', onFileSelected);
             document.getElementById('product-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 let id = document.getElementById('p-id').value || Utils.generateId();
@@ -4469,14 +4478,20 @@ const App = {
                         <div style="margin-top:5px;">
                             <label style="font-weight:bold; color:var(--primary-color);">รูปสินค้า (ไม่บังคับ)</label>
                             <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
-                                <div id="qs-image-preview" style="width:60px; height:60px; border-radius:10px; background:#f0f7ff; border:2px dashed var(--primary-color); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; flex-shrink:0;">
+                                <div id="qs-image-preview" style="width:60px; height:60px; border-radius:10px; background:#f0f7ff; border:2px dashed var(--primary-color); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; flex-shrink:0;" title="แตะเพื่อหมุน/ซูม/ปรับแต่งรูปภาพ">
                                     <span class="material-symbols-rounded" style="font-size:24px; color:var(--primary-color); opacity:0.6;">add_a_photo</span>
                                 </div>
-                                <div style="flex:1;">
-                                    <input id="qs-image" type="file" accept="image/*" style="display:none;">
-                                    <button type="button" class="secondary-btn" onclick="document.getElementById('qs-image').click()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; height:40px; font-size:13px; background:white; border:1px solid var(--primary-color); color:var(--primary-color);">
-                                        <span class="material-symbols-rounded">camera_alt</span> ถ่ายรูป / เลือกไฟล์
-                                    </button>
+                                <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                                    <input id="qs-image-camera" type="file" accept="image/*" capture="environment" style="display:none;">
+                                    <input id="qs-image-file" type="file" accept="image/*" style="display:none;">
+                                    <div style="display:flex; gap:6px;">
+                                        <button type="button" class="primary-btn" onclick="document.getElementById('qs-image-camera').click()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; height:36px; font-size:13px; padding:0 6px;">
+                                            <span class="material-symbols-rounded" style="font-size:18px;">photo_camera</span> ถ่ายรูป
+                                        </button>
+                                        <button type="button" class="secondary-btn" onclick="document.getElementById('qs-image-file').click()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:4px; height:36px; font-size:13px; padding:0 6px; background:white; border:1px solid #cbd5e1; color:#334155;">
+                                            <span class="material-symbols-rounded" style="font-size:18px;">image</span> เลือกรูป
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4489,7 +4504,8 @@ const App = {
             </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
         App._quickStockImage = null;
-        const qsFileInput = document.getElementById('qs-image');
+        const qsCamInput = document.getElementById('qs-image-camera');
+        const qsFileInput = document.getElementById('qs-image-file');
         const qsPreview = document.getElementById('qs-image-preview');
 
         const handleQsImageAdjust = (base64) => {
@@ -4504,20 +4520,22 @@ const App = {
         if (qsPreview) {
             qsPreview.onclick = () => {
                 if (App._quickStockImage) handleQsImageAdjust(App._quickStockImage);
-                else qsFileInput.click();
+                else if (qsCamInput) qsCamInput.click();
             };
         }
 
-        if (qsFileInput) {
-            qsFileInput.addEventListener('change', async (e) => {
-                if (e.target.files[0]) {
-                    try {
-                        const raw = await Utils.fileToBase64(e.target.files[0]);
-                        handleQsImageAdjust(raw);
-                    } catch (_) {}
-                }
-            });
-        }
+        const onQsFileSelected = async (e) => {
+            if (e.target.files && e.target.files[0]) {
+                try {
+                    const raw = await Utils.fileToBase64(e.target.files[0]);
+                    handleQsImageAdjust(raw);
+                } catch (_) {}
+                e.target.value = '';
+            }
+        };
+
+        if (qsCamInput) qsCamInput.addEventListener('change', onQsFileSelected);
+        if (qsFileInput) qsFileInput.addEventListener('change', onQsFileSelected);
 
         document.getElementById('quick-stock-form').addEventListener('submit', App.saveQuickStockProduct);
         App.setupCategorySuggestions('qs-group', 'qs-group-suggestions');
