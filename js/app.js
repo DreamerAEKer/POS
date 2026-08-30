@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.35 (24/08/2026)', // Compact payment modal with collapsible receipt options
+    VERSION: '0.99.36 (30/08/2026)', // Enhanced Bluetooth scanner price display & routing
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3456,6 +3456,16 @@ const App = {
                     e.preventDefault();
                     e.stopPropagation();
                     console.log('Bluetooth/USB Scan Captured:', scanBuffer);
+
+                    const checkInput = document.getElementById('check-input');
+                    const modalOverlay = document.getElementById('modal-overlay');
+                    if (checkInput && modalOverlay && !modalOverlay.classList.contains('hidden')) {
+                        checkInput.value = scanBuffer;
+                        checkInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        scanBuffer = '';
+                        scanStartedAt = 0;
+                        return;
+                    }
 
                     if (document.activeElement === App.elements.globalSearch) {
                         App.elements.globalSearch.value = '';
@@ -6538,10 +6548,10 @@ const App = {
                         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; text-align:center; animation: fadeIn 0.2s ease-out;">
                             ${product.image && product.image.startsWith('data:image/') ? `<img src="${Utils.escapeHTML(product.image)}" style="max-height:200px; max-width:100%; object-fit:contain; border-radius:12px; margin-bottom:15px; box-shadow:var(--shadow-sm);">` : `<div style="width:120px; height:120px; background:#e0e0e0; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:15px;"><span class="material-symbols-rounded" style="font-size:48px; color:#999;">image_not_supported</span></div>`}
                             
-                            <div style="font-size:clamp(20px, 4vw, 32px); font-weight:bold; color:#333; margin-bottom:5px; line-height:1.3;">${Utils.escapeHTML(product.name)}</div>
-                            <div style="font-size:16px; color:#666; margin-bottom:15px;">บาร์โค้ด: ${product.barcode}</div>
+                            <div style="font-size:clamp(22px, 5vw, 36px); font-weight:bold; color:#333; margin-bottom:5px; line-height:1.3;">${Utils.escapeHTML(product.name)}</div>
+                            <div style="font-size:16px; color:#666; margin-bottom:10px;">บาร์โค้ด: ${product.barcode}</div>
                             
-                            <div style="font-size:clamp(40px, 8vw, 80px); font-weight:bold; color:var(--primary-color); line-height:1; margin-bottom:20px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
+                            <div style="font-size:clamp(56px, 14vw, 95px); font-weight:900; color:var(--primary-color); line-height:1; margin-bottom:15px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
                                 ฿${Utils.formatCurrency(product.price)}
                             </div>
                             
