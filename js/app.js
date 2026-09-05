@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.48 (30/08/2026)', // Fix Bluetooth scanner first-digit drop and add Thai GS1 885 prefix recovery
+    VERSION: '0.99.49 (05/09/2026)', // Default to high-accuracy vertical scan mode and persist orientation preference
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3875,17 +3875,36 @@ const App = {
         status.className = 'camera-scanner-status' + (type ? ` ${type}` : '');
     },
 
-    toggleCameraScanOrientation: () => {
+    applyCameraScanOrientation: (orientation) => {
         const stage = document.querySelector('.camera-scanner-stage');
         const btn = document.getElementById('btn-camera-orient');
         const label = document.getElementById('label-camera-orient');
+        const icon = document.getElementById('icon-camera-orient');
         if (!stage) return;
-        const isVertical = stage.classList.toggle('vertical-scan');
+        const isVertical = orientation !== 'horizontal';
+        stage.classList.toggle('vertical-scan', isVertical);
         if (btn) btn.classList.toggle('active-vert', isVertical);
         if (label) {
-            label.textContent = isVertical ? 'แนวนอน ↔' : 'แนวตั้ง ↕';
+            label.textContent = isVertical ? 'แนวตั้ง ↕' : 'แนวนอน ↔';
         }
-        App.setCameraScannerStatus(isVertical ? '🟢 เปิดโหมดสแกนแนวตั้ง ↕ (สำหรับสินค้าทรงยาว/กล่องโฟม/กระสอบ)' : 'พร้อมสแกน (โหมดแนวนอน ↔)', 'ok');
+        if (icon) {
+            icon.textContent = isVertical ? 'swap_vert' : 'swap_horiz';
+        }
+        App.setCameraScannerStatus(
+            isVertical
+                ? '🟢 โหมดสแกนแนวตั้ง ↕ (สแกนได้เร็วและแม่นยำ)'
+                : 'พร้อมสแกน (โหมดแนวนอน ↔)',
+            'ok'
+        );
+    },
+
+    toggleCameraScanOrientation: async () => {
+        const stage = document.querySelector('.camera-scanner-stage');
+        if (!stage) return;
+        const isCurrentlyVertical = stage.classList.contains('vertical-scan');
+        const nextOrient = isCurrentlyVertical ? 'horizontal' : 'vertical';
+        App.applyCameraScanOrientation(nextOrient);
+        await DB.saveSettings({ cameraScanOrientation: nextOrient });
     },
 
     openCameraScanner: async () => {
@@ -3900,6 +3919,7 @@ const App = {
         } catch (_) {}
         const overlay = document.getElementById('camera-scanner-overlay');
         overlay.classList.remove('hidden');
+        App.applyCameraScanOrientation(DB.getSettings().cameraScanOrientation || 'vertical');
         App.hideCameraScanResult(true);
         App.state.cameraScanner.active = true;
         await App.startCameraScanner();

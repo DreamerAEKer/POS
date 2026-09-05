@@ -222,6 +222,7 @@ const DB = {
             voicePriceSpeechEnabled: true,
             microphoneEnabled: true,
             cameraEnabled: true,
+            cameraScanOrientation: 'vertical',
             logo: null,           // New: Base64 Image
             qrCode: null          // New: Base64 Image
         };
