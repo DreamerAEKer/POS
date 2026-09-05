@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.49 (05/09/2026)', // Default to high-accuracy vertical scan mode and persist orientation preference
+    VERSION: '0.99.50 (05/09/2026)', // Standard horizontal scan as default, vertical scan as on-demand alternative
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3881,30 +3881,29 @@ const App = {
         const label = document.getElementById('label-camera-orient');
         const icon = document.getElementById('icon-camera-orient');
         if (!stage) return;
-        const isVertical = orientation !== 'horizontal';
+        const isVertical = orientation === 'vertical';
         stage.classList.toggle('vertical-scan', isVertical);
         if (btn) btn.classList.toggle('active-vert', isVertical);
         if (label) {
-            label.textContent = isVertical ? 'แนวตั้ง ↕' : 'แนวนอน ↔';
+            label.textContent = isVertical ? 'สลับแนวนอน ↔' : 'สลับแนวตั้ง ↕';
         }
         if (icon) {
-            icon.textContent = isVertical ? 'swap_vert' : 'swap_horiz';
+            icon.textContent = isVertical ? 'swap_horiz' : 'swap_vert';
         }
         App.setCameraScannerStatus(
             isVertical
-                ? '🟢 โหมดสแกนแนวตั้ง ↕ (สแกนได้เร็วและแม่นยำ)'
-                : 'พร้อมสแกน (โหมดแนวนอน ↔)',
-            'ok'
+                ? '🟢 โหมดสแกนแนวตั้ง ↕ (ทางเลือกสำหรับสินค้าทรงยาว)'
+                : 'พร้อมสแกน',
+            isVertical ? 'ok' : ''
         );
     },
 
-    toggleCameraScanOrientation: async () => {
+    toggleCameraScanOrientation: () => {
         const stage = document.querySelector('.camera-scanner-stage');
         if (!stage) return;
         const isCurrentlyVertical = stage.classList.contains('vertical-scan');
         const nextOrient = isCurrentlyVertical ? 'horizontal' : 'vertical';
         App.applyCameraScanOrientation(nextOrient);
-        await DB.saveSettings({ cameraScanOrientation: nextOrient });
     },
 
     openCameraScanner: async () => {
@@ -3919,7 +3918,8 @@ const App = {
         } catch (_) {}
         const overlay = document.getElementById('camera-scanner-overlay');
         overlay.classList.remove('hidden');
-        App.applyCameraScanOrientation(DB.getSettings().cameraScanOrientation || 'vertical');
+        // Always default to standard horizontal; vertical is an optional toggle
+        App.applyCameraScanOrientation('horizontal');
         App.hideCameraScanResult(true);
         App.state.cameraScanner.active = true;
         await App.startCameraScanner();
