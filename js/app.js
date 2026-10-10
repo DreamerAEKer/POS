@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.50 (05/09/2026)', // Standard horizontal scan as default, vertical scan as on-demand alternative
+    VERSION: '0.99.51 (10/10/2026)', // Standard horizontal scan as default, vertical scan as on-demand alternative
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3977,7 +3977,6 @@ const App = {
             }
             const hints = new Map();
             if (window.ZXing.DecodeHintType) {
-                hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
                 hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [
                     window.ZXing.BarcodeFormat.EAN_13,
                     window.ZXing.BarcodeFormat.EAN_8,
