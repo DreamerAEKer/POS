@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.54 (10/10/2026)', // Dual-orientation unified ZXing and BarcodeDetector scanning engine
+    VERSION: '0.99.55 (10/10/2026)', // Add catalog navigation toolbar & safe return to POS
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -2200,31 +2200,119 @@ const App = {
             <html lang="th">
             <head>
                 <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>แคตตาล็อคสินค้า</title>
                 <!-- Include fonts from the main app for consistency -->
                 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
                 <style>
-                    body { font-family: 'Sarabun', sans-serif; padding: 20px; font-size: 14px; margin: 0; color: #333; }
+                    * { box-sizing: border-box; }
+                    body { font-family: 'Sarabun', sans-serif; padding: 0; font-size: 14px; margin: 0; color: #333; background: #f8fafc; }
                     @page { size: A4 portrait; margin: 1cm; }
-                    h1 { text-align: center; font-size: 24px; margin-bottom: 20px; }
+                    .catalog-toolbar {
+                        position: sticky;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        background: #0f172a;
+                        color: #fff;
+                        padding: 12px 16px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 10px;
+                        z-index: 9999;
+                        box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+                    }
+                    .catalog-toolbar-title {
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: #f8fafc;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .catalog-toolbar-actions {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .catalog-toolbar button {
+                        font-family: inherit;
+                        font-size: 14px;
+                        font-weight: 700;
+                        padding: 8px 16px;
+                        border-radius: 8px;
+                        border: none;
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        transition: all 0.15s ease;
+                    }
+                    .btn-back {
+                        background: #2563eb;
+                        color: #ffffff;
+                    }
+                    .btn-back:active {
+                        background: #1d4ed8;
+                        transform: scale(0.96);
+                    }
+                    .btn-print {
+                        background: #16a34a;
+                        color: #ffffff;
+                    }
+                    .btn-print:active {
+                        background: #15803d;
+                        transform: scale(0.96);
+                    }
+                    .catalog-content {
+                        padding: 20px;
+                        max-width: 1200px;
+                        margin: 0 auto;
+                        background: #fff;
+                        min-height: 100vh;
+                    }
+                    h1 { text-align: center; font-size: 24px; margin: 10px 0 20px 0; }
                     .catalog-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-                    .product-card { border: 1px solid #ccc; padding: 10px; text-align: center; border-radius: 8px; page-break-inside: avoid; background: white; }
+                    .product-card { border: 1px solid #e2e8f0; padding: 10px; text-align: center; border-radius: 8px; page-break-inside: avoid; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
                     .product-image { width: 100%; height: 120px; object-fit: contain; margin-bottom: 10px; background: #fafafa; border-radius: 4px; display: block; }
-                    .product-no-image { width: 100%; height: 120px; background: #f0f0f0; margin-bottom: 10px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; border: 1px dashed #ccc; box-sizing: border-box; }
-                    .product-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; }
-                    .product-price { color: #d32f2f; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
-                    .product-barcode { font-size: 11px; color: #666; font-family: monospace; }
-                    .category-header { font-size: 18px; font-weight: bold; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #555; padding-bottom: 5px; grid-column: 1 / -1; page-break-after: avoid; }
+                    .product-no-image { width: 100%; height: 120px; background: #f1f5f9; margin-bottom: 10px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #94a3b8; border: 1px dashed #cbd5e1; box-sizing: border-box; }
+                    .product-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; height: 40px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; color: #1e293b; }
+                    .product-price { color: #dc2626; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+                    .product-barcode { font-size: 11px; color: #64748b; font-family: monospace; }
+                    .category-header { font-size: 18px; font-weight: bold; margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 5px; grid-column: 1 / -1; page-break-after: avoid; color: #0f172a; }
                     @media print {
-                        body { padding: 0; }
+                        .no-print { display: none !important; }
+                        body { padding: 0; background: #fff; }
+                        .catalog-content { padding: 0; }
                         .catalog-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
-                        .product-card { width: 100%; box-sizing: border-box; border: 1px solid #999; }
+                        .product-card { width: 100%; box-sizing: border-box; border: 1px solid #999; box-shadow: none; }
+                    }
+                    @media (max-width: 640px) {
+                        .catalog-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+                        .product-card { padding: 6px; }
+                        .product-image, .product-no-image { height: 90px; }
+                        .product-name { font-size: 12px; height: 34px; }
+                        .product-price { font-size: 14px; }
+                        .catalog-toolbar-title { display: none; }
                     }
                 </style>
             </head>
             <body>
-                <h1>แคตตาล็อคสินค้า</h1>
-                <div class="catalog-grid">
+                <header class="catalog-toolbar no-print">
+                    <button type="button" class="btn-back" onclick="goBack()">
+                        ← กลับหน้าขาย POS
+                    </button>
+                    <span class="catalog-toolbar-title">แคตตาล็อคสินค้า</span>
+                    <div class="catalog-toolbar-actions">
+                        <button type="button" class="btn-print" onclick="window.print()">
+                            🖨️ พิมพ์ / บันทึก PDF
+                        </button>
+                    </div>
+                </header>
+                <main class="catalog-content">
+                    <h1>แคตตาล็อคสินค้า</h1>
+                    <div class="catalog-grid">
         `;
 
         let currentGroup = null;
@@ -2246,12 +2334,27 @@ const App = {
         });
 
         printHtml += `
-                </div>
+                    </div>
+                </main>
                 <script>
+                    function goBack() {
+                        try {
+                            if (window.opener && !window.opener.closed) {
+                                window.close();
+                                setTimeout(() => { window.location.href = 'index.html'; }, 100);
+                                return;
+                            }
+                        } catch (_) {}
+                        if (window.history.length > 1) {
+                            window.history.back();
+                        } else {
+                            window.location.href = 'index.html';
+                        }
+                    }
                     window.onload = function() {
                         setTimeout(() => {
                             window.print();
-                        }, 500);
+                        }, 600);
                     }
                 </script>
             </body>
