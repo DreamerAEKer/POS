@@ -789,7 +789,23 @@ const App = (() => {
 
     // 2. Fallback to ZXing
     if(!window.ZXing){ setStat('ZXing โหลดไม่ได้ ใช้ช่อง input แทน','err'); return; }
-    if(!S.codeReader) S.codeReader = new ZXing.BrowserMultiFormatReader();
+    if(!S.codeReader) {
+      const hints = new Map();
+      if (window.ZXing.DecodeHintType) {
+        hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+          window.ZXing.BarcodeFormat.CODE_128,
+          window.ZXing.BarcodeFormat.CODE_39,
+          window.ZXing.BarcodeFormat.EAN_13,
+          window.ZXing.BarcodeFormat.EAN_8,
+          window.ZXing.BarcodeFormat.UPC_A,
+          window.ZXing.BarcodeFormat.UPC_E,
+          window.ZXing.BarcodeFormat.ITF,
+          window.ZXing.BarcodeFormat.QR_CODE
+        ]);
+        hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
+      }
+      S.codeReader = new ZXing.BrowserMultiFormatReader(hints);
+    }
     
     try{
       await S.codeReader.decodeFromConstraints(constraints, 'camera-video', (res) => {
@@ -817,12 +833,39 @@ const App = (() => {
     
     if (el.video.readyState === el.video.HAVE_ENOUGH_DATA && S.scanning) {
       try {
-        const barcodes = await S.nativeBarcodeDetector.detect(el.video);
+        let barcodes = await S.nativeBarcodeDetector.detect(el.video);
         if (barcodes.length > 0) {
-          // Take the first detected barcode
           const r = barcodes[0].rawValue;
-          if (r && r !== S.lockBarcode) {
-            handleBarcode(r);
+          if (r && r !== S.lockBarcode) handleBarcode(r);
+        } else {
+          // Dual-orientation fallback for native detector on mobile
+          if (!S._rotCanvas) {
+            S._rotCanvas = document.createElement('canvas');
+            S._rotCtx = S._rotCanvas.getContext('2d', { willReadFrequently: true });
+          }
+          const vw = el.video.videoWidth;
+          const vh = el.video.videoHeight;
+          if (vw > 0 && vh > 0) {
+            const maxDim = 720;
+            const scale = Math.min(1, maxDim / Math.max(vw, vh));
+            const sw = Math.round(vw * scale);
+            const sh = Math.round(vh * scale);
+            if (S._rotCanvas.width !== sh || S._rotCanvas.height !== sw) {
+              S._rotCanvas.width = sh;
+              S._rotCanvas.height = sw;
+            }
+            const ctx = S._rotCtx;
+            ctx.save();
+            ctx.translate(sh / 2, sw / 2);
+            ctx.rotate(90 * Math.PI / 180);
+            ctx.drawImage(el.video, -sw / 2, -sh / 2, sw, sh);
+            ctx.restore();
+
+            barcodes = await S.nativeBarcodeDetector.detect(S._rotCanvas);
+            if (barcodes.length > 0) {
+              const r = barcodes[0].rawValue;
+              if (r && r !== S.lockBarcode) handleBarcode(r);
+            }
           }
         }
       } catch (e) {

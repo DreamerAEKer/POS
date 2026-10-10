@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.51 (10/10/2026)', // Standard horizontal scan as default, vertical scan as on-demand alternative
+    VERSION: '0.99.53 (10/10/2026)', // Enhanced horizontal scanning precision, sweep animation & camera constraints
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -3959,7 +3959,16 @@ const App = {
         empty.classList.add('hidden');
         video.style.display = 'block';
         App.setCameraScannerStatus('กำลังเปิดกล้อง...');
-        const constraints = { video: { facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user', width: { ideal: 1280, max: 1920 }, height: { ideal: 720, max: 1080 } }, audio: false };
+        const constraints = {
+            video: {
+                facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user',
+                width: { ideal: 1920, min: 1280 },
+                height: { ideal: 1080, min: 720 },
+                focusMode: { ideal: 'continuous' },
+                advanced: [{ focusMode: 'continuous' }]
+            },
+            audio: false
+        };
         try {
             if ('BarcodeDetector' in window) {
                 scanner.detector ||= new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] });
@@ -3987,12 +3996,19 @@ const App = {
                     window.ZXing.BarcodeFormat.ITF,
                     window.ZXing.BarcodeFormat.QR_CODE
                 ]);
+                hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true);
             }
             scanner.reader = new ZXing.BrowserMultiFormatReader(hints);
             App.setCameraScannerStatus('พร้อมสแกน', 'ok');
-            await scanner.reader.decodeFromConstraints(constraints, 'camera-scanner-video', (result) => {
-                if (result && scanner.active) App.acceptCameraBarcode(result.getText());
-            });
+            if (typeof scanner.reader.decodeFromConstraints === 'function') {
+                await scanner.reader.decodeFromConstraints(constraints, 'camera-scanner-video', (result) => {
+                    if (result && scanner.active) App.acceptCameraBarcode(result.getText());
+                });
+            } else {
+                await scanner.reader.decodeFromVideoDevice(undefined, 'camera-scanner-video', (result) => {
+                    if (result && scanner.active) App.acceptCameraBarcode(result.getText());
+                });
+            }
         } catch (error) {
             console.error('Camera scanner error:', error);
             video.style.display = 'none';
@@ -4053,8 +4069,42 @@ const App = {
         scanner.detectingNow = true;
         try {
             if (video.readyState >= 2 && video.videoWidth > 0) {
-                const results = await scanner.detector.detect(video);
-                if (results && results[0]?.rawValue) await App.acceptCameraBarcode(results[0].rawValue);
+                // 1. Direct detection on video frame
+                let results = await scanner.detector.detect(video);
+                if (results && results[0]?.rawValue) {
+                    await App.acceptCameraBarcode(results[0].rawValue);
+                } else {
+                    // 2. Dual-angle fallback: rotate 90 deg via offscreen canvas
+                    // This guarantees reading horizontal 1D barcodes on mobile devices where
+                    // the camera sensor is portrait and BarcodeDetector fails on 1D horizontal bars
+                    if (!scanner._rotCanvas) {
+                        scanner._rotCanvas = document.createElement('canvas');
+                        scanner._rotCtx = scanner._rotCanvas.getContext('2d', { willReadFrequently: true });
+                    }
+                    const vw = video.videoWidth;
+                    const vh = video.videoHeight;
+                    // Scale down for speed (max 720px)
+                    const maxDim = 720;
+                    const scale = Math.min(1, maxDim / Math.max(vw, vh));
+                    const sw = Math.round(vw * scale);
+                    const sh = Math.round(vh * scale);
+                    
+                    if (scanner._rotCanvas.width !== sh || scanner._rotCanvas.height !== sw) {
+                        scanner._rotCanvas.width = sh;
+                        scanner._rotCanvas.height = sw;
+                    }
+                    const ctx = scanner._rotCtx;
+                    ctx.save();
+                    ctx.translate(sh / 2, sw / 2);
+                    ctx.rotate(90 * Math.PI / 180);
+                    ctx.drawImage(video, -sw / 2, -sh / 2, sw, sh);
+                    ctx.restore();
+
+                    results = await scanner.detector.detect(scanner._rotCanvas);
+                    if (results && results[0]?.rawValue) {
+                        await App.acceptCameraBarcode(results[0].rawValue);
+                    }
+                }
             }
         } catch (_) {}
         finally {
