@@ -1032,7 +1032,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.55 (10/10/2026)', // Add catalog navigation toolbar & safe return to POS
+    VERSION: '0.99.56 (10/10/2026)', // Optical 1:1 ROI crop for instant barcode detection
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -4179,16 +4179,15 @@ const App = {
             if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
                 const vw = video.videoWidth;
                 const vh = video.videoHeight;
+                const stage = document.querySelector('.camera-scanner-stage');
+                const stageW = stage?.clientWidth || 390;
+                const stageH = stage?.clientHeight || 360;
+                const isVerticalMode = stage?.classList.contains('vertical-scan');
 
-                // Scale down frame for fast 60fps processing
-                const maxDim = 640;
-                const scale = Math.min(1, maxDim / Math.max(vw, vh));
-                const sw = Math.round(vw * scale);
-                const sh = Math.round(vh * scale);
-
-                // Helper to decode a canvas using BarcodeDetector or ZXing
+                // Helper to decode a canvas using native BarcodeDetector or ZXing
                 const decodeCanvas = async (canvas) => {
-                    // 1. Native BarcodeDetector (Android/Chrome)
+                    if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
+                    // 1. Native BarcodeDetector (Chrome/Android)
                     if (scanner.detector) {
                         try {
                             const results = await scanner.detector.detect(canvas);
@@ -4197,7 +4196,7 @@ const App = {
                             }
                         } catch (_) {}
                     }
-                    // 2. ZXing MultiFormatReader (iOS Safari and universal fallback)
+                    // 2. ZXing MultiFormatReader (iOS Safari & fallback)
                     if (scanner.zxingMultiReader && window.ZXing) {
                         try {
                             const lum = new window.ZXing.HTMLCanvasElementLuminanceSource(canvas);
@@ -4215,43 +4214,84 @@ const App = {
                     return null;
                 };
 
-                // Prepare rotated canvas (90 deg clockwise)
-                // When phone is in portrait orientation, a product held horizontally has horizontal bars
-                // in the camera sensor frame. Rotating 90 deg turns bars VERTICAL so 1D decoders scan them!
-                if (!scanner._canvasRot) {
-                    scanner._canvasRot = document.createElement('canvas');
-                    scanner._ctxRot = scanner._canvasRot.getContext('2d', { willReadFrequently: true });
-                }
-                if (scanner._canvasRot.width !== sh || scanner._canvasRot.height !== sw) {
-                    scanner._canvasRot.width = sh;
-                    scanner._canvasRot.height = sw;
-                }
-                const ctxRot = scanner._ctxRot;
-                ctxRot.save();
-                ctxRot.translate(sh / 2, sw / 2);
-                ctxRot.rotate(90 * Math.PI / 180);
-                ctxRot.drawImage(video, -sw / 2, -sh / 2, sw, sh);
-                ctxRot.restore();
+                // Compute exact optical Region of Interest (ROI) corresponding to the viewfinder frame
+                const scale = Math.max(stageW / vw, stageH / vh);
+                const dispW = vw * scale;
+                const dispH = vh * scale;
+                const offsetX = (dispW - stageW) / 2;
+                const offsetY = (dispH - stageH) / 2;
 
-                // Prepare normal unrotated canvas (0 deg)
-                if (!scanner._canvasNorm) {
-                    scanner._canvasNorm = document.createElement('canvas');
-                    scanner._ctxNorm = scanner._canvasNorm.getContext('2d', { willReadFrequently: true });
-                }
-                if (scanner._canvasNorm.width !== sw || scanner._canvasNorm.height !== sh) {
-                    scanner._canvasNorm.width = sw;
-                    scanner._canvasNorm.height = sh;
-                }
-                scanner._ctxNorm.drawImage(video, 0, 0, sw, sh);
+                const frameW = isVerticalMode ? 140 : Math.min(stageW * 0.88, 380);
+                const frameH = isVerticalMode ? stageH * 0.76 : 200;
+                const frameX = (stageW - frameW) / 2;
+                const frameY = (stageH - frameH) / 2;
 
-                // Priority: In default horizontal mode, rotated canvas matches horizontal barcodes!
-                const isVerticalMode = document.querySelector('.camera-scanner-stage')?.classList.contains('vertical-scan');
-                const firstCanvas = isVerticalMode ? scanner._canvasNorm : scanner._canvasRot;
-                const secondCanvas = isVerticalMode ? scanner._canvasRot : scanner._canvasNorm;
+                // Add 15% padding so barcodes slightly outside the frame are captured
+                const padW = frameW * 0.15;
+                const padH = frameH * 0.15;
 
-                let code = await decodeCanvas(firstCanvas);
+                const roiXInDisp = Math.max(0, frameX - padW + offsetX);
+                const roiYInDisp = Math.max(0, frameY - padH + offsetY);
+                const roiWInDisp = frameW + padW * 2;
+                const roiHInDisp = frameH + padH * 2;
+
+                // Convert to raw camera sensor pixels (at native 1:1 optical resolution!)
+                const cropX = Math.max(0, Math.round(roiXInDisp / scale));
+                const cropY = Math.max(0, Math.round(roiYInDisp / scale));
+                const cropW = Math.min(vw - cropX, Math.round(roiWInDisp / scale));
+                const cropH = Math.min(vh - cropY, Math.round(roiHInDisp / scale));
+
+                // 1. High-Resolution Normal Crop Canvas (0 deg)
+                if (!scanner._canvasCrop) {
+                    scanner._canvasCrop = document.createElement('canvas');
+                    scanner._ctxCrop = scanner._canvasCrop.getContext('2d', { willReadFrequently: true });
+                }
+                if (scanner._canvasCrop.width !== cropW || scanner._canvasCrop.height !== cropH) {
+                    scanner._canvasCrop.width = cropW;
+                    scanner._canvasCrop.height = cropH;
+                }
+                scanner._ctxCrop.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+                // Pass 1: Test high-res crop (Normal 0°) - matches standard upright products (like cans and boxes)
+                let code = await decodeCanvas(scanner._canvasCrop);
+
+                // Pass 2: If not found, test high-res crop rotated 90° (matches rotated barcodes / pouches)
                 if (!code) {
-                    code = await decodeCanvas(secondCanvas);
+                    if (!scanner._canvasCropRot) {
+                        scanner._canvasCropRot = document.createElement('canvas');
+                        scanner._ctxCropRot = scanner._canvasCropRot.getContext('2d', { willReadFrequently: true });
+                    }
+                    if (scanner._canvasCropRot.width !== cropH || scanner._canvasCropRot.height !== cropW) {
+                        scanner._canvasCropRot.width = cropH;
+                        scanner._canvasCropRot.height = cropW;
+                    }
+                    const ctxRot = scanner._ctxCropRot;
+                    ctxRot.save();
+                    ctxRot.translate(cropH / 2, cropW / 2);
+                    ctxRot.rotate(90 * Math.PI / 180);
+                    ctxRot.drawImage(scanner._canvasCrop, -cropW / 2, -cropH / 2);
+                    ctxRot.restore();
+
+                    code = await decodeCanvas(scanner._canvasCropRot);
+                }
+
+                // Pass 3 (Fallback): If still not found, check full-frame (for barcodes outside the box)
+                if (!code && (!scanner._lastFullFrameAt || Date.now() - scanner._lastFullFrameAt > 200)) {
+                    scanner._lastFullFrameAt = Date.now();
+                    const maxDim = 800;
+                    const fScale = Math.min(1, maxDim / Math.max(vw, vh));
+                    const fsw = Math.round(vw * fScale);
+                    const fsh = Math.round(vh * fScale);
+                    if (!scanner._canvasFull) {
+                        scanner._canvasFull = document.createElement('canvas');
+                        scanner._ctxFull = scanner._canvasFull.getContext('2d', { willReadFrequently: true });
+                    }
+                    if (scanner._canvasFull.width !== fsw || scanner._canvasFull.height !== fsh) {
+                        scanner._canvasFull.width = fsw;
+                        scanner._canvasFull.height = fsh;
+                    }
+                    scanner._ctxFull.drawImage(video, 0, 0, fsw, fsh);
+                    code = await decodeCanvas(scanner._canvasFull);
                 }
 
                 if (code) {
@@ -4265,7 +4305,7 @@ const App = {
         }
 
         if (scanner.active && scanner.detecting) {
-            scanner.detectionTimer = setTimeout(App.detectCameraBarcode, 35);
+            scanner.detectionTimer = setTimeout(App.detectCameraBarcode, 30);
         }
     },
 
