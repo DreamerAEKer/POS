@@ -142,6 +142,7 @@ const App = {
             App.setupCartActions();
             App.setupCameraScanner();
             App.setupScannerPriceCheckMode();
+            App.setupSpeechSynthesis();
 
             // Initial Render
             App.renderView('pos');
@@ -1032,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.56 (10/10/2026)', // Optical 1:1 ROI crop for instant barcode detection
+    VERSION: '0.99.57 (13/10/2026)', // Enable voice price speech on scan and optimize speech synthesis for iOS
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -1093,7 +1094,7 @@ const App = {
         } else if (feature === 'voicePrice') {
             await DB.saveSettings({ voicePriceSpeechEnabled: enabled });
             App.updateVoicePriceButton();
-            if (enabled) App.speakPrice(10);
+            if (enabled) App.speakPrice(10, true);
         }
     },
 
@@ -4014,6 +4015,9 @@ const App = {
             await App.alert('ปิดการใช้กล้องไว้ในเมนูบัญชี\nแตะแถบบัญชีแล้วเปิด “กล้องสแกนบาร์โค้ด” ก่อน');
             return;
         }
+        if ('speechSynthesis' in window) {
+            try { if (window.speechSynthesis.paused) window.speechSynthesis.resume(); } catch (_) {}
+        }
         try {
             if (screen.orientation && screen.orientation.lock) {
                 screen.orientation.lock('portrait').catch(() => {});
@@ -4346,31 +4350,68 @@ const App = {
         } catch (_) {}
     },
 
+    setupSpeechSynthesis: () => {
+        App.updateVoicePriceButton();
+        if (!('speechSynthesis' in window)) return;
+        const synth = window.speechSynthesis;
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = () => {
+                try { synth.getVoices(); } catch (_) {}
+            };
+        }
+        // One-time user gesture unlock for iOS Safari / WebKit audio engine
+        const unlock = () => {
+            try {
+                if (synth.paused) synth.resume();
+                const dummy = new SpeechSynthesisUtterance('');
+                dummy.volume = 0;
+                synth.speak(dummy);
+            } catch (_) {}
+        };
+        document.addEventListener('click', unlock, { capture: true, once: true, passive: true });
+        document.addEventListener('touchstart', unlock, { capture: true, once: true, passive: true });
+    },
+
     speakPrice: (price, force = false) => {
         if (DB.getSettings().voicePriceSpeechEnabled === false) return;
         if (!('speechSynthesis' in window)) return;
         
-        // Mute voice speech whenever in POS selling view/mode (unless forced by price-check tools)
         if (!force) {
-            const isPosSellingView = (App.state.currentView === 'pos' || document.getElementById('view-pos')?.classList.contains('active')) && !DB.getSettings().scannerPriceCheckMode;
-            const rightPanel = document.getElementById('right-panel');
-            const isCartOpen = rightPanel && rightPanel.classList.contains('open');
             const paymentModal = document.getElementById('payment-modal');
             const isPaymentOpen = paymentModal && !paymentModal.classList.contains('hidden');
-            if (isPosSellingView || isCartOpen || isPaymentOpen) return;
+            if (isPaymentOpen) return;
         }
 
         try {
-            window.speechSynthesis.cancel();
+            const synth = window.speechSynthesis;
+            if (synth.paused) synth.resume();
+            synth.cancel();
+
             const num = Number(price) || 0;
             const text = `${num % 1 === 0 ? num : Utils.formatCurrency(num)} บาท`;
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'th-TH';
-            utterance.rate = 1.05;
-            const voices = window.speechSynthesis.getVoices();
-            const thaiVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('th'));
-            if (thaiVoice) utterance.voice = thaiVoice;
-            window.speechSynthesis.speak(utterance);
+
+            clearTimeout(App._speechTimer);
+            App._speechTimer = setTimeout(() => {
+                try {
+                    if (synth.paused) synth.resume();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'th-TH';
+                    utterance.rate = 1.05;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+
+                    const voices = synth.getVoices ? synth.getVoices() : [];
+                    const thaiVoice = voices.find(v => v.lang && (v.lang.toLowerCase().startsWith('th') || v.lang.toLowerCase().includes('th-th') || v.lang.toLowerCase().includes('th_th')));
+                    if (thaiVoice) utterance.voice = thaiVoice;
+
+                    // Keep a global reference to prevent GC cutting speech short on mobile/Safari
+                    App._currentPriceUtterance = utterance;
+                    utterance.onend = () => { if (App._currentPriceUtterance === utterance) App._currentPriceUtterance = null; };
+                    utterance.onerror = () => { if (App._currentPriceUtterance === utterance) App._currentPriceUtterance = null; };
+
+                    synth.speak(utterance);
+                } catch (_) {}
+            }, 50);
         } catch (_) {}
     },
 
