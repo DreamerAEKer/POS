@@ -17,6 +17,8 @@ assert(indexHtml.includes(`styles.css?v=${versionJson.version}`), 'index.html st
 assert(appCode.includes('setupSpeechSynthesis:'), 'App must have setupSpeechSynthesis');
 assert(!appCode.includes('if (isPosSellingView || isCartOpen || isPaymentOpen) return;'), 'POS selling view must NOT mute voice price reading');
 assert(appCode.includes("App.speakPrice(10, true);"), 'setMediaAccess voicePrice must force test audio');
+assert(appCode.includes('openStreamWithTimeout'), 'Camera must have timeout protection for POS devices');
+assert(appCode.includes('Primary camera constraints failed or timed out'), 'Camera must have compatible fallback');
 
 // 3. Behavioral test in simulated DOM/browser context
 let spoken = [];

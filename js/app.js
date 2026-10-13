@@ -4083,9 +4083,42 @@ const App = {
                 await App.loadZXing();
             }
 
-            scanner.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            // Attempt primary high-resolution constraints with a graceful fallback for specialized POS devices (like Sunmi V3)
+            let stream = null;
+            const openStreamWithTimeout = (c, timeoutMs = 3200) => {
+                return new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('CameraTimeout')), timeoutMs);
+                    navigator.mediaDevices.getUserMedia(c)
+                        .then(s => { clearTimeout(timer); resolve(s); })
+                        .catch(err => { clearTimeout(timer); reject(err); });
+                });
+            };
+
+            try {
+                stream = await openStreamWithTimeout(constraints, 3200);
+            } catch (primaryErr) {
+                console.warn('Primary camera constraints failed or timed out, trying compatible fallback:', primaryErr);
+                try {
+                    // Fallback 1: Keep requested facingMode without rigid min resolution or focus constraints
+                    stream = await openStreamWithTimeout({
+                        video: { facingMode: scanner.facingEnvironment ? { ideal: 'environment' } : 'user' },
+                        audio: false
+                    }, 2500);
+                } catch (_) {
+                    // Fallback 2: Any default video device supported by the hardware
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                }
+            }
+
+            if (!scanner.active) {
+                if (stream) stream.getTracks().forEach(t => t.stop());
+                return;
+            }
+
+            scanner.stream = stream;
             video.srcObject = scanner.stream;
             video.setAttribute('playsinline', 'true');
+            video.muted = true;
             await video.play();
 
             // Prepare native BarcodeDetector if available
