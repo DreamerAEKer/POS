@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.57 (13/10/2026)', // Enable voice price speech on scan and optimize speech synthesis for iOS
+    VERSION: '0.99.58 (26/10/2026)', // Fix rapid duplicate camera scan loop in price-check mode
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -4210,6 +4210,11 @@ const App = {
         const video = document.getElementById('camera-scanner-video');
         if (!scanner.active || !scanner.detecting) return;
         if (scanner.detectingNow) return;
+        const modalOverlay = document.getElementById('modal-overlay');
+        if (modalOverlay && !modalOverlay.classList.contains('hidden')) {
+            scanner.detectionTimer = setTimeout(App.detectCameraBarcode, 150);
+            return;
+        }
         scanner.detectingNow = true;
 
         try {
@@ -7225,7 +7230,7 @@ const App = {
         item.qty += change;
         if (item.qty <= 0) App.state.priceCheckCart = App.state.priceCheckCart.filter(entry => entry.id !== productId);
         const product = App.state.products.find(entry => entry.id === productId) || item;
-        App.showScannerPriceResult(product, product.barcode || 'รายการด่วน');
+        App.showScannerPriceResult(product, product.barcode || 'รายการด่วน', { skipSpeech: true });
     },
 
     clearPriceCheckCart: () => {
@@ -7263,13 +7268,13 @@ const App = {
                     clearInterval(App._priceCheckTimer);
                     App._priceCheckTimer = null;
                 }
-                App.closeModals();
+                App.closeModals({ autoClosed: true });
             }
         }, 1000);
     },
 
     showScannerPriceResult: (product, barcode, options = {}) => {
-        App.closeModals();
+        App.closeModals({ preserveScannerCooldown: true });
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
         const unitLabel = product.unitLabel || 'ชิ้น';
@@ -7325,12 +7330,12 @@ const App = {
             </div>`;
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
-        App.speakPrice(price, true);
+        if (!options.skipSpeech) App.speakPrice(price, true);
         App.startPriceCheckCountdown(3);
     },
 
     showScannerPriceNotFound: (barcode) => {
-        App.closeModals();
+        App.closeModals({ preserveScannerCooldown: true });
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('price-check-modal');
         modal.className = 'modal scanner-price-result scanner-price-not-found';
@@ -7456,7 +7461,7 @@ const App = {
         });
     },
     
-    closeModals: () => {
+    closeModals: (options = {}) => {
         if (App._priceCheckTimer) {
             clearInterval(App._priceCheckTimer);
             App._priceCheckTimer = null;
@@ -7468,9 +7473,13 @@ const App = {
                 m.innerHTML = '';
             }
         });
-        if (App.state.cameraScanner.active) {
-            App.state.cameraScanner.lastCode = null;
-            App.state.cameraScanner.lastAt = 0;
+        if (App.state.cameraScanner.active && !options.preserveScannerCooldown) {
+            if (options.autoClosed) {
+                App.state.cameraScanner.lastAt = Date.now();
+            } else {
+                App.state.cameraScanner.lastCode = null;
+                App.state.cameraScanner.lastAt = 0;
+            }
             App.setCameraScannerStatus('พร้อมสแกน', 'ok');
         }
     },
