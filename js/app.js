@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.63 (26/10/2026)', // Move delivery/advance order button to Delivery section header
+    VERSION: '0.99.64 (26/10/2026)', // Move delivery/advance order button to Delivery section header
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -6550,7 +6550,20 @@ const App = {
     },
 
 
-    // --- Tables / Dine-in View ---
+    // --- Tables / Dine-in & Delivery View ---
+    formatDurationText: (startMs, endMs = Date.now()) => {
+        const s = Number(startMs) || 0;
+        const e = Number(endMs) || Date.now();
+        if (!s || e <= s) return 'เพิ่งเริ่ม';
+        const totalMins = Math.max(1, Math.round((e - s) / 60000));
+        const hrs = Math.floor(totalMins / 60);
+        const mins = totalMins % 60;
+        if (hrs > 0) {
+            return mins > 0 ? `${hrs} ชม. ${mins} น.` : `${hrs} ชม.`;
+        }
+        return `${mins} นาที`;
+    },
+
     renderTablesView: (container) => {
         const tables = DB.getTables();
         const parkedBills = DB.getParkedCarts();
@@ -6562,6 +6575,9 @@ const App = {
             <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin-bottom:15px;">
                 <h2 style="margin:0;">จัดการโต๊ะ (Dine-in)</h2>
                 <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <button class="primary-btn" onclick="App.openTableDeliveryHistoryModal('all', 'all')" style="display:flex; align-items:center; gap:5px; padding:8px 14px; background:#0f172a;">
+                        <span class="material-symbols-rounded">history</span> 📜 ประวัติโต๊ะ/ส่งย้อนหลัง
+                    </button>
                     <button class="secondary-btn" onclick="App.renderView('customers')" style="display:flex; align-items:center; gap:5px; padding:8px 12px;">
                         <span class="material-symbols-rounded">contacts</span> ลูกค้า/ประวัติ
                     </button>
@@ -6578,6 +6594,12 @@ const App = {
             const miniTallyPreview = isOccupied && activeBill.items.length > 0
                 ? activeBill.items.slice(0, 3).map(it => `${Utils.escapeHTML(it.name)} ${App.formatTableTallyExpression(it)}`).join(' • ')
                 : '';
+            const openedTimeStr = isOccupied && activeBill.timestamp
+                ? new Date(activeBill.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+                : '';
+            const sittingDur = isOccupied && activeBill.timestamp
+                ? App.formatDurationText(activeBill.timestamp, Date.now())
+                : '';
 
             return `
                         <div class="table-card ${isOccupied ? 'occupied' : ''}" onclick="App.handleTableClick(${table.id})" style="position:relative; box-sizing:border-box;">
@@ -6586,16 +6608,19 @@ const App = {
                                     <span class="material-symbols-rounded" style="font-size:16px;">close</span>
                                 </button>
                             ` : ''}
-                            <div style="font-size: 20px; font-weight: bold; margin-bottom: 5px;">${table.name}</div>
-                            <div style="font-size: 14px; color: ${isOccupied ? 'var(--primary-color)' : '#999'}; margin-bottom: 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">
-                                ${customerName}
+                            <div style="font-size: 20px; font-weight: bold; margin-bottom: 4px;">${table.name}</div>
+                            <div style="font-size: 14px; color: ${isOccupied ? 'var(--primary-color)' : '#999'}; margin-bottom: 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">
+                                ${Utils.escapeHTML(customerName)}
                             </div>
                             ${isOccupied ? `
+                                <div style="font-size:11px; color:#047857; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:99px; padding:2px 8px; margin-bottom:5px; font-weight:700;">
+                                    🟢 เริ่ม ${openedTimeStr} น. (${sittingDur})
+                                </div>
                                 ${miniTallyPreview ? `<div style="font-size: 11px; color:#5c4b37; background:#fffdf5; border:1px dashed #d4c5a9; border-radius:6px; padding:3px 6px; margin-bottom:5px; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📝 ${miniTallyPreview}</div>` : ''}
                                 <div style="font-size: 13px; margin-bottom: 5px; color:#555;">${itemCount} รายการ</div>
                                 <div style="font-size: 16px; font-weight: bold; color: var(--danger-color);">฿${Utils.formatCurrency(billTotal)}</div>
                                 <div style="margin-top: 5px; display: flex; justify-content: center;" onclick="event.stopPropagation()">
-                                    <button class="icon-btn small" onclick="App.editTableName(${table.id}, '${activeBill.note || ''}')" title="เปลี่ยนชื่อลูกค้า" style="padding:2px;">
+                                    <button class="icon-btn small" onclick="App.editTableName(${table.id}, '${Utils.escapeHTML(activeBill.note || '')}')" title="เปลี่ยนชื่อลูกค้า" style="padding:2px;">
                                         <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
                                     </button>
                                 </div>
@@ -6618,71 +6643,113 @@ const App = {
                     <h3 style="margin:0; display:flex; align-items:center; gap:5px; color:#e65100;">
                         <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง / นัดรับ (${deliveryBills.length})
                     </h3>
-                    <button class="primary-btn" onclick="App.openNewDeliveryModal()" style="display:flex; align-items:center; gap:5px; padding:8px 15px;">
-                        <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง/ล่วงหน้า
-                    </button>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="secondary-btn" onclick="App.openTableDeliveryHistoryModal('delivery', 'all')" style="display:flex; align-items:center; gap:4px; padding:8px 12px; font-size:13px;">
+                            <span class="material-symbols-rounded" style="font-size:18px;">history</span> ประวัติส่ง
+                        </button>
+                        <button class="primary-btn" onclick="App.openNewDeliveryModal()" style="display:flex; align-items:center; gap:5px; padding:8px 15px; background:#ea580c;">
+                            <span class="material-symbols-rounded">two_wheeler</span> + ออเดอร์ส่ง/ล่วงหน้า
+                        </button>
+                    </div>
                 </div>
-                ${deliveryBills.length === 0 ? '<div style="text-align:center; padding:20px; color:#999; border:1px dashed #ddd; border-radius:8px;">ไม่มีออเดอร์จัดส่งในขณะนี้</div>' : ''}
+                ${deliveryBills.length === 0 ? '<div style="text-align:center; padding:20px; color:#999; border:1px dashed #ddd; border-radius:8px;">ไม่มีออเดอร์จัดส่งในขณะนี้ — กดปุ่ม "+ ออเดอร์ส่ง/ล่วงหน้า" เพื่อเปิดกระดานจดออเดอร์ส่งได้เลย</div>' : ''}
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${deliveryBills.map(bill => {
             const timeDiff = new Date(bill.deliveryTime) - new Date();
             const minsLeft = Math.floor(timeDiff / 60000);
+            const isDispatched = Boolean(bill.dispatchedAt);
 
-            let statusColor = '#333';
+            let statusColor = '#1e293b';
             let statusBg = '#fff';
-            let statusBorder = '#eee';
+            let statusBorder = '#e2e8f0';
             let urgencyIcon = 'schedule';
 
-            if (minsLeft < 0) {
-                statusColor = 'white';
-                statusBg = '#e53935'; // Overdue - Red
-                statusBorder = '#b71c1c';
+            if (isDispatched) {
+                statusColor = '#065f46';
+                statusBg = '#ecfdf5';
+                statusBorder = '#6ee7b7';
+                urgencyIcon = 'two_wheeler';
+            } else if (minsLeft < 0) {
+                statusColor = '#991b1b';
+                statusBg = '#fef2f2';
+                statusBorder = '#fca5a5';
                 urgencyIcon = 'error';
             } else if (minsLeft <= 15) {
-                statusColor = '#8a6d3b';
-                statusBg = '#fcf8e3'; // Urgent - Yellow
-                statusBorder = '#faebcc';
+                statusColor = '#92400e';
+                statusBg = '#fffbeb';
+                statusBorder = '#fde68a';
                 urgencyIcon = 'warning';
             }
 
             const dDate = new Date(bill.deliveryTime);
             let timeStr = `${String(dDate.getHours()).padStart(2, '0')}:${String(dDate.getMinutes()).padStart(2, '0')}`;
 
-            // Show Date if it's not today
             const today = new Date();
             if (dDate.getDate() !== today.getDate() || dDate.getMonth() !== today.getMonth()) {
                 timeStr = `${dDate.getDate()}/${dDate.getMonth() + 1} ${timeStr}`;
             }
 
+            const orderTimeStr = new Date(bill.timestamp || Date.now()).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            const dispatchTimeStr = bill.dispatchedAt
+                ? new Date(bill.dispatchedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+                : '';
+
+            const billTotal = (bill.items || []).reduce((s, i) => s + App.calcItemTotal(i), 0);
+            const tallyPreview = (bill.items || []).length > 0
+                ? bill.items.slice(0, 4).map(it => `${Utils.escapeHTML(it.name)} (${App.formatTableTallyExpression(it)})`).join(' • ')
+                : 'ยังไม่ได้จดรายการสินค้า (แตะเพื่อจด)';
+
             return `
-                <div class="table-card" style="flex-direction:row; justify-content:space-between; padding:15px; border-color:${statusBorder}; background:${statusBg}; text-align:left; flex-wrap:wrap; gap:10px;">
-                    <div style="flex:1; min-width:200px;">
-                        <div style="font-weight:bold; font-size:18px; margin-bottom:5px; color:${statusColor};">
-                            ${bill.note || 'ไม่ระบุชื่อ'}
+                <div class="table-card" onclick="App.openDeliveryBillPad('${bill.id}')" style="flex-direction:row; justify-content:space-between; padding:14px 16px; border-color:${statusBorder}; background:${statusBg}; text-align:left; flex-wrap:wrap; gap:12px; cursor:pointer;">
+                    <div style="flex:1; min-width:220px;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+                            <span style="font-weight:900; font-size:18px; color:${statusColor};">
+                                🛵 ${Utils.escapeHTML(bill.note || 'ออเดอร์ส่ง (ยังไม่ระบุชื่อ)')}
+                            </span>
+                            ${isDispatched
+                                ? `<span style="background:#059669; color:#fff; font-size:11.5px; font-weight:800; padding:2px 8px; border-radius:99px;">🚀 ออกส่งแล้ว ${dispatchTimeStr} น.</span>`
+                                : `<span style="background:#ffedd5; color:#c2410c; font-size:11.5px; font-weight:800; padding:2px 8px; border-radius:99px;">⏳ รอจัดส่ง</span>`
+                            }
                         </div>
-                        <div style="font-size:14px; color:#666; margin-bottom:5px;">
-                            ${bill.items.length} รายการ - ฿${Utils.formatCurrency(bill.items.reduce((s, i) => s + (i.price * i.qty), 0))}
+
+                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:12px; color:#475569; margin-bottom:6px;">
+                            <span>📝 สั่งเมื่อ: <strong>${orderTimeStr} น.</strong></span>
+                            <span>• ⏰ นัดส่ง: <strong>${timeStr} น.</strong></span>
+                            ${isDispatched ? `<span>• 🛵 ออกส่ง: <strong style="color:#059669;">${dispatchTimeStr} น.</strong></span>` : ''}
                         </div>
-                        ${bill.deliveryDetails && bill.deliveryDetails.address ? `<div style="font-size:13px; color:#555; margin-bottom:5px; white-space:pre-wrap;"><span class="material-symbols-rounded" style="font-size:14px; vertical-align:middle;">location_on</span> ${bill.deliveryDetails.address}</div>` : ''}
+
+                        <div style="font-size:12.5px; color:#5c4b37; background:#fffdf5; border:1px dashed #d4c5a9; border-radius:8px; padding:5px 8px; margin-bottom:6px;">
+                            📝 ${tallyPreview}
+                        </div>
+
+                        <div style="font-size:15px; font-weight:800; color:#b45309; margin-bottom:4px;">
+                            ${(bill.items || []).length} รายการ — ยอดรวม ฿${Utils.formatCurrency(billTotal)}
+                        </div>
+
+                        ${bill.deliveryDetails && bill.deliveryDetails.address ? `<div style="font-size:13px; color:#334155; margin-bottom:4px; white-space:pre-wrap;"><span class="material-symbols-rounded" style="font-size:15px; vertical-align:middle; color:#ea580c;">location_on</span> ${Utils.escapeHTML(bill.deliveryDetails.address)}</div>` : ''}
                         ${(bill.deliveryDetails && bill.deliveryDetails.map) || (bill.deliveryDetails && bill.deliveryDetails.image) ? `
-                        <div style="display:flex; gap:5px; margin-top:8px;">
-                            ${bill.deliveryDetails && bill.deliveryDetails.map ? `<button class="secondary-btn" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:2px;" onclick="event.stopPropagation(); window.open('${bill.deliveryDetails.map}', '_blank')"><span class="material-symbols-rounded" style="font-size:14px;">map</span> แผนที่</button>` : ''}
-                            ${bill.deliveryDetails && bill.deliveryDetails.image ? `<button class="secondary-btn" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:2px;" onclick="event.stopPropagation(); App.showDeliveryImage('${bill.id}')"><span class="material-symbols-rounded" style="font-size:14px;">image</span> รูปสถานที่</button>` : ''}
+                        <div style="display:flex; gap:6px; margin-top:6px;">
+                            ${bill.deliveryDetails && bill.deliveryDetails.map ? `<button class="secondary-btn" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:3px;" onclick="event.stopPropagation(); window.open('${Utils.escapeHTML(bill.deliveryDetails.map)}', '_blank')"><span class="material-symbols-rounded" style="font-size:14px;">map</span> แผนที่</button>` : ''}
+                            ${bill.deliveryDetails && bill.deliveryDetails.image ? `<button class="secondary-btn" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:3px;" onclick="event.stopPropagation(); App.showDeliveryImage('${bill.id}')"><span class="material-symbols-rounded" style="font-size:14px;">image</span> รูปสถานที่</button>` : ''}
                         </div>` : ''}
                     </div>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-                        <div style="display:flex; align-items:center; gap:5px; font-weight:bold; color:${statusColor}; font-size:18px;">
-                            <span class="material-symbols-rounded" style="font-size:20px;">${urgencyIcon}</span> ${timeStr}
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; gap:8px;">
+                        <div style="display:flex; align-items:center; gap:5px; font-weight:900; color:${statusColor}; font-size:17px;">
+                            <span class="material-symbols-rounded" style="font-size:20px;">${urgencyIcon}</span> นัด ${timeStr}
                         </div>
-                        <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
-                            <button class="secondary-btn" style="padding:5px 10px; display:flex; align-items:center; gap:5px; background:#1da1f2; color:white; border:none;" onclick="event.stopPropagation(); App.shareDeliveryBill('${bill.id}')" title="แชร์ข้อมูลจัดส่ง">
-                                <span class="material-symbols-rounded" style="font-size:18px;">share</span>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;" onclick="event.stopPropagation()">
+                            <button class="primary-btn" style="padding:6px 11px; font-size:12.5px; display:flex; align-items:center; gap:4px; background:${isDispatched ? '#059669' : '#f59e0b'}; color:${isDispatched ? '#fff' : '#0f172a'};" onclick="App.toggleDeliveryDispatched('${bill.id}')" title="บันทึกเวลาออกส่ง">
+                                <span class="material-symbols-rounded" style="font-size:17px;">two_wheeler</span>
+                                ${isDispatched ? `ออกส่ง ${dispatchTimeStr}` : 'กดออกส่ง'}
                             </button>
-                            <button class="primary-btn" style="padding:5px 15px; display:flex; align-items:center; gap:5px;" onclick="event.stopPropagation(); App.restoreDelivery('${bill.id}')">
-                                <span class="material-symbols-rounded" style="font-size:20px;">shopping_cart_checkout</span> จัดการ
+                            <button class="primary-btn" style="padding:6px 12px; font-size:12.5px; display:flex; align-items:center; gap:4px; background:#0f172a;" onclick="App.openDeliveryBillPad('${bill.id}')">
+                                <span class="material-symbols-rounded" style="font-size:17px;">edit_note</span> จดออเดอร์/บิล
                             </button>
-                            <button class="secondary-btn" style="padding:5px 10px; display:flex; align-items:center; gap:5px; background:white; color:#c62828; border:1px solid #ef9a9a;" onclick="event.stopPropagation(); App.cancelDeliveryBill('${bill.id}')" title="ยกเลิกออเดอร์ส่ง">
-                                <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
+                            <button class="secondary-btn" style="padding:6px 9px; display:flex; align-items:center; gap:4px; background:#1da1f2; color:white; border:none;" onclick="App.shareDeliveryBill('${bill.id}')" title="แชร์ข้อมูลจัดส่ง">
+                                <span class="material-symbols-rounded" style="font-size:17px;">share</span>
+                            </button>
+                            <button class="secondary-btn" style="padding:6px 9px; display:flex; align-items:center; gap:4px; background:white; color:#c62828; border:1px solid #ef9a9a;" onclick="App.cancelDeliveryBill('${bill.id}')" title="ยกเลิกออเดอร์ส่ง">
+                                <span class="material-symbols-rounded" style="font-size:17px;">delete</span>
                             </button>
                         </div>
                     </div>
@@ -6716,206 +6783,220 @@ const App = {
     },
 
     openNewDeliveryModal: async () => {
-        // We need a customer name/phone and a time. 
-        // We can do this simply by creating an empty cart logic linked to delivery Time.
-        const title = "สร้างออเดอร์ส่ง/ล่วงหน้า";
-        App.closeModals();
+        // Unified Handwritten Bill Pad + 3D Effect Keys for Delivery Orders!
+        let pendingCartItems = null;
+        if (App.state.cart.length > 0) {
+            if (App.state.activeBill === null) {
+                pendingCartItems = JSON.parse(JSON.stringify(App.state.cart));
+            } else {
+                await App.safeReplaceCart();
+            }
+        }
 
-        let uploadedDeliveryImage = null;
+        const newBillId = DB.generateBillId();
+        const timestamp = Date.now();
+        const targetDate = new Date(timestamp + 30 * 60000); // Default scheduled +30 mins
 
-        const overlay = document.getElementById('modal-overlay');
-        const modal = document.getElementById('price-check-modal'); // reuse container
+        const deliveryDetails = {
+            address: '',
+            map: '',
+            image: null
+        };
 
-        // Helper: Format current time to input[type=time] default value
-        const now = new Date();
-        now.setMinutes(now.getMinutes() + 30); // Default to 30 mins from now
-        const hrs = String(now.getHours()).padStart(2, '0');
-        const mins = String(now.getMinutes()).padStart(2, '0');
-        const defaultTime = `${hrs}:${mins} `;
+        DB.parkCart([], 'ลูกค้าสั่งส่ง', timestamp, newBillId, targetDate.toISOString(), deliveryDetails, {
+            deletionLog: [],
+            dispatchedAt: null
+        });
 
-        modal.innerHTML = `
-            <h2>${title}</h2>
-            <div style="margin-top: 15px;">
-                <label style="display:block; margin-bottom:5px; font-weight:bold;">ชื่อลูกค้า / เบอร์โทร:</label>
-                <input type="text" id="delivery-name" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;" placeholder="เช่น คุณเอ 0812345678">
-            </div>
-            
-            <div style="margin-top: 15px;">
-                <label style="display:block; margin-bottom:5px; font-weight:bold;">เวลาจัดส่ง / นัดรับ <span style="font-size:14px; color:#e65100; font-weight:normal;">(กดที่ช่องเพื่อตั้งเวลา)</span>:</label>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="time" id="delivery-time" value="${defaultTime}" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; background-color:#fff; cursor:pointer; box-sizing:border-box;">
-                </div>
-            </div>
+        const session = App._ensureTableBillSession(newBillId);
+        if (!session) return;
+        App._tablePadState = {
+            tableId: session.table.id,
+            expandedTimeRows: {},
+            calculatedRows: {},
+            allCalculated: false,
+            quickSearch: '',
+            pendingCartItems,
+            editKeysMode: false,
+            showDeliveryDetailsForm: true
+        };
+        App.showTableDetailsModal(session.table, session.bill);
+    },
 
-            <div style="margin-top: 15px;">
-                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; background-color: #f9f9f9; padding: 12px; border-radius: 4px; border: 1px solid #ddd;">
-                    <input type="checkbox" id="delivery-date-toggle" style="width:24px; height:24px; cursor:pointer; accent-color: var(--primary-color);">
-                    <span style="font-weight:bold; color:#333; font-size:16px;">กำหนดวันที่ส่ง (ล่วงหน้าหลายวัน)</span>
-                </label>
-                <div id="delivery-date-container" style="display:none; margin-top:10px;">
-                    <label style="display:block; margin-bottom:5px; color:#666; font-weight:bold;">วันที่จัดส่ง <span style="font-size:14px; color:#e65100; font-weight:normal;">(กดที่ช่องเพื่อเลือกวันที่)</span>:</label>
-                    <input type="date" id="delivery-date" style="width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; background-color:#fff; cursor:pointer; box-sizing:border-box;">
-                </div>
-            </div>
+    openDeliveryBillPad: async (billId) => {
+        const bill = DB.getParkedCarts().find(b => String(b.id) === String(billId));
+        if (!bill) return;
 
-            <div style="margin-top: 15px;">
-                <label style="display:block; margin-bottom:5px; font-weight:bold;">ที่อยู่จัดส่ง:</label>
-                <div style="display:flex; gap:5px; align-items:flex-start;">
-                    <textarea id="delivery-address" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box; resize:vertical; min-height:80px;" placeholder="บ้านเลขที่, ถนน, ซอย, จุดสังเกต..."></textarea>
-                    <button class="secondary-btn" style="padding:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; height:80px; width:70px; background-color:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9;" onclick="const addr = document.getElementById('delivery-address').value; if(addr) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr), '_blank')" title="ค้นหาที่อยู่นี้บน Google Map">
-                        <span class="material-symbols-rounded" style="font-size:24px; margin-bottom:4px;">search</span>
-                        <span style="font-size:10px; line-height:1.2;">ค้นหาพิกัด</span>
-                    </button>
-                </div>
-            </div>
+        let pendingCartItems = null;
+        if (App.state.cart.length > 0 && (!App.state.activeBill || App.state.activeBill.id !== bill.id)) {
+            if (App.state.activeBill === null) {
+                pendingCartItems = JSON.parse(JSON.stringify(App.state.cart));
+            } else {
+                await App.safeReplaceCart();
+            }
+        }
 
-            <div style="margin-top: 15px;">
-                <label style="display:block; margin-bottom:5px; font-weight:bold;">ลิงก์ Google Map:</label>
-                <div style="display:flex; gap:5px;">
-                    <input type="url" id="delivery-map" style="flex:1; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;" placeholder="https://maps.app.goo.gl/...">
-                    <button class="secondary-btn" style="padding:0 15px;" onclick="if(document.getElementById('delivery-map').value) window.open(document.getElementById('delivery-map').value, '_blank')" title="เปิดแผนที่">
-                        <span class="material-symbols-rounded">map</span>
-                    </button>
-                </div>
-            </div>
+        const session = App._ensureTableBillSession(billId);
+        if (!session) return;
+        App._tablePadState = {
+            tableId: session.table.id,
+            expandedTimeRows: {},
+            calculatedRows: {},
+            allCalculated: false,
+            quickSearch: '',
+            pendingCartItems,
+            editKeysMode: false,
+            showDeliveryDetailsForm: Boolean(!bill.deliveryDetails?.address && (!bill.items || bill.items.length === 0))
+        };
+        App.showTableDetailsModal(session.table, session.bill);
+    },
 
-            <div style="margin-top: 15px;">
-                <label style="display:block; margin-bottom:5px; font-weight:bold;">ภาพสถานที่ส่ง (ถ้ามี):</label>
-                <input type="file" id="delivery-image-input" accept="image/*" style="display:none;">
-                <div id="delivery-image-preview" style="width: 100%; min-height: 120px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #888; cursor: pointer; background-size: contain; background-repeat: no-repeat; background-position: center; overflow: hidden; position: relative;" onclick="document.getElementById('delivery-image-input').click()">
-                    <div id="delivery-image-placeholder" style="text-align: center; pointer-events: none;">
-                        <span class="material-symbols-rounded" style="font-size: 32px; display: block;">add_a_photo</span>
-                        <span style="font-size: 14px;">แตะเพื่อเพิ่มรูปภาพ</span>
+    toggleDeliveryInfoForm: (billId) => {
+        App._tablePadState ||= { tableId: billId, expandedTimeRows: {}, calculatedRows: {} };
+        App._tablePadState.showDeliveryDetailsForm = !App._tablePadState.showDeliveryDetailsForm;
+        const session = App._ensureTableBillSession(billId);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    saveDeliveryDetailsFromPad: (billId) => {
+        const session = App._ensureTableBillSession(billId);
+        if (!session) return;
+        const { table, bill } = session;
+
+        const nameEl = document.getElementById('dp-customer-name');
+        const dtEl = document.getElementById('dp-scheduled-dt');
+        const addrEl = document.getElementById('dp-address');
+        const mapEl = document.getElementById('dp-map');
+
+        if (nameEl) {
+            bill.note = String(nameEl.value || '').trim() || 'ลูกค้าสั่งส่ง';
+            table.name = bill.note;
+        }
+        if (dtEl && dtEl.value) {
+            const parsed = new Date(dtEl.value);
+            if (!Number.isNaN(parsed.getTime())) {
+                bill.deliveryTime = parsed.toISOString();
+            }
+        }
+        bill.deliveryDetails ||= { address: '', map: '', image: null };
+        if (addrEl) bill.deliveryDetails.address = String(addrEl.value || '').trim();
+        if (mapEl) bill.deliveryDetails.map = String(mapEl.value || '').trim();
+
+        App._saveTableBillSession(table.id, bill);
+    },
+
+    uploadDeliveryPadImage: async (billId, inputEl) => {
+        const file = inputEl?.files?.[0];
+        if (!file) return;
+        const session = App._ensureTableBillSession(billId);
+        if (!session) return;
+        const { table, bill } = session;
+        try {
+            const raw = await Utils.fileToBase64(file);
+            const compressed = Utils.compressImage ? await Utils.compressImage(raw, 600, 0.7) : raw;
+            bill.deliveryDetails ||= { address: '', map: '', image: null };
+            bill.deliveryDetails.image = compressed;
+            App._saveTableBillSession(table.id, bill);
+            App.showTableDetailsModal(table, bill);
+        } catch (err) {
+            console.error(err);
+        }
+    },
+
+    toggleDeliveryDispatched: async (billId) => {
+        const session = App._ensureTableBillSession(billId);
+        if (!session) return;
+        const { table, bill } = session;
+        if (!bill.dispatchedAt) {
+            bill.dispatchedAt = Date.now();
+            App.playScanFeedback(true);
+        } else {
+            const action = await App.confirm(
+                `ออเดอร์นี้บันทึกเวลาออกส่งไว้เมื่อ ${new Date(bill.dispatchedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.\n\nต้องการอัปเดตเวลาออกส่งเป็นตอนนี้ หรือยกเลิกสถานะออกส่ง?\n(กด ตกลง = ยกเลิกสถานะออกส่งเพื่อกดใหม่)`,
+                'สถานะการออกส่ง'
+            );
+            if (!action) return;
+            bill.dispatchedAt = null;
+        }
+        App._saveTableBillSession(table.id, bill);
+        const modal = document.getElementById('table-detail-modal');
+        if (modal && !modal.classList.contains('hidden') && App._tablePadState && String(App._tablePadState.tableId) === String(billId)) {
+            App.showTableDetailsModal(table, bill);
+        }
+    },
+
+    pickPastCustomerForDelivery: (billId) => {
+        const customers = DB.getCustomers ? DB.getCustomers() : [];
+        const orders = DB.getOrders ? DB.getOrders() : [];
+        // Merge past delivery orders customer info
+        const pastList = [...customers];
+        orders.filter(o => o.deliveryTime || o.deliveryDetails || o.orderType === 'delivery').forEach(o => {
+            const label = (o.note || '').trim();
+            if (!label || label === 'ลูกค้าสั่งส่ง') return;
+            if (!pastList.some(c => (c.name || '').toLowerCase() === label.toLowerCase())) {
+                pastList.push({
+                    id: 'HIST-' + o.id,
+                    name: label,
+                    phone: '',
+                    address: o.deliveryDetails?.address || '',
+                    mapLink: o.deliveryDetails?.map || '',
+                    image: o.deliveryDetails?.image || null
+                });
+            }
+        });
+
+        if (pastList.length === 0) {
+            App.alert('ยังไม่มีประวัติลูกค้าเดิมในระบบ');
+            return;
+        }
+
+        const existingOverlay = document.getElementById('pick-customer-overlay');
+        if (existingOverlay) existingOverlay.remove();
+
+        const html = `
+            <div id="pick-customer-overlay" style="position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:32000; display:flex; align-items:center; justify-content:center; padding:12px;">
+                <div style="background:#fff; width:100%; max-width:460px; max-height:82vh; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.35);">
+                    <div style="padding:14px 16px; background:#0f172a; color:#fff; display:flex; justify-content:space-between; align-items:center;">
+                        <strong style="font-size:16px;">👤 เลือกลูกค้าประจำ / ประวัติจัดส่งเดิม</strong>
+                        <button type="button" onclick="document.getElementById('pick-customer-overlay').remove()" style="background:transparent; border:none; color:#fff; cursor:pointer;">
+                            <span class="material-symbols-rounded">close</span>
+                        </button>
+                    </div>
+                    <div style="padding:12px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+                        ${pastList.slice(0, 30).map((c, idx) => `
+                            <button type="button" onclick="App.applyCustomerToDeliveryPad('${billId}', ${idx})" style="text-align:left; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px 12px; cursor:pointer;">
+                                <div style="font-weight:800; font-size:15px; color:#0f172a;">${Utils.escapeHTML(c.name || '')} ${c.phone ? '• ' + Utils.escapeHTML(c.phone) : ''}</div>
+                                ${c.address ? `<div style="font-size:12.5px; color:#475569; margin-top:2px;">📍 ${Utils.escapeHTML(c.address)}</div>` : ''}
+                            </button>
+                        `).join('')}
                     </div>
                 </div>
             </div>
-
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="secondary-btn" style="flex:1;" onclick="App.closeModals()">ยกเลิก</button>
-                <button class="primary-btn" style="flex:1; background:#1da1f2;" id="btn-share-delivery" title="แชร์/คัดลอก ข้อมูลจัดส่ง"><span class="material-symbols-rounded" style="vertical-align:middle; font-size:18px;">share</span> แชร์</button>
-                <button class="primary-btn" style="flex:2;" id="btn-confirm-delivery">เริ่มออเดอร์</button>
-            </div>
         `;
+        App._tempPastCustomersList = pastList.slice(0, 30);
+        document.body.insertAdjacentHTML('beforeend', html);
+    },
 
-        overlay.classList.remove('hidden');
-        modal.classList.remove('hidden');
-
-        const dateToggle = document.getElementById('delivery-date-toggle');
-        const dateContainer = document.getElementById('delivery-date-container');
-        const dateInput = document.getElementById('delivery-date');
-
-        dateToggle.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                dateContainer.style.display = 'block';
-            } else {
-                dateContainer.style.display = 'none';
-                dateInput.value = ''; // Clear value when hidden
-            }
-        });
-
-        document.getElementById('delivery-name').focus();
-
-        document.getElementById('delivery-image-input').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    uploadedDeliveryImage = ev.target.result;
-                    const preview = document.getElementById('delivery-image-preview');
-                    const placeholder = document.getElementById('delivery-image-placeholder');
-                    preview.style.backgroundImage = `url(${ev.target.result})`;
-                    placeholder.style.display = 'none';
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        const shareBtn = document.getElementById('btn-share-delivery');
-        if (shareBtn) {
-            shareBtn.addEventListener('click', async () => {
-                const name = document.getElementById('delivery-name').value.trim();
-                const time = document.getElementById('delivery-time').value;
-                const dateVal = document.getElementById('delivery-date').value;
-                const addr = document.getElementById('delivery-address').value.trim();
-                const mapLink = document.getElementById('delivery-map').value.trim();
-
-                let text = `ออเดอร์ส่ง: ${name || 'ไม่ระบุชื่อ'}\nเวลา: ${time}`;
-                if (dateVal) text += `\nวันที่: ${dateVal}`;
-                if (addr) text += `\nที่อยู่: ${addr}`;
-                if (mapLink) text += `\nแผนที่: ${mapLink}`;
-
-                if (navigator.share) {
-                    try {
-                        await navigator.share({ title: 'ข้อมูลจัดส่ง', text: text });
-                    } catch (err) { console.log('Share canceled', err); }
-                } else {
-                    navigator.clipboard.writeText(text);
-                    alert('คัดลอกข้อมูลจัดส่งแล้ว');
-                }
-            });
-        }
-
-        document.getElementById('btn-confirm-delivery').addEventListener('click', async () => {
-            const name = document.getElementById('delivery-name').value.trim();
-            const dateVal = document.getElementById('delivery-date').value;
-            const timeVal = document.getElementById('delivery-time').value;
-
-            if (!name || !timeVal) {
-                alert('กรุณากรอกชื่อลูกค้าและเวลานัดรับ');
-                return;
-            }
-
-            // Create target Date object based on today + timeVal
-            const targetDate = dateVal ? new Date(dateVal) : new Date();
-            const [tHrs, tMins] = timeVal.split(':').map(Number);
-            targetDate.setHours(tHrs, tMins, 0, 0);
-
-            // If no date was selected and time is earlier than now, assume it's for tomorrow.
-            if (!dateVal && targetDate < new Date()) {
-                targetDate.setDate(targetDate.getDate() + 1);
-            }
-
-            // check if cart has items
-            if (App.state.cart.length > 0) {
-                if (!await App.confirm('ตะกร้าปัจจุบันมีสินค้า ต้องการเอาสินค้าเหล่านี้ไปเข้าออเดอร์นี้หรือไม่?\\n(ตอบ ยกเลิก เพื่อล้างตะกร้าก่อนเปิดออเดอร์)')) {
-                    App.state.cart = [];
-                }
-            }
-
-            const newBillId = DB.generateBillId();
-            const timestamp = Date.now();
-
-            const addr = document.getElementById('delivery-address').value.trim();
-            const mapLink = document.getElementById('delivery-map').value.trim();
-
-            const deliveryDetails = {
-                address: addr,
-                map: mapLink,
-                image: uploadedDeliveryImage
-            };
-
-            // Park immediately
-            DB.parkCart(App.state.cart, name, timestamp, newBillId, targetDate.toISOString(), deliveryDetails);
-
-            App.state.activeBill = {
-                id: newBillId,
-                note: name,
-                timestamp: timestamp,
-                deliveryTime: targetDate.toISOString(),
-                deliveryDetails: deliveryDetails // active state metadata
-            };
-
-            App.closeModals();
-            App.renderCart();
-            App.updateParkedBadge();
-            App.renderView('pos');
-            if (window.innerWidth <= 1024) App.toggleMobileCart(true);
-        });
+    applyCustomerToDeliveryPad: (billId, idx) => {
+        const c = App._tempPastCustomersList?.[idx];
+        document.getElementById('pick-customer-overlay')?.remove();
+        if (!c) return;
+        const session = App._ensureTableBillSession(billId);
+        if (!session) return;
+        const { table, bill } = session;
+        bill.note = c.phone ? `${c.name} ${c.phone}`.trim() : c.name;
+        table.name = bill.note;
+        bill.deliveryDetails ||= { address: '', map: '', image: null };
+        if (c.address) bill.deliveryDetails.address = c.address;
+        if (c.mapLink) bill.deliveryDetails.map = c.mapLink;
+        if (c.image) bill.deliveryDetails.image = c.image;
+        App._saveTableBillSession(table.id, bill);
+        App.showTableDetailsModal(table, bill);
     },
 
     showDeliveryImage: (billId) => {
         const parkedBills = DB.getParkedCarts();
-        const bill = parkedBills.find(b => b.id === billId);
+        const bill = parkedBills.find(b => b.id === billId) || (DB.getOrders ? DB.getOrders().find(o => o.id === billId) : null);
         if (bill && bill.deliveryDetails && bill.deliveryDetails.image) {
             App.closeModals();
             const overlay = document.getElementById('modal-overlay');
@@ -6934,52 +7015,46 @@ const App = {
 
     shareDeliveryBill: async (billId) => {
         const parkedBills = DB.getParkedCarts();
-        const bill = parkedBills.find(b => b.id === billId);
+        const bill = parkedBills.find(b => b.id === billId) || (DB.getOrders ? DB.getOrders().find(o => o.id === billId) : null);
         if (!bill) return;
 
-        const dDate = new Date(bill.deliveryTime);
+        const dDate = new Date(bill.deliveryTime || bill.timestamp || Date.now());
         let timeStr = `${String(dDate.getHours()).padStart(2, '0')}:${String(dDate.getMinutes()).padStart(2, '0')}`;
         const today = new Date();
         if (dDate.getDate() !== today.getDate() || dDate.getMonth() !== today.getMonth()) {
             timeStr = `${dDate.getDate()}/${dDate.getMonth() + 1} ${timeStr}`;
         }
 
-        let text = `ออเดอร์ส่ง: ${bill.note || 'ไม่ระบุชื่อ'}\nเวลา: ${timeStr}`;
+        const itemsLines = (bill.items || []).map((it, idx) => {
+            const expr = App.formatTableTallyExpression(it);
+            return `${idx + 1}. ${it.name} (${expr}) = ฿${Utils.formatCurrency(App.calcItemTotal(it))}`;
+        }).join('\n');
+        const total = (bill.items || []).reduce((s, i) => s + App.calcItemTotal(i), 0);
+
+        let text = `🛵 ออเดอร์ส่ง: ${bill.note || 'ไม่ระบุชื่อ'}\n⏰ เวลานัดส่ง: ${timeStr} น.`;
+        if (bill.dispatchedAt) {
+            text += `\n🚀 ออกส่งเมื่อ: ${new Date(bill.dispatchedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`;
+        }
         if (bill.deliveryDetails) {
-            if (bill.deliveryDetails.address) text += `\nที่อยู่: ${bill.deliveryDetails.address}`;
-            if (bill.deliveryDetails.map) text += `\nแผนที่: ${bill.deliveryDetails.map}`;
+            if (bill.deliveryDetails.address) text += `\n📍 ที่อยู่: ${bill.deliveryDetails.address}`;
+            if (bill.deliveryDetails.map) text += `\n🗺️ แผนที่: ${bill.deliveryDetails.map}`;
+        }
+        if (itemsLines) {
+            text += `\n\n📋 รายการสินค้า:\n${itemsLines}\n💰 ยอดรวมสุทธิ: ฿${Utils.formatCurrency(total)}`;
         }
 
         if (navigator.share) {
             try {
                 await navigator.share({ title: 'ข้อมูลจัดส่ง', text: text });
             } catch (err) { console.log('Share canceled', err); }
-        } else {
+        } else if (navigator.clipboard) {
             navigator.clipboard.writeText(text);
-            alert('คัดลอกข้อมูลจัดส่งแล้ว');
+            App.alert('คัดลอกข้อมูลจัดส่งและรายการสินค้าแล้ว');
         }
     },
 
     restoreDelivery: async (billId) => {
-        const parkedBills = DB.getParkedCarts();
-        const bill = parkedBills.find(b => b.id === billId);
-        if (!bill) return;
-
-        if (!await App.safeReplaceCart()) return; // Silent auto-park
-
-        // Just like tables, we leave it "parked" until checked out 
-        App.state.cart = JSON.parse(JSON.stringify(bill.items)).map(item => ({ ...item, originalQty: item.qty }));
-        App.state.activeBill = {
-            id: bill.id,
-            note: bill.note,
-            timestamp: bill.timestamp,
-            deliveryTime: bill.deliveryTime,
-            deliveryDetails: bill.deliveryDetails || null
-        };
-
-        App.renderCart();
-        App.renderView('pos');
-        if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+        return App.openDeliveryBillPad(billId);
     },
 
     cancelDeliveryBill: async (billId) => {
@@ -6995,11 +7070,12 @@ const App = {
         );
         if (!confirmed) return;
         App.closeBillSession(bill.id, 'cancelled');
+        App.closeModals();
         App.renderView('tables');
         await App.alert('ยกเลิกออเดอร์ส่งแล้ว');
     },
 
-    // --- Handwritten Table Bill Pad Helpers ---
+    // --- Handwritten Table & Delivery Bill Pad Helpers ---
     normalizeTableItemAdditions: (item, fallbackAt = Date.now()) => {
         if (!item) return [];
         const unit = item.unitLabel || item.unit || '';
@@ -7043,37 +7119,66 @@ const App = {
         }).join(' + ');
     },
 
-    _ensureTableBillSession: (tableId) => {
+    _ensureTableBillSession: (sessionKey) => {
         const tables = DB.getTables();
-        const table = tables.find(t => Number(t.id) === Number(tableId));
-        if (!table) return null;
         const parkedBills = DB.getParkedCarts();
+
+        // 1. Check if sessionKey matches an existing Delivery / Parked Bill ID directly
+        const directDeliveryBill = parkedBills.find(b => String(b.id) === String(sessionKey) && b.deliveryTime);
+        if (directDeliveryBill) {
+            if (!Array.isArray(directDeliveryBill.deletionLog)) directDeliveryBill.deletionLog = [];
+            directDeliveryBill.items = (directDeliveryBill.items || []).map(it => {
+                App.normalizeTableItemAdditions(it, directDeliveryBill.timestamp);
+                return it;
+            });
+            const virtualTable = {
+                id: directDeliveryBill.id,
+                name: directDeliveryBill.note || 'ออเดอร์ส่ง',
+                billId: directDeliveryBill.id,
+                isDelivery: true
+            };
+            return { table: virtualTable, bill: directDeliveryBill, tables, isDelivery: true };
+        }
+
+        // 2. Otherwise match a Dine-in Table by ID
+        const table = tables.find(t => String(t.id) === String(sessionKey) || Number(t.id) === Number(sessionKey));
+        if (!table) return null;
         let bill = table.billId ? parkedBills.find(b => b.id === table.billId) : null;
         if (!bill) {
             const newBillId = DB.generateBillId();
             const timestamp = Date.now();
             table.billId = newBillId;
             DB.saveTables(tables);
-            DB.parkCart([], table.name, timestamp, newBillId, null, null, { deletionLog: [] });
+            DB.parkCart([], table.name, timestamp, newBillId, null, null, {
+                deletionLog: [],
+                tableId: table.id,
+                tableName: table.name
+            });
             bill = DB.getParkedCarts().find(b => b.id === newBillId) || {
                 id: newBillId,
                 note: table.name,
                 timestamp,
                 items: [],
-                deletionLog: []
+                deletionLog: [],
+                tableId: table.id,
+                tableName: table.name
             };
         }
         if (!Array.isArray(bill.deletionLog)) {
             bill.deletionLog = [];
         }
+        bill.tableId = table.id;
+        bill.tableName = table.name;
         bill.items = (bill.items || []).map(it => {
             App.normalizeTableItemAdditions(it, bill.timestamp);
             return it;
         });
-        return { table, bill, tables };
+        return { table, bill, tables, isDelivery: false };
     },
 
-    _saveTableBillSession: (tableId, bill) => {
+    _saveTableBillSession: (sessionKey, bill) => {
+        const tables = DB.getTables();
+        const linkedTable = tables.find(t => String(t.id) === String(sessionKey) || String(t.billId) === String(bill.id));
         DB.parkCart(
             bill.items,
             bill.note || '',
@@ -7081,7 +7186,12 @@ const App = {
             bill.id,
             bill.deliveryTime,
             bill.deliveryDetails,
-            { deletionLog: Array.isArray(bill.deletionLog) ? bill.deletionLog : [] }
+            {
+                deletionLog: Array.isArray(bill.deletionLog) ? bill.deletionLog : [],
+                dispatchedAt: bill.dispatchedAt || null,
+                tableId: linkedTable ? linkedTable.id : (bill.tableId || null),
+                tableName: linkedTable ? linkedTable.name : (bill.tableName || null)
+            }
         );
         if (App.state.activeBill && App.state.activeBill.id === bill.id) {
             App.state.cart = JSON.parse(JSON.stringify(bill.items));
@@ -7099,7 +7209,6 @@ const App = {
         const table = tables.find(t => Number(t.id) === Number(tableId));
         if (!table) return;
 
-        // Check if there are walk-in items in the current POS cart waiting to be added to this table
         let pendingCartItems = null;
         if (App.state.cart.length > 0 && (!App.state.activeBill || App.state.activeBill.id !== table.billId)) {
             if (App.state.activeBill === null) {
@@ -7315,13 +7424,11 @@ const App = {
         if (!session) return;
         const { table, bill } = session;
 
-        // If in Edit/Pin Keys mode, toggle pinning this product on the Effect Key Pad
         if (App._tablePadState && App._tablePadState.editKeysMode) {
             App.togglePinTableEffectKey(tableId, productId);
             return;
         }
 
-        // Check custom preset keys or store products
         const settings = DB.getSettings();
         const customKey = Array.isArray(settings.tableCustomEffectKeys)
             ? settings.tableCustomEffectKeys.find(k => String(k.id) === String(productId))
@@ -7329,7 +7436,6 @@ const App = {
         const product = customKey || App.state.products.find(p => String(p.id) === String(productId));
         if (!product) return;
 
-        // Sound + Haptic effect like an Effect Key Pad!
         App.playScanFeedback(true);
 
         const now = Date.now();
@@ -7361,7 +7467,6 @@ const App = {
         const settings = DB.getSettings();
         let pinnedIds = Array.isArray(settings.tablePinnedKeyIds) ? settings.tablePinnedKeyIds.map(String) : null;
         if (!pinnedIds) {
-            // Initialize from current default candidates
             pinnedIds = App._getDefaultTableKeyCandidates().map(p => String(p.id));
         }
         const pid = String(productId);
@@ -7558,7 +7663,7 @@ const App = {
             const isPinned = pinnedIds ? pinnedIds.includes(String(p.id)) : true;
 
             return `
-                <button type="button" class="table-effect-key ${theme}" onclick="App.quickAddProductToTable(${tableId}, '${Utils.escapeHTML(p.id)}')" title="${editMode ? (isPinned ? 'แตะเพื่อเอาออกจากแผงปุ่มคีย์' : 'แตะเพื่อปักหมุดลงแผงปุ่มคีย์') : `แตะเพื่อจด +1 ${Utils.escapeHTML(p.name)}`}">
+                <button type="button" class="table-effect-key ${theme}" onclick="App.quickAddProductToTable('${tableId}', '${Utils.escapeHTML(p.id)}')" title="${editMode ? (isPinned ? 'แตะเพื่อเอาออกจากแผงปุ่มคีย์' : 'แตะเพื่อปักหมุดลงแผงปุ่มคีย์') : `แตะเพื่อจด +1 ${Utils.escapeHTML(p.name)}`}">
                     ${editMode ? `<span class="key-unpin-badge" style="background:${isPinned ? '#ef4444' : '#22c55e'};">${isPinned ? '✕' : '📌'}</span>` : ''}
                     ${activeQty > 0 ? `<span class="key-count-badge">×${activeQty}</span>` : ''}
                     <span class="key-emoji">${emoji}</span>
@@ -7577,9 +7682,11 @@ const App = {
         modal.classList.add('table-pad-modal');
         modal.style.maxWidth = '680px';
 
-        const state = App._tablePadState && App._tablePadState.tableId === table.id
+        const state = App._tablePadState && String(App._tablePadState.tableId) === String(table.id)
             ? App._tablePadState
-            : (App._tablePadState = { tableId: table.id, expandedTimeRows: {}, calculatedRows: {}, allCalculated: false, quickSearch: '', pendingCartItems: null, editKeysMode: false });
+            : (App._tablePadState = { tableId: table.id, expandedTimeRows: {}, calculatedRows: {}, allCalculated: false, quickSearch: '', pendingCartItems: null, editKeysMode: false, showDeliveryDetailsForm: false });
+
+        const isDelivery = Boolean(table.isDelivery || bill.deliveryTime);
 
         const items = (bill.items || []).map(it => {
             App.normalizeTableItemAdditions(it, bill.timestamp);
@@ -7593,6 +7700,95 @@ const App = {
             dateStyle: 'short',
             timeStyle: 'short'
         });
+        const sittingDurationStr = App.formatDurationText(bill.timestamp, Date.now());
+
+        // Format datetime-local value for delivery scheduled time
+        const schedDateObj = bill.deliveryTime ? new Date(bill.deliveryTime) : new Date(Date.now() + 30 * 60000);
+        const pad2 = n => String(n).padStart(2, '0');
+        const schedInputVal = `${schedDateObj.getFullYear()}-${pad2(schedDateObj.getMonth() + 1)}-${pad2(schedDateObj.getDate())}T${pad2(schedDateObj.getHours())}:${pad2(schedDateObj.getMinutes())}`;
+        const dispatchedTimeStr = bill.dispatchedAt
+            ? new Date(bill.dispatchedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+            : '';
+
+        const deliveryHeaderSectionHtml = isDelivery ? `
+            <div style="background:#fff7ed; border:2px solid #fb923c; border-radius:14px; padding:12px 14px; margin-bottom:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                    <div style="font-size:13.5px; font-weight:800; color:#9a3412; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        <span>📝 เวลาสั่ง: <strong>${openedTimeStr} น.</strong></span>
+                        <span>•</span>
+                        ${bill.dispatchedAt
+                            ? `<span style="background:#059669; color:#fff; padding:2px 8px; border-radius:99px; font-size:12px;">🚀 ออกส่งแล้วเมื่อ ${dispatchedTimeStr} น.</span>`
+                            : `<span style="background:#fed7aa; color:#9a3412; padding:2px 8px; border-radius:99px; font-size:12px;">⏳ ยังไม่ออกส่ง</span>`
+                        }
+                    </div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button type="button" onclick="App.pickPastCustomerForDelivery('${bill.id}')" style="background:#0f172a; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; min-height:32px;">
+                            <span class="material-symbols-rounded" style="font-size:16px;">person_search</span> ดึงลูกค้าเดิม
+                        </button>
+                        <button type="button" onclick="App.toggleDeliveryDispatched('${bill.id}')" style="background:${bill.dispatchedAt ? '#059669' : '#ea580c'}; color:#fff; border:none; border-radius:8px; padding:5px 11px; font-size:12.5px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:4px; min-height:32px;">
+                            <span class="material-symbols-rounded" style="font-size:17px;">two_wheeler</span>
+                            ${bill.dispatchedAt ? `ออกส่งแล้ว (${dispatchedTimeStr})` : 'กดบันทึกเวลาออกส่ง'}
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap:8px; align-items:center;">
+                    <div>
+                        <label style="font-size:11.5px; font-weight:800; color:#7c2d12; display:block; margin-bottom:2px;">👤 ชื่อลูกค้า / เบอร์โทร</label>
+                        <input id="dp-customer-name" type="text" value="${Utils.escapeHTML(bill.note || '')}" placeholder="เช่น คุณเอ 0812345678"
+                            onchange="App.saveDeliveryDetailsFromPad('${bill.id}')"
+                            style="width:100%; padding:7px 10px; font-size:14px; font-weight:700; border:1px solid #fdba74; border-radius:8px; background:#fff; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px; font-weight:800; color:#7c2d12; display:block; margin-bottom:2px;">⏰ เวลานัดส่ง / นัดรับ</label>
+                        <input id="dp-scheduled-dt" type="datetime-local" value="${schedInputVal}"
+                            onchange="App.saveDeliveryDetailsFromPad('${bill.id}')"
+                            style="width:100%; padding:7px 10px; font-size:13.5px; font-weight:700; border:1px solid #fdba74; border-radius:8px; background:#fff; box-sizing:border-box;">
+                    </div>
+                </div>
+
+                <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                    <button type="button" onclick="App.toggleDeliveryInfoForm('${bill.id}')" style="background:#ffedd5; color:#9a3412; border:1px solid #fdba74; border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:4px; min-height:30px;">
+                        <span class="material-symbols-rounded" style="font-size:16px;">location_on</span>
+                        ${state.showDeliveryDetailsForm ? '▲ ซ่อนที่อยู่ / แผนที่ / รูปสถานที่' : `▼ ระบุที่อยู่จัดส่ง / แผนที่ / รูปสถานที่ ${bill.deliveryDetails?.address ? '(มีที่อยู่แล้ว ✓)' : ''}`}
+                    </button>
+                    <button type="button" onclick="App.shareDeliveryBill('${bill.id}')" style="background:#0284c7; color:#fff; border:none; border-radius:8px; padding:4px 10px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; min-height:30px;">
+                        <span class="material-symbols-rounded" style="font-size:15px;">share</span> แชร์ข้อมูลส่งไรเดอร์
+                    </button>
+                </div>
+
+                ${state.showDeliveryDetailsForm ? `
+                    <div style="margin-top:10px; padding-top:10px; border-top:1px dashed #fdba74; display:flex; flex-direction:column; gap:8px;">
+                        <div>
+                            <label style="font-size:12px; font-weight:800; color:#7c2d12; display:block; margin-bottom:3px;">📍 ที่อยู่จัดส่ง / จุดสังเกต</label>
+                            <div style="display:flex; gap:6px;">
+                                <textarea id="dp-address" rows="2" placeholder="บ้านเลขที่, ซอย, จุดสังเกต..."
+                                    onchange="App.saveDeliveryDetailsFromPad('${bill.id}')"
+                                    style="flex:1; padding:7px 9px; font-size:13.5px; border:1px solid #fdba74; border-radius:8px; box-sizing:border-box;">${Utils.escapeHTML(bill.deliveryDetails?.address || '')}</textarea>
+                                <button type="button" class="secondary-btn" onclick="const a=document.getElementById('dp-address').value; if(a) window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a),'_blank')" style="padding:6px 10px; font-size:11.5px; background:#ecfdf5; color:#047857; border:1px solid #6ee7b7; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                                    <span class="material-symbols-rounded" style="font-size:18px;">search</span>ค้นพิกัด
+                                </button>
+                            </div>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center;">
+                            <div style="display:flex; gap:5px;">
+                                <input id="dp-map" type="url" value="${Utils.escapeHTML(bill.deliveryDetails?.map || '')}" placeholder="ลิงก์ Google Map (https://maps...)"
+                                    onchange="App.saveDeliveryDetailsFromPad('${bill.id}')"
+                                    style="flex:1; padding:7px 9px; font-size:13px; border:1px solid #fdba74; border-radius:8px; box-sizing:border-box;">
+                                ${bill.deliveryDetails?.map ? `<button type="button" class="secondary-btn" onclick="window.open('${Utils.escapeHTML(bill.deliveryDetails.map)}','_blank')" style="padding:0 10px;"><span class="material-symbols-rounded" style="font-size:18px;">map</span></button>` : ''}
+                            </div>
+                            <div>
+                                <input type="file" id="dp-image-input" accept="image/*" style="display:none;" onchange="App.uploadDeliveryPadImage('${bill.id}', this)">
+                                <button type="button" class="secondary-btn" onclick="document.getElementById('dp-image-input').click()" style="padding:6px 10px; font-size:12px; display:flex; align-items:center; gap:4px;">
+                                    <span class="material-symbols-rounded" style="font-size:16px;">add_a_photo</span>
+                                    ${bill.deliveryDetails?.image ? 'เปลี่ยนรูปสถานที่ ✓' : 'แนบรูปสถานที่'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        ` : '';
 
         const pendingBannerHtml = (state.pendingCartItems && state.pendingCartItems.length > 0) ? `
             <div class="table-pending-banner">
@@ -7605,10 +7801,10 @@ const App = {
                     <strong>${state.pendingCartItems.map(c => `${Utils.escapeHTML(c.name)} (+${c.qty})`).join(', ')}</strong>
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button type="button" class="primary-btn" style="flex:2; background:#059669;" onclick="App.confirmPendingCartToTable(${table.id})">
-                        ✅ ยืนยันจดเพิ่มลงโต๊ะนี้
+                    <button type="button" class="primary-btn" style="flex:2; background:#059669;" onclick="App.confirmPendingCartToTable('${table.id}')">
+                        ✅ ยืนยันจดเพิ่มลงบิลนี้
                     </button>
-                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.discardPendingCartForTable(${table.id})">
+                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.discardPendingCartForTable('${table.id}')">
                         ไม่เพิ่ม
                     </button>
                 </div>
@@ -7657,7 +7853,7 @@ const App = {
                                 <span>ครั้งที่ ${aIdx + 1}: <strong style="color:#15803d;">+${entry.qty} ${Utils.escapeHTML(entry.unit || unitLabel)}</strong></span>
                                 <span style="display:inline-flex; align-items:center; gap:8px; margin-left:auto;">
                                     <small style="color:#475569; white-space:nowrap;">📅 ${dtStr} น.</small>
-                                    <button type="button" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${aIdx})" style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:6px; padding:3px 9px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; flex-shrink:0; min-height:28px;" title="ลบรายการรอบนี้ (มีถามยืนยันก่อน)">ลบ</button>
+                                    <button type="button" onclick="App.removeTableAdditionEntry('${table.id}', ${idx}, ${aIdx})" style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:6px; padding:3px 9px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; flex-shrink:0; min-height:28px;" title="ลบรายการรอบนี้ (มีถามยืนยันก่อน)">ลบ</button>
                                 </span>
                             </div>
                         `;
@@ -7670,11 +7866,11 @@ const App = {
                     <div class="tally-main-line">
                         <div class="tally-item-title">
                             ${idx + 1}. ${Utils.escapeHTML(item.name)}
-                            <button type="button" onclick="App.updateTableItemPrice(${table.id}, ${idx})" style="background:none; border:none; color:#64748b; font-size:13px; cursor:pointer; text-decoration:underline; padding:0 4px; min-height:auto;" title="แตะเพื่อแก้ราคาต่อหน่วย">
+                            <button type="button" onclick="App.updateTableItemPrice('${table.id}', ${idx})" style="background:none; border:none; color:#64748b; font-size:13px; cursor:pointer; text-decoration:underline; padding:0 4px; min-height:auto;" title="แตะเพื่อแก้ราคาต่อหน่วย">
                                 (@฿${Utils.formatCurrency(item.price)}/${Utils.escapeHTML(unitLabel)})
                             </button>
                         </div>
-                        <button type="button" class="tally-expr-btn" onclick="App.toggleTableRowTimeLog(${table.id}, ${idx})" title="แตะเพื่อดูประวัติเวลาที่สั่งเพิ่มและเวลาที่ลบ">
+                        <button type="button" class="tally-expr-btn" onclick="App.toggleTableRowTimeLog('${table.id}', ${idx})" title="แตะเพื่อดูประวัติเวลาที่สั่งเพิ่มและเวลาที่ลบ">
                             <span>${Utils.escapeHTML(tallyExpr)}</span>
                             ${deletedEntriesCount > 0 ? `<span style="font-size:11px; background:#fee2e2; color:#b91c1c; padding:1px 6px; border-radius:99px; font-weight:800;">ประวัติลบ ${deletedEntriesCount}</span>` : ''}
                             <span class="material-symbols-rounded" style="font-size:17px; color:#92400e;">schedule</span>
@@ -7682,12 +7878,12 @@ const App = {
                     </div>
                     <div class="tally-controls-line">
                         <div class="tally-plus-group">
-                            <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty(${table.id}, ${idx}, 1, false)">+1</button>
-                            <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty(${table.id}, ${idx}, 2, false)">+2</button>
-                            <button type="button" class="tally-plus-btn" onclick="App.addTableItemQty(${table.id}, ${idx}, 1, true)">+ระบุ</button>
-                            <button type="button" class="tally-plus-btn" style="color:#b91c1c; background:#fef2f2; border-color:#fecaca;" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, -1)" title="ลบครั้งล่าสุด (ถามยืนยันก่อน)">−ลบ</button>
+                            <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty('${table.id}', ${idx}, 1, false)">+1</button>
+                            <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty('${table.id}', ${idx}, 2, false)">+2</button>
+                            <button type="button" class="tally-plus-btn" onclick="App.addTableItemQty('${table.id}', ${idx}, 1, true)">+ระบุ</button>
+                            <button type="button" class="tally-plus-btn" style="color:#b91c1c; background:#fef2f2; border-color:#fecaca;" onclick="App.removeTableAdditionEntry('${table.id}', ${idx}, -1)" title="ลบครั้งล่าสุด (ถามยืนยันก่อน)">−ลบ</button>
                         </div>
-                        <button type="button" class="tally-calc-btn ${isCalcShown ? 'calculated' : ''}" onclick="App.toggleTableRowCalculation(${table.id}, ${idx})">
+                        <button type="button" class="tally-calc-btn ${isCalcShown ? 'calculated' : ''}" onclick="App.toggleTableRowCalculation('${table.id}', ${idx})">
                             <span class="material-symbols-rounded" style="font-size:17px;">calculate</span>
                             ${isCalcShown
                                 ? `รวม ${item.qty} ${Utils.escapeHTML(unitLabel)} = ฿${Utils.formatCurrency(lineTotal)}`
@@ -7700,7 +7896,7 @@ const App = {
         }).join('') : `
             <div style="text-align:center; padding:26px 12px; color:#78716c;">
                 <span class="material-symbols-rounded" style="font-size:42px; opacity:0.5; display:block; margin-bottom:6px;">edit_note</span>
-                ยังไม่มีรายการจดในโต๊ะนี้<br>
+                ยังไม่มีรายการจดในบิลนี้<br>
                 <small>แตะปุ่มคีย์ด่วนด้านบน หรือพิมพ์จดรายการด่วนได้เลยครับ</small>
             </div>
         `;
@@ -7708,7 +7904,7 @@ const App = {
         const deletionLogHtml = deletionLog.length > 0 ? `
             <div style="background:#fff1f2; border:1.5px dashed #f43f5e; border-radius:12px; padding:10px 12px; margin-bottom:14px;">
                 <div style="font-size:13px; font-weight:800; color:#9f1239; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                    <span>🗑️ ประวัติการลบรายการในโต๊ะนี้ (${deletionLog.length} ครั้ง)</span>
+                    <span>🗑️ ประวัติการลบรายการในบิลนี้ (${deletionLog.length} ครั้ง)</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;">
                     ${deletionLog.slice().reverse().map((d) => {
@@ -7741,13 +7937,17 @@ const App = {
         modal.innerHTML = `
             <div class="table-pad-header">
                 <div class="table-pad-title-wrap">
-                    <div style="font-size:12px; font-weight:700; color:#78716c; display:flex; align-items:center; gap:6px;">
-                        <span>📝 กระดานบิลจดโต๊ะ (${Utils.escapeHTML(table.name)})</span>
-                        <span>• เปิดเมื่อ ${openedTimeStr}</span>
+                    <div style="font-size:12px; font-weight:700; color:#78716c; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        <span>${isDelivery ? '🛵 กระดานบิลออเดอร์ส่ง/ล่วงหน้า' : `📝 กระดานบิลจดโต๊ะ (${Utils.escapeHTML(table.name)})`}</span>
+                        <span>• ${isDelivery ? `สั่งเมื่อ ${openedTimeStr}` : `🟢 เริ่มเปิดโต๊ะ ${openedTimeStr} (นั่งแล้ว ${sittingDurationStr})`}</span>
                     </div>
-                    <input type="text" class="table-pad-name-input" value="${Utils.escapeHTML(bill.note || table.name)}"
-                        placeholder="ตั้งชื่อโต๊ะ / ลูกค้า เช่น โต๊ะภูผา"
-                        onchange="App.saveTablePadNote(${table.id}, this.value)">
+                    ${!isDelivery ? `
+                        <input type="text" class="table-pad-name-input" value="${Utils.escapeHTML(bill.note || table.name)}"
+                            placeholder="ตั้งชื่อโต๊ะ / ลูกค้า เช่น โต๊ะภูผา"
+                            onchange="App.saveTablePadNote('${table.id}', this.value)">
+                    ` : `
+                        <div style="font-size:20px; font-weight:900; color:#9a3412;">${Utils.escapeHTML(bill.note || 'ลูกค้าสั่งส่ง')}</div>
+                    `}
                 </div>
                 <button class="icon-btn" onclick="App.closeModals()" title="ปิดหน้าต่าง" style="background:#fff; border:1px solid #d4c5a9; border-radius:50%; width:38px; height:38px;">
                     <span class="material-symbols-rounded">close</span>
@@ -7756,25 +7956,26 @@ const App = {
 
             <div class="table-pad-body">
                 ${pendingBannerHtml}
+                ${deliveryHeaderSectionHtml}
 
-                <!-- Soundboard / Effect Key Pad for Table Products -->
+                <!-- Soundboard / Effect Key Pad for Table & Delivery Products -->
                 <div class="table-quick-bar">
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
                         <span style="font-size:13px; font-weight:800; color:#f8fafc; display:flex; align-items:center; gap:5px;">
-                            🎛️ ปุ่มคีย์ด่วนประจำโต๊ะ
+                            🎛️ ปุ่มคีย์ด่วน (${isDelivery ? 'ออเดอร์ส่ง' : 'ประจำโต๊ะ'})
                             <small style="font-weight:600; color:#94a3b8; font-size:11px;">(กดเพื่อ +1)</small>
                         </span>
                         <div style="display:flex; align-items:center; gap:5px; flex:1; justify-content:flex-end;">
                             <input type="search" value="${Utils.escapeHTML(state.quickSearch || '')}"
                                 placeholder="🔍 ค้นหาปุ่มสินค้า..."
-                                oninput="App.filterTableQuickProducts(${table.id}, this.value)"
+                                oninput="App.filterTableQuickProducts('${table.id}', this.value)"
                                 style="padding:5px 9px; font-size:12.5px; border:1px solid #475569; background:#0f172a; color:#f8fafc; border-radius:8px; width:135px; min-height:32px;">
-                            <button type="button" onclick="App.toggleTableKeyEditMode(${table.id})"
+                            <button type="button" onclick="App.toggleTableKeyEditMode('${table.id}')"
                                 style="background:${state.editKeysMode ? '#f59e0b' : '#334155'}; color:${state.editKeysMode ? '#0f172a' : '#e2e8f0'}; border:1px solid #475569; border-radius:8px; padding:4px 8px; font-size:11.5px; font-weight:800; min-height:32px; cursor:pointer; white-space:nowrap;">
                                 ${state.editKeysMode ? '✅ เสร็จสิ้น' : '⚙️ จัดปุ่ม'}
                             </button>
                             ${state.editKeysMode ? `
-                                <button type="button" onclick="App.resetTableEffectKeys(${table.id})"
+                                <button type="button" onclick="App.resetTableEffectKeys('${table.id}')"
                                     style="background:#475569; color:#f8fafc; border:none; border-radius:8px; padding:4px 7px; font-size:11px; font-weight:700; min-height:32px; cursor:pointer; white-space:nowrap;">
                                     ↺ รีเซ็ต
                                 </button>
@@ -7783,7 +7984,7 @@ const App = {
                     </div>
                     ${state.editKeysMode ? `
                         <div style="margin-top:6px; background:rgba(245,158,11,0.18); border:1px dashed #fbbf24; color:#fde68a; border-radius:8px; padding:5px 8px; font-size:11.5px;">
-                            💡 แตะปุ่มที่มี <strong>✕</strong> เพื่อเอาออกจากแผง หรือพิมพ์ค้นหาสินค้าแล้วแตะ <strong>📌</strong> เพื่อปักหมุดเป็นปุ่มคีย์ประจำโต๊ะ
+                            💡 แตะปุ่มที่มี <strong>✕</strong> เพื่อเอาออกจากแผง หรือพิมพ์ค้นหาสินค้าแล้วแตะ <strong>📌</strong> เพื่อปักหมุดเป็นปุ่มคีย์ประจำร้าน
                         </div>
                     ` : ''}
 
@@ -7797,15 +7998,15 @@ const App = {
                         <input id="tp-custom-qty" type="number" min="1" value="1" placeholder="จำนวน" style="padding:6px 4px; font-size:12.5px; border:1px solid #475569; background:#fff; color:#0f172a; border-radius:8px; width:100%; box-sizing:border-box; text-align:center; min-height:36px;">
                         <input id="tp-custom-unit" type="text" placeholder="กลม/ขวด" style="padding:6px 6px; font-size:12.5px; border:1px solid #475569; background:#fff; color:#0f172a; border-radius:8px; width:100%; box-sizing:border-box; min-height:36px;">
                         <input id="tp-custom-price" type="number" min="0" step="1" placeholder="ราคา ฿" style="padding:6px 6px; font-size:12.5px; border:1px solid #475569; background:#fff; color:#0f172a; border-radius:8px; width:100%; box-sizing:border-box; min-height:36px;">
-                        <button type="button" class="primary-btn" onclick="App.addCustomHandwrittenItemToTable(${table.id}, false)" style="padding:6px 9px; font-size:12.5px; white-space:nowrap; min-height:36px;">+ จด</button>
-                        <button type="button" onclick="App.addCustomHandwrittenItemToTable(${table.id}, true)" style="padding:6px 7px; font-size:11.5px; font-weight:800; background:#f59e0b; color:#0f172a; border-radius:8px; white-space:nowrap; min-height:36px;" title="จดลงบิลและสร้างเป็นปุ่มคีย์ด่วนถาวร">+ปุ่มคีย์</button>
+                        <button type="button" class="primary-btn" onclick="App.addCustomHandwrittenItemToTable('${table.id}', false)" style="padding:6px 9px; font-size:12.5px; white-space:nowrap; min-height:36px;">+ จด</button>
+                        <button type="button" onclick="App.addCustomHandwrittenItemToTable('${table.id}', true)" style="padding:6px 7px; font-size:11.5px; font-weight:800; background:#f59e0b; color:#0f172a; border-radius:8px; white-space:nowrap; min-height:36px;" title="จดลงบิลและสร้างเป็นปุ่มคีย์ด่วนถาวร">+ปุ่มคีย์</button>
                     </div>
                 </div>
 
                 <!-- Handwritten Bill Sheet -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                     <span style="font-size:13px; font-weight:800; color:#57534e;">📋 รายการที่จดไว้ (แตะตัวเลขสีเหลืองเพื่อดูเวลาสั่ง/ลบ)</span>
-                    <button type="button" class="tally-calc-btn ${state.allCalculated ? 'calculated' : ''}" onclick="App.calculateAllTableRows(${table.id})">
+                    <button type="button" class="tally-calc-btn ${state.allCalculated ? 'calculated' : ''}" onclick="App.calculateAllTableRows('${table.id}')">
                         <span class="material-symbols-rounded" style="font-size:16px;">calculate</span>
                         ${state.allCalculated ? 'ซ่อนผลคำนวณ' : 'คำนวณทุกแถว & รวม'}
                     </button>
@@ -7821,7 +8022,7 @@ const App = {
                 <div style="background:#fef3c7; border:2px solid #f59e0b; border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
                     <div>
                         <div style="font-size:13px; color:#92400e; font-weight:700;">รวมทั้งหมด (${items.length} รายการ • ${totalQty} ชิ้น)</div>
-                        <div style="font-size:18px; font-weight:900; color:#78350f;">ยอดรวมโต๊ะนี้</div>
+                        <div style="font-size:18px; font-weight:900; color:#78350f;">${isDelivery ? 'ยอดรวมออเดอร์ส่งนี้' : 'ยอดรวมโต๊ะนี้'}</div>
                     </div>
                     <div style="font-size:30px; font-weight:900; color:#b45309;">
                         ฿${Utils.formatCurrency(billTotal)}
@@ -7830,20 +8031,20 @@ const App = {
 
                 <!-- Action Buttons -->
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
-                    <button type="button" class="primary-btn" onclick="App.showTableReceiptModal(${table.id})" style="background:#15803d; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; font-size:15px;">
+                    <button type="button" class="primary-btn" onclick="App.showTableReceiptModal('${table.id}')" style="background:#15803d; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; font-size:15px;">
                         <span class="material-symbols-rounded">receipt_long</span> ยืนยัน / ใบเสร็จ / พิมพ์-รูปภาพ
                     </button>
-                    <button type="button" class="primary-btn" onclick="App.checkoutTableDirectly(${table.id})" style="background:#0284c7; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; font-size:15px;">
-                        <span class="material-symbols-rounded">payments</span> รับเงิน / ปิดโต๊ะ
+                    <button type="button" class="primary-btn" onclick="App.checkoutTableDirectly('${table.id}')" style="background:#0284c7; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; font-size:15px;">
+                        <span class="material-symbols-rounded">payments</span> ${isDelivery ? 'รับเงิน / ปิดบิลส่ง' : 'รับเงิน / เช็คบิลปิดโต๊ะ'}
                     </button>
                 </div>
 
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button type="button" class="secondary-btn" onclick="App.loadTableAndGoToPos(${table.id})" style="flex:1; display:flex; align-items:center; justify-content:center; gap:5px; font-size:13px;">
+                    <button type="button" class="secondary-btn" onclick="App.loadTableAndGoToPos('${table.id}')" style="flex:1; display:flex; align-items:center; justify-content:center; gap:5px; font-size:13px;">
                         <span class="material-symbols-rounded" style="font-size:18px;">storefront</span> ไปเลือกจากหน้าขาย
                     </button>
-                    <button type="button" class="secondary-btn" onclick="App.cancelTableBill(${table.id})" style="color:#c62828; border-color:#ef9a9a; display:flex; align-items:center; justify-content:center; gap:4px; font-size:13px;">
-                        <span class="material-symbols-rounded" style="font-size:18px;">delete</span> ล้างบิลโต๊ะ
+                    <button type="button" class="secondary-btn" onclick="${isDelivery ? `App.cancelDeliveryBill('${bill.id}')` : `App.cancelTableBill('${table.id}')`}" style="color:#c62828; border-color:#ef9a9a; display:flex; align-items:center; justify-content:center; gap:4px; font-size:13px;">
+                        <span class="material-symbols-rounded" style="font-size:18px;">delete</span> ${isDelivery ? 'ยกเลิกออเดอร์ส่ง' : 'ล้างบิลโต๊ะ'}
                     </button>
                 </div>
             </div>
@@ -7856,7 +8057,7 @@ const App = {
     showTableReceiptModal: (tableId) => {
         const session = App._ensureTableBillSession(tableId);
         if (!session) return;
-        const { table, bill } = session;
+        const { table, bill, isDelivery } = session;
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('table-detail-modal');
         if (!overlay || !modal) return;
@@ -7867,8 +8068,11 @@ const App = {
             return it;
         });
         const billTotal = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
-        const nowStr = new Date().toLocaleString('th-TH');
+        const openedStr = new Date(bill.timestamp || Date.now()).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+        const nowStr = new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
         const tableTitle = bill.note || table.name;
+        const schedStr = bill.deliveryTime ? new Date(bill.deliveryTime).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '';
+        const dispStr = bill.dispatchedAt ? new Date(bill.dispatchedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '';
 
         modal.innerHTML = `
             <div class="table-pad-header">
@@ -7876,7 +8080,7 @@ const App = {
                     <span class="material-symbols-rounded">receipt_long</span>
                     ใบเสร็จสรุปออเดอร์ — ${Utils.escapeHTML(tableTitle)}
                 </div>
-                <button class="icon-btn" onclick="App.showTableDetailsModal(DB.getTables().find(t=>t.id===${table.id}), DB.getParkedCarts().find(b=>b.id==='${bill.id}'))" title="กลับหน้ากระดานจดโต๊ะ">
+                <button class="icon-btn" onclick="App._reopenPadFromReceipt('${table.id}')" title="กลับหน้ากระดานจดบิล">
                     <span class="material-symbols-rounded">arrow_back</span>
                 </button>
             </div>
@@ -7886,8 +8090,17 @@ const App = {
                     <div style="text-align:center; border-bottom:1.5px dashed #94a3b8; padding-bottom:10px; margin-bottom:10px;">
                         <div style="font-size:20px; font-weight:900;">${Utils.escapeHTML(settings.storeName || 'ร้านค้า')}</div>
                         ${settings.phone ? `<div style="font-size:13px; color:#475569;">โทร: ${Utils.escapeHTML(settings.phone)}</div>` : ''}
-                        <div style="font-size:22px; font-weight:900; color:#b45309; margin-top:6px;">📝 ${Utils.escapeHTML(tableTitle)}</div>
-                        <div style="font-size:12px; color:#64748b; margin-top:2px;">เลขบิล: ${Utils.escapeHTML(bill.id)} • ${nowStr}</div>
+                        <div style="font-size:22px; font-weight:900; color:#b45309; margin-top:6px;">${isDelivery ? '🛵' : '📝'} ${Utils.escapeHTML(tableTitle)}</div>
+                        <div style="font-size:12px; color:#64748b; margin-top:2px;">เลขบิล: ${Utils.escapeHTML(bill.id)}</div>
+                        ${isDelivery ? `
+                            <div style="font-size:12px; color:#334155; margin-top:4px; background:#fff7ed; padding:6px 8px; border-radius:8px; text-align:left;">
+                                <div>📝 เวลาสั่ง: <strong>${openedStr} น.</strong> ${schedStr ? `• ⏰ นัดส่ง: <strong>${schedStr} น.</strong>` : ''}</div>
+                                ${dispStr ? `<div>🚀 เวลาออกส่ง: <strong>${dispStr} น.</strong></div>` : ''}
+                                ${bill.deliveryDetails?.address ? `<div>📍 ที่อยู่: ${Utils.escapeHTML(bill.deliveryDetails.address)}</div>` : ''}
+                            </div>
+                        ` : `
+                            <div style="font-size:12px; color:#475569; margin-top:3px;">🟢 เริ่มเปิดโต๊ะ: ${openedStr} น. • 🏁 สรุปบิล: ${nowStr} น.</div>
+                        `}
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
@@ -7924,24 +8137,29 @@ const App = {
                 </div>
 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
-                    <button type="button" class="primary-btn" onclick="App.printTableOrderReceipt(${table.id})" style="background:#0f172a; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px;">
+                    <button type="button" class="primary-btn" onclick="App.printTableOrderReceipt('${table.id}')" style="background:#0f172a; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px;">
                         <span class="material-symbols-rounded">print</span> พิมพ์ใบออเดอร์/บิล
                     </button>
-                    <button type="button" class="primary-btn" onclick="App.exportTableReceiptImage(${table.id})" style="background:#7c3aed; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px;">
+                    <button type="button" class="primary-btn" onclick="App.exportTableReceiptImage('${table.id}')" style="background:#7c3aed; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px;">
                         <span class="material-symbols-rounded">image</span> บันทึก/แชร์เป็นภาพ
                     </button>
                 </div>
 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <button type="button" class="secondary-btn" onclick="App.showTableDetailsModal(DB.getTables().find(t=>t.id===${table.id}), DB.getParkedCarts().find(b=>b.id==='${bill.id}'))" style="display:flex; align-items:center; justify-content:center; gap:5px;">
+                    <button type="button" class="secondary-btn" onclick="App._reopenPadFromReceipt('${table.id}')" style="display:flex; align-items:center; justify-content:center; gap:5px;">
                         <span class="material-symbols-rounded">edit_note</span> กลับไปจดเพิ่ม
                     </button>
-                    <button type="button" class="primary-btn" onclick="App.checkoutTableDirectly(${table.id})" style="background:#16a34a; display:flex; align-items:center; justify-content:center; gap:5px;">
-                        <span class="material-symbols-rounded">payments</span> รับชำระเงิน (ปิดโต๊ะ)
+                    <button type="button" class="primary-btn" onclick="App.checkoutTableDirectly('${table.id}')" style="background:#16a34a; display:flex; align-items:center; justify-content:center; gap:5px;">
+                        <span class="material-symbols-rounded">payments</span> รับชำระเงิน (เช็คบิล)
                     </button>
                 </div>
             </div>
         `;
+    },
+
+    _reopenPadFromReceipt: (sessionKey) => {
+        const session = App._ensureTableBillSession(sessionKey);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
     },
 
     printTableOrderReceipt: (tableId) => {
@@ -7953,7 +8171,7 @@ const App = {
             const expr = App.formatTableTallyExpression(it);
             return {
                 ...it,
-                name: it.additions.length > 1 ? `${it.name} (${expr})` : it.name
+                name: it.additions.filter(e => !e.deleted).length > 1 ? `${it.name} (${expr})` : it.name
             };
         });
         const total = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
@@ -7970,7 +8188,7 @@ const App = {
     exportTableReceiptImage: async (tableId) => {
         const session = App._ensureTableBillSession(tableId);
         if (!session) return;
-        const { table, bill } = session;
+        const { table, bill, isDelivery } = session;
         const settings = DB.getSettings();
         const items = (bill.items || []).map(it => {
             App.normalizeTableItemAdditions(it, bill.timestamp);
@@ -7978,12 +8196,13 @@ const App = {
         });
         const billTotal = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
         const tableTitle = bill.note || table.name;
-        const nowStr = new Date().toLocaleString('th-TH');
+        const openedStr = new Date(bill.timestamp || Date.now()).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+        const nowStr = new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
 
-        // Render crisp handwritten-style receipt onto an HTML5 Canvas
         const width = 640;
         const rowHeight = 66;
-        const headerHeight = 185;
+        const extraDeliveryHeight = isDelivery ? 46 : 0;
+        const headerHeight = 195 + extraDeliveryHeight;
         const footerHeight = 120;
         const height = headerHeight + Math.max(1, items.length) * rowHeight + footerHeight;
 
@@ -7992,39 +8211,43 @@ const App = {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
 
-        // Paper background
         ctx.fillStyle = '#fffdf7';
         ctx.fillRect(0, 0, width, height);
         ctx.strokeStyle = '#d4c5a9';
         ctx.lineWidth = 4;
         ctx.strokeRect(10, 10, width - 20, height - 20);
 
-        // Header
         ctx.fillStyle = '#0f172a';
         ctx.textAlign = 'center';
         ctx.font = 'bold 28px sans-serif';
-        ctx.fillText(settings.storeName || 'ใบสรุปรายการโต๊ะ', width / 2, 56);
+        ctx.fillText(settings.storeName || 'ใบสรุปรายการ', width / 2, 54);
 
         ctx.fillStyle = '#b45309';
-        ctx.font = 'bold 32px sans-serif';
-        ctx.fillText(`โต๊ะ: ${tableTitle}`, width / 2, 102);
+        ctx.font = 'bold 31px sans-serif';
+        ctx.fillText(`${isDelivery ? 'ออเดอร์ส่ง' : 'โต๊ะ'}: ${tableTitle}`, width / 2, 98);
 
-        ctx.fillStyle = '#64748b';
-        ctx.font = '18px sans-serif';
-        ctx.fillText(`บิล: ${bill.id} • ${nowStr}`, width / 2, 138);
+        ctx.fillStyle = '#475569';
+        ctx.font = '17px sans-serif';
+        ctx.fillText(`เริ่ม: ${openedStr} น. • สรุปบิล: ${nowStr} น.`, width / 2, 132);
 
-        // Divider
+        if (isDelivery) {
+            const addr = bill.deliveryDetails?.address ? `ที่อยู่: ${bill.deliveryDetails.address.slice(0, 48)}` : `เลขบิล: ${bill.id}`;
+            ctx.fillStyle = '#9a3412';
+            ctx.font = 'bold 17px sans-serif';
+            ctx.fillText(addr, width / 2, 162);
+        }
+
+        const dividerY = 165 + extraDeliveryHeight;
         ctx.beginPath();
         ctx.setLineDash([8, 6]);
-        ctx.moveTo(30, 160);
-        ctx.lineTo(width - 30, 160);
+        ctx.moveTo(30, dividerY);
+        ctx.lineTo(width - 30, dividerY);
         ctx.strokeStyle = '#94a3b8';
         ctx.lineWidth = 2;
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Items
-        let y = 200;
+        let y = dividerY + 40;
         items.forEach((item, idx) => {
             const expr = App.formatTableTallyExpression(item);
             const lineTotal = App.calcItemTotal(item);
@@ -8053,7 +8276,6 @@ const App = {
             y += rowHeight;
         });
 
-        // Total Divider
         ctx.beginPath();
         ctx.moveTo(30, y - 16);
         ctx.lineTo(width - 30, y - 16);
@@ -8078,7 +8300,7 @@ const App = {
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 try {
                     await navigator.share({
-                        title: `บิลโต๊ะ ${tableTitle}`,
+                        title: `บิล ${tableTitle}`,
                         text: `สรุปยอด ${tableTitle}: ฿${Utils.formatCurrency(billTotal)}`,
                         files: [file]
                     });
@@ -8097,21 +8319,19 @@ const App = {
     },
 
     loadTableAndGoToPos: async (tableId) => {
-        const tables = DB.getTables();
-        const table = tables.find(t => t.id === tableId);
-        if (!table || !table.billId) return;
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { bill } = session;
 
-        const parkedBills = DB.getParkedCarts();
-        const bill = parkedBills.find(b => b.id === table.billId);
-        if (!bill) return;
-
-        if (!await App.safeReplaceCart()) return; // Silent auto-park
+        if (!await App.safeReplaceCart()) return;
 
         App.state.cart = JSON.parse(JSON.stringify(bill.items)).map(item => ({ ...item, originalQty: item.qty }));
         App.state.activeBill = {
             id: bill.id,
             note: bill.note,
-            timestamp: bill.timestamp
+            timestamp: bill.timestamp,
+            deliveryTime: bill.deliveryTime || null,
+            deliveryDetails: bill.deliveryDetails || null
         };
 
         App.closeModals();
@@ -8121,29 +8341,25 @@ const App = {
     },
 
     checkoutTableDirectly: async (tableId) => {
-        // Load table to cart, then directly open payment modal
-        const tables = DB.getTables();
-        const table = tables.find(t => t.id === tableId);
-        if (!table || !table.billId) return;
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { bill } = session;
 
-        const parkedBills = DB.getParkedCarts();
-        const bill = parkedBills.find(b => b.id === table.billId);
-        if (!bill) return;
-
-        if (!await App.safeReplaceCart()) return; // Silent auto-park
+        if (!await App.safeReplaceCart()) return;
 
         App.state.cart = JSON.parse(JSON.stringify(bill.items)).map(item => ({ ...item, originalQty: item.qty }));
         App.state.activeBill = {
             id: bill.id,
             note: bill.note,
-            timestamp: bill.timestamp
+            timestamp: bill.timestamp,
+            deliveryTime: bill.deliveryTime || null,
+            deliveryDetails: bill.deliveryDetails || null
         };
 
         App.closeModals();
         App.renderCart();
         App.renderView('pos');
 
-        // Ensure total is recalculated before showing payment modal
         const total = App.state.cart.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
         if (total > 0) {
             App.showPaymentModal();
@@ -8152,7 +8368,7 @@ const App = {
 
     cancelTableBill: async (tableId) => {
         const tables = DB.getTables();
-        const table = tables.find(item => item.id === tableId);
+        const table = tables.find(item => String(item.id) === String(tableId) || Number(item.id) === Number(tableId));
         if (!table?.billId) return;
         const bill = DB.getParkedCarts().find(item => String(item.id) === String(table.billId));
         const total = (bill?.items || []).reduce((sum, item) => sum + App.calcItemTotal(item), 0);
@@ -8165,6 +8381,398 @@ const App = {
         App.closeModals();
         App.renderView('tables');
         await App.alert(`ล้างบิล ${table.name} แล้ว`);
+    },
+
+    // --- Past Days History for Tables & Delivery Orders ---
+    _collectTableAndDeliveryHistory: () => {
+        const orders = DB.getOrders ? DB.getOrders() : [];
+        const sales = DB.getSales ? DB.getSales() : [];
+        const parked = DB.getParkedCarts ? DB.getParkedCarts() : [];
+        const tables = DB.getTables ? DB.getTables() : [];
+
+        const mapById = new Map();
+
+        const normalizeRecord = (raw, source) => {
+            const id = String(raw.billId || raw.id || '');
+            if (!id) return;
+            const isDelivery = Boolean(raw.deliveryTime || raw.scheduledAt || raw.orderType === 'delivery' || (raw.deliveryDetails && (raw.deliveryDetails.address || raw.deliveryDetails.map)));
+            const isTable = !isDelivery && Boolean(raw.tableId || raw.tableName || raw.orderType === 'table' || raw.note);
+            if (!isDelivery && !isTable) return;
+
+            const openedAt = Number(raw.openedAt || raw.createdAt || raw.timestamp || (raw.date ? new Date(raw.date).getTime() : 0)) || Date.now();
+            const closedAt = Number(raw.closedAt || (raw.status === 'paid' && raw.updatedAt ? raw.updatedAt : (source === 'sale' && raw.date ? new Date(raw.date).getTime() : 0))) || null;
+            const dispatchedAt = Number(raw.dispatchedAt) || null;
+            const scheduledAt = raw.scheduledAt || raw.deliveryTime || null;
+            const items = Array.isArray(raw.items) ? raw.items : [];
+            const total = Number(raw.total) || items.reduce((s, i) => s + App.calcItemTotal(i), 0);
+
+            const prev = mapById.get(id) || {};
+            mapById.set(id, {
+                id,
+                orderType: isDelivery ? 'delivery' : 'table',
+                title: raw.note || raw.tableName || prev.title || (isDelivery ? 'ออเดอร์ส่ง' : 'บิลโต๊ะ'),
+                tableName: raw.tableName || prev.tableName || null,
+                tableId: raw.tableId || prev.tableId || null,
+                status: source === 'parked' ? 'open' : (raw.status || (source === 'sale' ? 'paid' : prev.status || 'paid')),
+                openedAt: prev.openedAt ? Math.min(prev.openedAt, openedAt) : openedAt,
+                closedAt: closedAt || prev.closedAt || null,
+                dispatchedAt: dispatchedAt || prev.dispatchedAt || null,
+                scheduledAt: scheduledAt || prev.scheduledAt || null,
+                deliveryDetails: raw.deliveryDetails || prev.deliveryDetails || null,
+                deletionLog: (Array.isArray(raw.deletionLog) && raw.deletionLog.length > 0) ? raw.deletionLog : (prev.deletionLog || []),
+                items: items.length > 0 ? items : (prev.items || []),
+                total: total || prev.total || 0,
+                paymentMethod: raw.paymentMethod || prev.paymentMethod || null
+            });
+        };
+
+        orders.forEach(o => normalizeRecord(o, 'order'));
+        sales.forEach(s => normalizeRecord(s, 'sale'));
+        parked.forEach(p => {
+            const linkedTable = tables.find(t => String(t.billId) === String(p.id));
+            normalizeRecord({ ...p, tableId: linkedTable?.id || p.tableId, tableName: linkedTable?.name || p.tableName }, 'parked');
+        });
+
+        return Array.from(mapById.values()).sort((a, b) => (b.closedAt || b.openedAt) - (a.closedAt || a.openedAt));
+    },
+
+    openTableDeliveryHistoryModal: (filterType = 'all', dateFilter = 'all', customDate = '', searchQuery = '') => {
+        App._historyModalState = { filterType, dateFilter, customDate, searchQuery };
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('table-detail-modal');
+        if (!overlay || !modal) return;
+
+        modal.classList.add('table-pad-modal');
+        modal.style.maxWidth = '720px';
+
+        const allRecords = App._collectTableAndDeliveryHistory();
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const startOfYesterday = startOfToday - 86400000;
+        const startOf7Days = startOfToday - 7 * 86400000;
+
+        const filtered = allRecords.filter(rec => {
+            if (filterType !== 'all' && rec.orderType !== filterType) return false;
+            const refTime = rec.openedAt || rec.closedAt || 0;
+            if (dateFilter === 'today' && refTime < startOfToday) return false;
+            if (dateFilter === 'yesterday' && (refTime < startOfYesterday || refTime >= startOfToday)) return false;
+            if (dateFilter === '7days' && refTime < startOf7Days) return false;
+            if (dateFilter === 'custom' && customDate) {
+                const d = new Date(refTime);
+                const pad = n => String(n).padStart(2, '0');
+                const ymd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                if (ymd !== customDate) return false;
+            }
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                const inTitle = (rec.title || '').toLowerCase().includes(q) || (rec.tableName || '').toLowerCase().includes(q);
+                const inAddr = (rec.deliveryDetails?.address || '').toLowerCase().includes(q);
+                const inItems = (rec.items || []).some(it => (it.name || '').toLowerCase().includes(q));
+                if (!inTitle && !inAddr && !inItems) return false;
+            }
+            return true;
+        });
+
+        const fmtTime = (ms) => {
+            if (!ms) return '-';
+            return new Date(ms).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+        };
+        const fmtDateShort = (ms) => {
+            if (!ms) return '';
+            return new Date(ms).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+        };
+
+        const cardsHtml = filtered.length > 0 ? filtered.map(rec => {
+            const isDelivery = rec.orderType === 'delivery';
+            const dateBadge = fmtDateShort(rec.openedAt);
+            const openTimeStr = fmtTime(rec.openedAt);
+            const closeTimeStr = rec.closedAt ? fmtTime(rec.closedAt) : (rec.status === 'open' ? 'กำลังเปิดอยู่' : '-');
+            const durationStr = rec.closedAt ? App.formatDurationText(rec.openedAt, rec.closedAt) : App.formatDurationText(rec.openedAt, Date.now());
+            const schedStr = rec.scheduledAt ? fmtTime(new Date(rec.scheduledAt).getTime()) : '-';
+            const dispStr = rec.dispatchedAt ? fmtTime(rec.dispatchedAt) : 'ไม่ได้กดออกส่ง';
+
+            const statusBadge = rec.status === 'open'
+                ? '<span style="background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:99px; font-size:11.5px; font-weight:800;">🟢 กำลังเปิดอยู่</span>'
+                : (rec.status === 'cancelled'
+                    ? '<span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:99px; font-size:11.5px; font-weight:800;">❌ ยกเลิก</span>'
+                    : '<span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:99px; font-size:11.5px; font-weight:800;">✅ เช็คบิลแล้ว</span>');
+
+            const itemsSummary = (rec.items || []).map(it => {
+                const expr = App.formatTableTallyExpression(it);
+                return `${Utils.escapeHTML(it.name)} <strong style="color:#b45309;">(${Utils.escapeHTML(expr)})</strong>`;
+            }).join(' • ');
+
+            return `
+                <div style="background:#fff; border:1.5px solid ${isDelivery ? '#fdba74' : '#cbd5e1'}; border-radius:14px; padding:12px 14px; box-shadow:0 2px 6px rgba(15,23,42,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                <span style="font-size:12px; font-weight:800; background:${isDelivery ? '#ffedd5' : '#e0f2fe'}; color:${isDelivery ? '#c2410c' : '#0369a1'}; padding:2px 8px; border-radius:6px;">
+                                    ${isDelivery ? '🛵 ออเดอร์ส่ง' : `🍽️ ${Utils.escapeHTML(rec.tableName || 'โต๊ะ')}`}
+                                </span>
+                                <strong style="font-size:16px; color:#0f172a;">${Utils.escapeHTML(rec.title)}</strong>
+                                ${statusBadge}
+                            </div>
+                            <div style="font-size:11.5px; color:#64748b; margin-top:2px;">📅 วันที่ ${dateBadge} • เลขบิล #${Utils.escapeHTML(rec.id)}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:20px; font-weight:900; color:#b45309;">฿${Utils.formatCurrency(rec.total)}</div>
+                            <div style="font-size:11px; color:#64748b;">${(rec.items || []).length} รายการ</div>
+                        </div>
+                    </div>
+
+                    <!-- Time Breakdown Box -->
+                    ${isDelivery ? `
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:6px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:8px 10px; margin-bottom:8px; font-size:12px;">
+                            <div><span style="color:#9a3412;">📝 เวลาสั่ง:</span><br><strong style="color:#0f172a;">${openTimeStr}</strong></div>
+                            <div><span style="color:#9a3412;">⏰ เวลานัดส่ง:</span><br><strong style="color:#0f172a;">${schedStr}</strong></div>
+                            <div><span style="color:#9a3412;">🛵 เวลาออกส่ง:</span><br><strong style="color:${rec.dispatchedAt ? '#059669' : '#64748b'};">${dispStr}</strong></div>
+                            <div><span style="color:#9a3412;">🏁 เวลาเช็คบิล:</span><br><strong style="color:#15803d;">${closeTimeStr}</strong></div>
+                        </div>
+                    ` : `
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:8px 10px; margin-bottom:8px; font-size:12px;">
+                            <div><span style="color:#166534;">🟢 เวลาเริ่มเปิดโต๊ะ:</span><br><strong style="color:#0f172a; font-size:13.5px;">${openTimeStr}</strong></div>
+                            <div><span style="color:#166534;">🏁 เวลาเช็คบิล:</span><br><strong style="color:#15803d; font-size:13.5px;">${closeTimeStr}</strong></div>
+                            <div><span style="color:#166534;">⏱️ ระยะเวลานั่ง:</span><br><strong style="color:#0369a1; font-size:13.5px;">${durationStr}</strong></div>
+                        </div>
+                    `}
+
+                    ${rec.deliveryDetails?.address ? `
+                        <div style="font-size:12px; color:#334155; margin-bottom:6px;">📍 ที่อยู่จัดส่ง: ${Utils.escapeHTML(rec.deliveryDetails.address)}</div>
+                    ` : ''}
+
+                    <div style="font-size:12.5px; color:#44403c; background:#fffdf7; border:1px dashed #d4c5a9; border-radius:8px; padding:6px 10px; margin-bottom:8px;">
+                        📋 ${itemsSummary || 'ไม่มีรายการสินค้า'}
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="secondary-btn" onclick="App.viewHistoryBillDetail('${rec.id}')" style="padding:5px 10px; font-size:12px; display:flex; align-items:center; gap:4px;">
+                            <span class="material-symbols-rounded" style="font-size:16px;">visibility</span> ดูเวลาจดรายครั้ง / ใบเสร็จ
+                        </button>
+                        <button type="button" class="primary-btn" onclick="App.repeatOrderFromHistory('${rec.id}')" style="padding:5px 12px; font-size:12px; background:#0f172a; display:flex; align-items:center; gap:4px;">
+                            <span class="material-symbols-rounded" style="font-size:16px;">replay</span> สั่งซ้ำ / เปิดบิลใหม่จากประวัตินี้
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('') : `
+            <div style="text-align:center; padding:36px 16px; color:#64748b; background:#fff; border-radius:12px; border:1px dashed #cbd5e1;">
+                <span class="material-symbols-rounded" style="font-size:44px; opacity:0.45; display:block; margin-bottom:6px;">history</span>
+                ไม่พบประวัติในช่วงเวลาที่เลือก
+            </div>
+        `;
+
+        modal.innerHTML = `
+            <div class="table-pad-header">
+                <div>
+                    <div style="font-size:18px; font-weight:900; color:#0f172a; display:flex; align-items:center; gap:6px;">
+                        <span class="material-symbols-rounded">history</span>
+                        📜 ประวัติย้อนหลัง (โต๊ะ & ออเดอร์ส่ง)
+                    </div>
+                    <div style="font-size:12px; color:#64748b;">ดูเวลาเริ่มเปิดโต๊ะ • เวลาเช็คบิล • เวลาสั่งและออกส่ง พร้อมรอยจดรายครั้ง</div>
+                </div>
+                <button class="icon-btn" onclick="App.closeModals()" style="background:#fff; border:1px solid #cbd5e1; border-radius:50%; width:36px; height:36px;">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
+            </div>
+
+            <div class="table-pad-body">
+                <!-- Filter Controls -->
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:space-between;">
+                        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                            ${[
+                                ['all', 'ทั้งหมด'],
+                                ['table', '🍽️ เฉพาะโต๊ะ'],
+                                ['delivery', '🛵 เฉพาะออเดอร์ส่ง']
+                            ].map(([val, label]) => `
+                                <button type="button" onclick="App.openTableDeliveryHistoryModal('${val}', '${dateFilter}', '${customDate}', '${Utils.escapeHTML(searchQuery)}')"
+                                    style="padding:5px 11px; font-size:12.5px; font-weight:800; border-radius:8px; border:1px solid ${filterType === val ? '#0f172a' : '#cbd5e1'}; background:${filterType === val ? '#0f172a' : '#fff'}; color:${filterType === val ? '#fff' : '#334155'}; cursor:pointer;">
+                                    ${label}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                            ${[
+                                ['all', 'ทุกวัน'],
+                                ['today', 'วันนี้'],
+                                ['yesterday', 'เมื่อวาน'],
+                                ['7days', '7 วันล่าสุด']
+                            ].map(([val, label]) => `
+                                <button type="button" onclick="App.openTableDeliveryHistoryModal('${filterType}', '${val}', '', '${Utils.escapeHTML(searchQuery)}')"
+                                    style="padding:5px 10px; font-size:12px; font-weight:700; border-radius:8px; border:1px solid ${dateFilter === val ? '#0284c7' : '#cbd5e1'}; background:${dateFilter === val ? '#0284c7' : '#fff'}; color:${dateFilter === val ? '#fff' : '#334155'}; cursor:pointer;">
+                                    ${label}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center;">
+                        <input type="search" value="${Utils.escapeHTML(searchQuery)}" placeholder="🔍 ค้นหาชื่อโต๊ะ, ชื่อลูกค้า, ที่อยู่, หรือชื่อสินค้า..."
+                            oninput="App.openTableDeliveryHistoryModal('${filterType}', '${dateFilter}', '${customDate}', this.value)"
+                            style="padding:7px 10px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box;">
+                        <input type="date" value="${customDate}"
+                            onchange="App.openTableDeliveryHistoryModal('${filterType}', 'custom', this.value, '${Utils.escapeHTML(searchQuery)}')"
+                            style="padding:6px 9px; font-size:12.5px; border:1px solid #cbd5e1; border-radius:8px;">
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:10px; max-height:62vh; overflow-y:auto; padding-right:2px;">
+                    ${cardsHtml}
+                </div>
+            </div>
+        `;
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    viewHistoryBillDetail: (billId) => {
+        const allRecords = App._collectTableAndDeliveryHistory();
+        const rec = allRecords.find(r => String(r.id) === String(billId));
+        if (!rec) return;
+
+        // If this bill is still open in parkedCarts, open the live pad
+        const activeParked = DB.getParkedCarts().find(b => String(b.id) === String(billId));
+        if (activeParked) {
+            if (activeParked.deliveryTime) {
+                App.openDeliveryBillPad(billId);
+            } else {
+                const tbl = DB.getTables().find(t => String(t.billId) === String(billId));
+                if (tbl) App.handleTableClick(tbl.id);
+            }
+            return;
+        }
+
+        const modal = document.getElementById('table-detail-modal');
+        if (!modal) return;
+        const isDelivery = rec.orderType === 'delivery';
+        const openStr = new Date(rec.openedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+        const closeStr = rec.closedAt ? new Date(rec.closedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+        const dispStr = rec.dispatchedAt ? new Date(rec.dispatchedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+        const prevState = App._historyModalState || { filterType: 'all', dateFilter: 'all', customDate: '', searchQuery: '' };
+
+        modal.innerHTML = `
+            <div class="table-pad-header">
+                <div>
+                    <div style="font-size:17px; font-weight:900; color:#0f172a;">
+                        ${isDelivery ? '🛵 รายละเอียดประวัติออเดอร์ส่ง' : '🍽️ รายละเอียดประวัติบิลโต๊ะ'} — ${Utils.escapeHTML(rec.title)}
+                    </div>
+                    <div style="font-size:12px; color:#64748b;">เลขบิล #${Utils.escapeHTML(rec.id)}</div>
+                </div>
+                <button class="icon-btn" onclick="App.openTableDeliveryHistoryModal('${prevState.filterType}', '${prevState.dateFilter}', '${prevState.customDate}', '${Utils.escapeHTML(prevState.searchQuery)}')" title="กลับหน้าประวัติ">
+                    <span class="material-symbols-rounded">arrow_back</span>
+                </button>
+            </div>
+            <div class="table-pad-body">
+                <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:12px; margin-bottom:12px; font-size:13px; line-height:1.6;">
+                    ${isDelivery ? `
+                        <div>📝 <strong>เวลาสั่ง:</strong> ${openStr} น.</div>
+                        <div>🛵 <strong>เวลาออกส่ง:</strong> ${dispStr} ${rec.dispatchedAt ? 'น.' : ''}</div>
+                        <div>🏁 <strong>เวลาเช็คบิล/รับเงิน:</strong> ${closeStr} ${rec.closedAt ? 'น.' : ''}</div>
+                        ${rec.deliveryDetails?.address ? `<div>📍 <strong>ที่อยู่จัดส่ง:</strong> ${Utils.escapeHTML(rec.deliveryDetails.address)}</div>` : ''}
+                    ` : `
+                        <div>🟢 <strong>เวลาเริ่มเปิดโต๊ะ:</strong> ${openStr} น.</div>
+                        <div>🏁 <strong>เวลาเช็คบิล:</strong> ${closeStr} ${rec.closedAt ? 'น.' : ''}</div>
+                        <div>⏱️ <strong>ระยะเวลานั่งรวม:</strong> ${App.formatDurationText(rec.openedAt, rec.closedAt || Date.now())}</div>
+                    `}
+                </div>
+
+                <div class="handwritten-sheet" style="margin-bottom:14px;">
+                    ${(rec.items || []).map((item, idx) => {
+                        App.normalizeTableItemAdditions(item, rec.openedAt);
+                        const expr = App.formatTableTallyExpression(item);
+                        const lineTotal = App.calcItemTotal(item);
+                        const unitLabel = item.unitLabel || item.unit || 'ชิ้น';
+                        return `
+                            <div class="tally-row">
+                                <div class="tally-main-line">
+                                    <div class="tally-item-title">${idx + 1}. ${Utils.escapeHTML(item.name)} (@฿${Utils.formatCurrency(item.price)})</div>
+                                    <div class="tally-expr-btn" style="cursor:default;">${Utils.escapeHTML(expr)} = ${item.qty} ${Utils.escapeHTML(unitLabel)} (฿${Utils.formatCurrency(lineTotal)})</div>
+                                </div>
+                                <div style="margin-top:6px; font-size:12px; color:#475569; display:flex; flex-wrap:wrap; gap:6px;">
+                                    ${item.additions.map((a, aIdx) => {
+                                        const t = new Date(a.at || rec.openedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                                        if (a.deleted) {
+                                            return `<span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:6px;"><s>ครั้งที่ ${aIdx + 1}: +${a.qty} (${t} น.)</s> ลบแล้ว</span>`;
+                                        }
+                                        return `<span style="background:#f1f5f9; color:#0f172a; padding:2px 7px; border-radius:6px;">ครั้งที่ ${aIdx + 1}: <strong>+${a.qty}</strong> เมื่อ ${t} น.</span>`;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+
+                <div style="background:#fef3c7; border:2px solid #f59e0b; border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                    <strong style="font-size:18px; color:#78350f;">ยอดรวมสุทธิ</strong>
+                    <strong style="font-size:26px; color:#b45309;">฿${Utils.formatCurrency(rec.total)}</strong>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.openTableDeliveryHistoryModal('${prevState.filterType}', '${prevState.dateFilter}', '${prevState.customDate}', '${Utils.escapeHTML(prevState.searchQuery)}')">
+                        กลับหน้าประวัติ
+                    </button>
+                    <button type="button" class="primary-btn" style="flex:2; background:#0f172a;" onclick="App.repeatOrderFromHistory('${rec.id}')">
+                        🔁 สั่งซ้ำ / เปิดบิลใหม่จากประวัตินี้
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    repeatOrderFromHistory: async (billId) => {
+        const allRecords = App._collectTableAndDeliveryHistory();
+        const rec = allRecords.find(r => String(r.id) === String(billId));
+        if (!rec) return;
+
+        const now = Date.now();
+        const freshItems = (rec.items || []).map(it => {
+            const qty = Math.max(1, Number(it.qty) || 1);
+            const unit = it.unitLabel || it.unit || '';
+            return {
+                ...it,
+                qty,
+                additions: [{ qty, at: now, unit, deleted: false, deletedAt: null }]
+            };
+        });
+
+        if (rec.orderType === 'delivery') {
+            const newBillId = DB.generateBillId();
+            const targetDate = new Date(now + 30 * 60000);
+            const deliveryDetails = rec.deliveryDetails ? JSON.parse(JSON.stringify(rec.deliveryDetails)) : { address: '', map: '', image: null };
+            DB.parkCart(freshItems, rec.title || 'ลูกค้าสั่งส่ง', now, newBillId, targetDate.toISOString(), deliveryDetails, {
+                deletionLog: [],
+                dispatchedAt: null
+            });
+            const session = App._ensureTableBillSession(newBillId);
+            if (session) {
+                App._tablePadState = { tableId: session.table.id, expandedTimeRows: {}, calculatedRows: {}, allCalculated: false, quickSearch: '' };
+                App.showTableDetailsModal(session.table, session.bill);
+            }
+            return;
+        }
+
+        // For Table history: let user choose an available table or open a new delivery order
+        const tables = DB.getTables();
+        const emptyTable = tables.find(t => !t.billId && t.name === rec.tableName) || tables.find(t => !t.billId);
+        if (!emptyTable) {
+            await App.alert('ขณะนี้ไม่มีโต๊ะว่าง กรุณาเคลียร์โต๊ะก่อนสั่งซ้ำลงโต๊ะ');
+            return;
+        }
+        const newBillId = DB.generateBillId();
+        emptyTable.billId = newBillId;
+        DB.saveTables(tables);
+        DB.parkCart(freshItems, rec.title || emptyTable.name, now, newBillId, null, null, {
+            deletionLog: [],
+            tableId: emptyTable.id,
+            tableName: emptyTable.name
+        });
+        const session = App._ensureTableBillSession(emptyTable.id);
+        if (session) {
+            App._tablePadState = { tableId: session.table.id, expandedTimeRows: {}, calculatedRows: {}, allCalculated: false, quickSearch: '' };
+            App.showTableDetailsModal(session.table, session.bill);
+        }
     },
 
     // --- Price Check ---

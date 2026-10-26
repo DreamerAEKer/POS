@@ -335,21 +335,30 @@ const DB = {
     },
     mirrorParkedOrder: (bill, extra = {}) => {
         if (!bill || !bill.id) return Promise.resolve(null);
+        const tables = DB.getTables();
+        const linkedTable = tables.find(t => String(t.billId) === String(bill.id));
+        const isDelivery = Boolean(bill.deliveryTime || bill.isDelivery || bill.orderType === 'delivery');
+        const resolvedOrderType = isDelivery ? 'delivery' : ((linkedTable || bill.tableId || extra.orderType === 'table') ? 'table' : (extra.orderType || 'parked'));
         const total = (bill.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
         return DB.saveOrder({
             id: String(bill.id),
             legacyBillId: String(bill.id),
             source: 'legacy_parked_cart',
-            orderType: bill.deliveryTime ? 'delivery' : (extra.orderType || 'parked'),
+            orderType: resolvedOrderType,
+            tableId: linkedTable ? linkedTable.id : (bill.tableId || extra.tableId || null),
+            tableName: linkedTable ? linkedTable.name : (bill.tableName || extra.tableName || null),
             customerId: bill.customerId || null,
             customerSnapshot: { name: bill.note || '', phone: bill.customerPhone || '' },
             items: DB.snapshotOrderItems(bill.items || []),
             total,
-            fulfillmentStatus: bill.deliveryTime ? 'scheduled' : 'open',
+            fulfillmentStatus: bill.dispatchedAt ? 'dispatched' : (isDelivery ? 'scheduled' : 'open'),
             paymentStatus: bill.paymentStatus || 'unpaid',
             paymentMethod: bill.paymentMethod || '',
+            openedAt: bill.openedAt || bill.timestamp || Date.now(),
             scheduledAt: bill.deliveryTime || null,
+            dispatchedAt: bill.dispatchedAt || null,
             deliveryDetails: bill.deliveryDetails || null,
+            deletionLog: Array.isArray(bill.deletionLog) ? bill.deletionLog : [],
             createdAt: bill.timestamp || Date.now(),
             ...extra
         }).catch(error => { console.error('Mirror parked order error:', error); return null; });
@@ -987,6 +996,46 @@ const DB = {
         const committedSale = { ...saleData };
         if (!committedSale.billId) committedSale.billId = DB.generateBillId();
         committedSale.storeName = committedSale.storeName || DB.getSettings().storeName;
+
+        const existingParked = DB.getParkedCarts().find(b => String(b.id) === String(committedSale.billId));
+        const linkedTable = DB.getTables().find(t => String(t.billId) === String(committedSale.billId));
+        const existingOrder = DB.getOrders().find(o => String(o.id) === String(committedSale.billId));
+
+        const isDelivery = Boolean(
+            committedSale.orderType === 'delivery' ||
+            existingParked?.deliveryTime ||
+            existingParked?.isDelivery ||
+            existingOrder?.orderType === 'delivery'
+        );
+        const isTable = !isDelivery && Boolean(
+            committedSale.orderType === 'table' ||
+            linkedTable ||
+            existingParked?.tableId ||
+            existingOrder?.orderType === 'table' ||
+            (committedSale.orderType === 'table_or_parked' && (linkedTable || existingParked?.tableId || existingOrder?.tableId))
+        );
+        const resolvedOrderType = isDelivery ? 'delivery' : (isTable ? 'table' : (committedSale.orderType || 'walk_in'));
+        const openedAt = committedSale.openedAt || existingParked?.openedAt || existingParked?.timestamp || existingOrder?.openedAt || existingOrder?.createdAt || (committedSale.date ? new Date(committedSale.date).getTime() : Date.now());
+        const closedAt = Date.now();
+        const dispatchedAt = committedSale.dispatchedAt || existingParked?.dispatchedAt || existingOrder?.dispatchedAt || null;
+        const scheduledAt = committedSale.scheduledAt || existingParked?.deliveryTime || existingOrder?.scheduledAt || null;
+        const deliveryDetails = committedSale.deliveryDetails || existingParked?.deliveryDetails || existingOrder?.deliveryDetails || null;
+        const deletionLog = committedSale.deletionLog || existingParked?.deletionLog || existingOrder?.deletionLog || [];
+        const tableId = committedSale.tableId || linkedTable?.id || existingParked?.tableId || existingOrder?.tableId || null;
+        const tableName = committedSale.tableName || linkedTable?.name || existingParked?.tableName || existingOrder?.tableName || null;
+        const note = committedSale.note || committedSale.customerSnapshot?.name || existingParked?.note || existingOrder?.customerSnapshot?.name || '';
+
+        committedSale.orderType = resolvedOrderType;
+        committedSale.openedAt = openedAt;
+        committedSale.closedAt = closedAt;
+        committedSale.dispatchedAt = dispatchedAt;
+        committedSale.scheduledAt = scheduledAt;
+        committedSale.deliveryDetails = deliveryDetails;
+        committedSale.deletionLog = deletionLog;
+        committedSale.tableId = tableId;
+        committedSale.tableName = tableName;
+        committedSale.note = note;
+
         const existingIndex = nextSales.findIndex(sale => sale.billId === committedSale.billId);
         if (existingIndex >= 0) nextSales[existingIndex] = { ...nextSales[existingIndex], ...committedSale };
         else nextSales.push(committedSale);
@@ -1009,15 +1058,23 @@ const DB = {
                 id: committedSale.billId,
                 legacyBillId: committedSale.billId,
                 source: 'sale',
-                orderType: committedSale.orderType || 'walk_in',
-                customerId: committedSale.customerId || null,
-                customerSnapshot: committedSale.customerSnapshot || null,
+                orderType: resolvedOrderType,
+                tableId,
+                tableName,
+                customerId: committedSale.customerId || existingOrder?.customerId || null,
+                customerSnapshot: committedSale.customerSnapshot || existingOrder?.customerSnapshot || (note ? { name: note, phone: '' } : null),
                 items: DB.snapshotOrderItems(committedSale.items || cartItems),
                 total: Number(committedSale.total || 0),
                 fulfillmentStatus: 'completed',
                 paymentStatus: committedSale.paymentStatus || 'paid',
                 paymentMethod: committedSale.paymentMethod || 'cash',
-                createdAt: committedSale.date ? new Date(committedSale.date).getTime() : Date.now(),
+                openedAt,
+                closedAt,
+                scheduledAt,
+                dispatchedAt,
+                deliveryDetails,
+                deletionLog,
+                createdAt: openedAt,
                 completedAt: paidAt
             });
             await DB.savePayment({
