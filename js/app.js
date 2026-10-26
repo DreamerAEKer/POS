@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.61 (26/10/2026)', // Ask confirmation before deleting table items and keep full deletion history
+    VERSION: '0.99.62 (26/10/2026)', // Soundboard / Effect Key Pad style grid for table quick items
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -7283,16 +7283,56 @@ const App = {
         App.showTableDetailsModal(table, bill);
     },
 
+    _getTableEffectKeyVisual: (name = '', group = '', index = 0) => {
+        const text = `${name} ${group}`.toLowerCase();
+        if (text.includes('น้ำแข็ง')) return { emoji: '🧊', theme: 'theme-ice' };
+        if (text.includes('แก้ว')) return { emoji: '🥃', theme: 'theme-ice' };
+        if (text.includes('โซดา')) return { emoji: '🫧', theme: 'theme-spirit' };
+        if (text.includes('เบียร์') || text.includes('สิงห์') || text.includes('ช้าง') || text.includes('ลีโอ') || text.includes('ไฮเนเก้น')) {
+            return { emoji: '🍺', theme: 'theme-beer' };
+        }
+        if (text.includes('เหล้า') || text.includes('หงส์') || text.includes('แสงโสม') || text.includes('รีเจนซี่') || text.includes('285') || text.includes('เบลนด์')) {
+            return { emoji: '🥃', theme: 'theme-spirit' };
+        }
+        if (text.includes('โค้ก') || text.includes('เป๊ปซี่') || text.includes('น้ำเปล่า') || text.includes('น้ำดื่ม') || text.includes('สไปรท์') || text.includes('แฟนต้า') || text.includes('น้ำอัดลม')) {
+            return { emoji: '🥤', theme: 'theme-drink' };
+        }
+        if (text.includes('มาม่า') || text.includes('ถั่ว') || text.includes('กับแกล้ม') || text.includes('ขนม') || text.includes('ยำ') || text.includes('ลูกชิ้น')) {
+            return { emoji: '🍜', theme: 'theme-food' };
+        }
+        const fallbackThemes = ['theme-ice', 'theme-beer', 'theme-drink', 'theme-spirit', 'theme-food', 'theme-default'];
+        const fallbackEmojis = ['⚡', '🛒', '✨', '📦', '🍽️', '🏷️'];
+        return {
+            emoji: fallbackEmojis[index % fallbackEmojis.length],
+            theme: fallbackThemes[index % fallbackThemes.length]
+        };
+    },
+
     quickAddProductToTable: (tableId, productId) => {
         const session = App._ensureTableBillSession(tableId);
         if (!session) return;
         const { table, bill } = session;
-        const product = App.state.products.find(p => String(p.id) === String(productId));
+
+        // If in Edit/Pin Keys mode, toggle pinning this product on the Effect Key Pad
+        if (App._tablePadState && App._tablePadState.editKeysMode) {
+            App.togglePinTableEffectKey(tableId, productId);
+            return;
+        }
+
+        // Check custom preset keys or store products
+        const settings = DB.getSettings();
+        const customKey = Array.isArray(settings.tableCustomEffectKeys)
+            ? settings.tableCustomEffectKeys.find(k => String(k.id) === String(productId))
+            : null;
+        const product = customKey || App.state.products.find(p => String(p.id) === String(productId));
         if (!product) return;
+
+        // Sound + Haptic effect like an Effect Key Pad!
+        App.playScanFeedback(true);
 
         const now = Date.now();
         const unit = product.unitLabel || product.unit || '';
-        const existing = bill.items.find(i => String(i.id) === String(product.id));
+        const existing = bill.items.find(i => String(i.id) === String(product.id) || (i.name === product.name && Number(i.price) === Number(product.price)));
         if (existing) {
             App.normalizeTableItemAdditions(existing, bill.timestamp);
             existing.additions.push({ qty: 1, at: now, unit, deleted: false, deletedAt: null });
@@ -7308,7 +7348,40 @@ const App = {
         App.showTableDetailsModal(table, bill);
     },
 
-    addCustomHandwrittenItemToTable: (tableId) => {
+    toggleTableKeyEditMode: (tableId) => {
+        App._tablePadState ||= { tableId, expandedTimeRows: {}, calculatedRows: {} };
+        App._tablePadState.editKeysMode = !App._tablePadState.editKeysMode;
+        const session = App._ensureTableBillSession(tableId);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    togglePinTableEffectKey: async (tableId, productId) => {
+        const settings = DB.getSettings();
+        let pinnedIds = Array.isArray(settings.tablePinnedKeyIds) ? settings.tablePinnedKeyIds.map(String) : null;
+        if (!pinnedIds) {
+            // Initialize from current default candidates
+            pinnedIds = App._getDefaultTableKeyCandidates().map(p => String(p.id));
+        }
+        const pid = String(productId);
+        if (pinnedIds.includes(pid)) {
+            pinnedIds = pinnedIds.filter(id => id !== pid);
+        } else {
+            pinnedIds.unshift(pid);
+        }
+        await DB.saveSettings({ tablePinnedKeyIds: pinnedIds });
+        const session = App._ensureTableBillSession(tableId);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    resetTableEffectKeys: async (tableId) => {
+        if (!await App.confirm('รีเซ็ตแผงปุ่มคีย์ด่วนกลับเป็นค่าเริ่มต้นใช่หรือไม่?', 'รีเซ็ตปุ่มคีย์')) return;
+        await DB.saveSettings({ tablePinnedKeyIds: null, tableCustomEffectKeys: [] });
+        if (App._tablePadState) App._tablePadState.editKeysMode = false;
+        const session = App._ensureTableBillSession(tableId);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    addCustomHandwrittenItemToTable: async (tableId, saveAsKey = false) => {
         const session = App._ensureTableBillSession(tableId);
         if (!session) return;
         const { table, bill } = session;
@@ -7329,6 +7402,28 @@ const App = {
         }
 
         const now = Date.now();
+        const customId = 'TBL-' + now + '-' + Math.random().toString(36).slice(2, 6);
+
+        if (saveAsKey) {
+            const settings = DB.getSettings();
+            const customKeys = Array.isArray(settings.tableCustomEffectKeys) ? settings.tableCustomEffectKeys.slice() : [];
+            const newKeyObj = {
+                id: customId,
+                name,
+                price,
+                unitLabel: unit || 'ชิ้น',
+                isQuick: true
+            };
+            customKeys.unshift(newKeyObj);
+            let pinnedIds = Array.isArray(settings.tablePinnedKeyIds)
+                ? settings.tablePinnedKeyIds.map(String)
+                : App._getDefaultTableKeyCandidates().map(p => String(p.id));
+            pinnedIds.unshift(customId);
+            await DB.saveSettings({ tableCustomEffectKeys: customKeys, tablePinnedKeyIds: pinnedIds });
+        }
+
+        App.playScanFeedback(true);
+
         const existing = bill.items.find(i => i.name.trim().toLowerCase() === name.toLowerCase() && (price === 0 || Number(i.price) === price));
         if (existing) {
             App.normalizeTableItemAdditions(existing, bill.timestamp);
@@ -7338,7 +7433,7 @@ const App = {
             existing.qty = existing.additions.filter(e => !e.deleted).reduce((sum, e) => sum + e.qty, 0);
         } else {
             bill.items.push({
-                id: 'TBL-' + now + '-' + Math.random().toString(36).slice(2, 6),
+                id: customId,
                 name,
                 price,
                 qty,
@@ -7398,36 +7493,78 @@ const App = {
         App._tablePadState.quickSearch = String(query || '');
         const container = document.getElementById('tp-quick-chips-container');
         if (!container) return;
-        container.innerHTML = App._renderTableQuickChipsHtml(tableId, App._tablePadState.quickSearch);
+        const session = App._ensureTableBillSession(tableId);
+        container.innerHTML = App._renderTableQuickChipsHtml(tableId, App._tablePadState.quickSearch, session?.bill);
     },
 
-    _renderTableQuickChipsHtml: (tableId, query = '') => {
-        const q = String(query || '').trim().toLowerCase();
+    _getDefaultTableKeyCandidates: () => {
         const allProducts = App.state.products || [];
+        const settings = DB.getSettings();
+        const customKeys = Array.isArray(settings.tableCustomEffectKeys) ? settings.tableCustomEffectKeys : [];
+        const combined = [...customKeys, ...allProducts];
+
         const tableKeywords = ['น้ำแข็ง', 'แก้ว', 'โซดา', 'เบียร์', 'เหล้า', 'สิงห์', 'ช้าง', 'ลีโอ', 'หงส์', 'รีเจนซี่', 'แสงโสม', 'โค้ก', 'น้ำเปล่า', 'มาม่า', 'ถั่ว', 'กับแกล้ม'];
-        let candidates = allProducts.filter(p => {
-            if (!q) return true;
-            return (p.name || '').toLowerCase().includes(q) || (p.group || '').toLowerCase().includes(q) || (p.barcode || '').includes(q);
-        });
-        if (!q) {
-            candidates = candidates.slice().sort((a, b) => {
-                const aScore = tableKeywords.some(k => (a.name || '').includes(k) || (a.group || '').includes(k)) ? 1 : 0;
-                const bScore = tableKeywords.some(k => (b.name || '').includes(k) || (b.group || '').includes(k)) ? 1 : 0;
-                if (bScore !== aScore) return bScore - aScore;
-                return (b.salesCount || 0) - (a.salesCount || 0);
-            }).slice(0, 14);
+        const bulkKeywords = ['ลัง', '1ลัง', 'ยกลัง', 'แพ็ค', 'โหล', 'หีบ'];
+
+        return combined.slice().sort((a, b) => {
+            const aName = (a.name || '').toLowerCase();
+            const bName = (b.name || '').toLowerCase();
+            const aBulk = bulkKeywords.some(k => aName.includes(k));
+            const bBulk = bulkKeywords.some(k => bName.includes(k));
+            const aTable = tableKeywords.some(k => aName.includes(k) || (a.group || '').toLowerCase().includes(k));
+            const bTable = tableKeywords.some(k => bName.includes(k) || (b.group || '').toLowerCase().includes(k));
+
+            const aScore = (aTable ? 10 : 0) - (aBulk ? 8 : 0);
+            const bScore = (bTable ? 10 : 0) - (bBulk ? 8 : 0);
+            if (bScore !== aScore) return bScore - aScore;
+            return (b.salesCount || 0) - (a.salesCount || 0);
+        }).slice(0, 12);
+    },
+
+    _renderTableQuickChipsHtml: (tableId, query = '', bill = null) => {
+        const q = String(query || '').trim().toLowerCase();
+        const settings = DB.getSettings();
+        const customKeys = Array.isArray(settings.tableCustomEffectKeys) ? settings.tableCustomEffectKeys : [];
+        const allProducts = [...customKeys, ...(App.state.products || [])];
+        const editMode = Boolean(App._tablePadState && App._tablePadState.editKeysMode);
+        const pinnedIds = Array.isArray(settings.tablePinnedKeyIds) ? settings.tablePinnedKeyIds.map(String) : null;
+
+        let candidates = [];
+        if (q) {
+            candidates = allProducts.filter(p =>
+                (p.name || '').toLowerCase().includes(q) ||
+                (p.group || '').toLowerCase().includes(q) ||
+                (p.barcode || '').includes(q)
+            ).slice(0, 18);
+        } else if (pinnedIds && pinnedIds.length > 0) {
+            const mapById = new Map(allProducts.map(p => [String(p.id), p]));
+            candidates = pinnedIds.map(id => mapById.get(String(id))).filter(Boolean);
         } else {
-            candidates = candidates.slice(0, 20);
+            candidates = App._getDefaultTableKeyCandidates();
         }
+
         if (!candidates.length) {
-            return '<div style="font-size:13px; color:#64748b; padding:4px;">ไม่พบสินค้าในสต็อก — จดชื่อรายการด่วนด้านล่างได้เลย</div>';
+            return '<div style="grid-column: 1 / -1; font-size:13px; color:#cbd5e1; text-align:center; padding:12px 4px;">ไม่พบปุ่มสินค้า — พิมพ์ค้นหาหรือกด "+ปุ่มคีย์" ด้านล่างได้เลย</div>';
         }
-        return candidates.map(p => `
-            <button type="button" class="table-quick-chip" onclick="App.quickAddProductToTable(${tableId}, '${Utils.escapeHTML(p.id)}')">
-                <span>+ ${Utils.escapeHTML(p.name)}</span>
-                <small style="color:#16a34a; font-weight:800;">฿${Utils.formatCurrency(p.price)}</small>
-            </button>
-        `).join('');
+
+        const billItems = bill?.items || [];
+
+        return candidates.map((p, idx) => {
+            const { emoji, theme } = App._getTableEffectKeyVisual(p.name, p.group, idx);
+            const inBillItem = billItems.find(i => String(i.id) === String(p.id) || (i.name === p.name && Number(i.price) === Number(p.price)));
+            const activeQty = inBillItem ? (Number(inBillItem.qty) || 0) : 0;
+            const isPinned = pinnedIds ? pinnedIds.includes(String(p.id)) : true;
+
+            return `
+                <button type="button" class="table-effect-key ${theme}" onclick="App.quickAddProductToTable(${tableId}, '${Utils.escapeHTML(p.id)}')" title="${editMode ? (isPinned ? 'แตะเพื่อเอาออกจากแผงปุ่มคีย์' : 'แตะเพื่อปักหมุดลงแผงปุ่มคีย์') : `แตะเพื่อจด +1 ${Utils.escapeHTML(p.name)}`}">
+                    ${editMode ? `<span class="key-unpin-badge" style="background:${isPinned ? '#ef4444' : '#22c55e'};">${isPinned ? '✕' : '📌'}</span>` : ''}
+                    ${activeQty > 0 ? `<span class="key-count-badge">×${activeQty}</span>` : ''}
+                    <span class="key-emoji">${emoji}</span>
+                    <span class="key-title">${Utils.escapeHTML(p.name)}</span>
+                    <span class="key-price">฿${Utils.formatCurrency(p.price)}</span>
+                </button>
+            `;
+        }).join('');
     },
 
     showTableDetailsModal: (table, bill) => {
@@ -7440,7 +7577,7 @@ const App = {
 
         const state = App._tablePadState && App._tablePadState.tableId === table.id
             ? App._tablePadState
-            : (App._tablePadState = { tableId: table.id, expandedTimeRows: {}, calculatedRows: {}, allCalculated: false, quickSearch: '', pendingCartItems: null });
+            : (App._tablePadState = { tableId: table.id, expandedTimeRows: {}, calculatedRows: {}, allCalculated: false, quickSearch: '', pendingCartItems: null, editKeysMode: false });
 
         const items = (bill.items || []).map(it => {
             App.normalizeTableItemAdditions(it, bill.timestamp);
@@ -7518,7 +7655,7 @@ const App = {
                                 <span>ครั้งที่ ${aIdx + 1}: <strong style="color:#15803d;">+${entry.qty} ${Utils.escapeHTML(entry.unit || unitLabel)}</strong></span>
                                 <span style="display:inline-flex; align-items:center; gap:8px; margin-left:auto;">
                                     <small style="color:#475569; white-space:nowrap;">📅 ${dtStr} น.</small>
-                                    <button type="button" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${aIdx})" style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:6px; padding:3px 9px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; flex-shrink:0;" title="ลบรายการรอบนี้ (มีถามยืนยันก่อน)">ลบ</button>
+                                    <button type="button" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${aIdx})" style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:6px; padding:3px 9px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; flex-shrink:0; min-height:28px;" title="ลบรายการรอบนี้ (มีถามยืนยันก่อน)">ลบ</button>
                                 </span>
                             </div>
                         `;
@@ -7531,7 +7668,7 @@ const App = {
                     <div class="tally-main-line">
                         <div class="tally-item-title">
                             ${idx + 1}. ${Utils.escapeHTML(item.name)}
-                            <button type="button" onclick="App.updateTableItemPrice(${table.id}, ${idx})" style="background:none; border:none; color:#64748b; font-size:13px; cursor:pointer; text-decoration:underline; padding:0 4px;" title="แตะเพื่อแก้ราคาต่อหน่วย">
+                            <button type="button" onclick="App.updateTableItemPrice(${table.id}, ${idx})" style="background:none; border:none; color:#64748b; font-size:13px; cursor:pointer; text-decoration:underline; padding:0 4px; min-height:auto;" title="แตะเพื่อแก้ราคาต่อหน่วย">
                                 (@฿${Utils.formatCurrency(item.price)}/${Utils.escapeHTML(unitLabel)})
                             </button>
                         </div>
@@ -7562,7 +7699,7 @@ const App = {
             <div style="text-align:center; padding:26px 12px; color:#78716c;">
                 <span class="material-symbols-rounded" style="font-size:42px; opacity:0.5; display:block; margin-bottom:6px;">edit_note</span>
                 ยังไม่มีรายการจดในโต๊ะนี้<br>
-                <small>แตะปุ่มสินค้าสั่งบ่อยด้านบน หรือพิมพ์จดรายการด่วนได้เลยครับ</small>
+                <small>แตะปุ่มคีย์ด่วนด้านบน หรือพิมพ์จดรายการด่วนได้เลยครับ</small>
             </div>
         `;
 
@@ -7572,7 +7709,7 @@ const App = {
                     <span>🗑️ ประวัติการลบรายการในโต๊ะนี้ (${deletionLog.length} ครั้ง)</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;">
-                    ${deletionLog.slice().reverse().map((d, dIdx) => {
+                    ${deletionLog.slice().reverse().map((d) => {
                         const addStr = new Date(d.addedAt || bill.timestamp || Date.now()).toLocaleString('th-TH', {
                             day: '2-digit', month: '2-digit', year: '2-digit',
                             hour: '2-digit', minute: '2-digit', second: '2-digit'
@@ -7618,26 +7755,48 @@ const App = {
             <div class="table-pad-body">
                 ${pendingBannerHtml}
 
-                <!-- Quick / Familiar Table Products -->
+                <!-- Soundboard / Effect Key Pad for Table Products -->
                 <div class="table-quick-bar">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <span style="font-size:13px; font-weight:800; color:#334155;">⚡ สินค้าประจำโต๊ะ (แตะเพื่อจด +1 ทันที)</span>
-                        <input type="search" value="${Utils.escapeHTML(state.quickSearch || '')}"
-                            placeholder="ค้นหาสินค้าในร้าน..."
-                            oninput="App.filterTableQuickProducts(${table.id}, this.value)"
-                            style="padding:5px 10px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:170px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+                        <span style="font-size:13px; font-weight:800; color:#f8fafc; display:flex; align-items:center; gap:5px;">
+                            🎛️ ปุ่มคีย์ด่วนประจำโต๊ะ
+                            <small style="font-weight:600; color:#94a3b8; font-size:11px;">(กดเพื่อ +1)</small>
+                        </span>
+                        <div style="display:flex; align-items:center; gap:5px; flex:1; justify-content:flex-end;">
+                            <input type="search" value="${Utils.escapeHTML(state.quickSearch || '')}"
+                                placeholder="🔍 ค้นหาปุ่มสินค้า..."
+                                oninput="App.filterTableQuickProducts(${table.id}, this.value)"
+                                style="padding:5px 9px; font-size:12.5px; border:1px solid #475569; background:#0f172a; color:#f8fafc; border-radius:8px; width:135px; min-height:32px;">
+                            <button type="button" onclick="App.toggleTableKeyEditMode(${table.id})"
+                                style="background:${state.editKeysMode ? '#f59e0b' : '#334155'}; color:${state.editKeysMode ? '#0f172a' : '#e2e8f0'}; border:1px solid #475569; border-radius:8px; padding:4px 8px; font-size:11.5px; font-weight:800; min-height:32px; cursor:pointer; white-space:nowrap;">
+                                ${state.editKeysMode ? '✅ เสร็จสิ้น' : '⚙️ จัดปุ่ม'}
+                            </button>
+                            ${state.editKeysMode ? `
+                                <button type="button" onclick="App.resetTableEffectKeys(${table.id})"
+                                    style="background:#475569; color:#f8fafc; border:none; border-radius:8px; padding:4px 7px; font-size:11px; font-weight:700; min-height:32px; cursor:pointer; white-space:nowrap;">
+                                    ↺ รีเซ็ต
+                                </button>
+                            ` : ''}
+                        </div>
                     </div>
+                    ${state.editKeysMode ? `
+                        <div style="margin-top:6px; background:rgba(245,158,11,0.18); border:1px dashed #fbbf24; color:#fde68a; border-radius:8px; padding:5px 8px; font-size:11.5px;">
+                            💡 แตะปุ่มที่มี <strong>✕</strong> เพื่อเอาออกจากแผง หรือพิมพ์ค้นหาสินค้าแล้วแตะ <strong>📌</strong> เพื่อปักหมุดเป็นปุ่มคีย์ประจำโต๊ะ
+                        </div>
+                    ` : ''}
+
                     <div id="tp-quick-chips-container" class="table-quick-chips">
-                        ${App._renderTableQuickChipsHtml(table.id, state.quickSearch)}
+                        ${App._renderTableQuickChipsHtml(table.id, state.quickSearch, bill)}
                     </div>
 
                     <!-- Custom Handwritten Quick Line -->
-                    <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #cbd5e1; display:grid; grid-template-columns: 2fr 0.8fr 1fr 1.1fr auto; gap:5px; align-items:center;">
-                        <input id="tp-custom-name" type="text" placeholder="เขียนชื่อ เช่น เหล้า/น้ำแข็ง" style="padding:7px 8px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box;">
-                        <input id="tp-custom-qty" type="number" min="1" value="1" placeholder="จำนวน" style="padding:7px 6px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box; text-align:center;">
-                        <input id="tp-custom-unit" type="text" placeholder="กลม/ขวด" style="padding:7px 6px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box;">
-                        <input id="tp-custom-price" type="number" min="0" step="1" placeholder="ราคา ฿" style="padding:7px 6px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box;">
-                        <button type="button" class="primary-btn" onclick="App.addCustomHandwrittenItemToTable(${table.id})" style="padding:7px 10px; font-size:13px; white-space:nowrap;">+ จด</button>
+                    <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #334155; display:grid; grid-template-columns: 1.9fr 0.7fr 0.9fr 1fr auto auto; gap:4px; align-items:center;">
+                        <input id="tp-custom-name" type="text" placeholder="เขียนชื่อ เช่น เหล้า/น้ำแข็ง" style="padding:6px 8px; font-size:12.5px; border:1px solid #475569; background:#fff; color:#0f172a; border-radius:8px; width:100%; box-sizing:border-box; min-height:36px;">
+                        <input id="tp-custom-qty" type="number" min="1" value="1" placeholder="จำนวน" style="padding:6px 4px; font-size:12.5px; border:1px solid #475569; background:#fff; color:#0f172a; border-radius:8px; width:100%; box-sizing:border-box; text-align:center; min-height:36px;">
+                        <input id="tp-custom-unit" type="text" placeholder="กลม/ขวด" style="padding:6px 6px; font-size:12.5px; border:1px solid #475569; background:#fff; color:#0f172a; border-radius:8px; width:100%; box-sizing:border-box; min-height:36px;">
+                        <input id="tp-custom-price" type="number" min="0" step="1" placeholder="ราคา ฿" style="padding:6px 6px; font-size:12.5px; border:1px solid #475569; background:#fff; color:#0f172a; border-radius:8px; width:100%; box-sizing:border-box; min-height:36px;">
+                        <button type="button" class="primary-btn" onclick="App.addCustomHandwrittenItemToTable(${table.id}, false)" style="padding:6px 9px; font-size:12.5px; white-space:nowrap; min-height:36px;">+ จด</button>
+                        <button type="button" onclick="App.addCustomHandwrittenItemToTable(${table.id}, true)" style="padding:6px 7px; font-size:11.5px; font-weight:800; background:#f59e0b; color:#0f172a; border-radius:8px; white-space:nowrap; min-height:36px;" title="จดลงบิลและสร้างเป็นปุ่มคีย์ด่วนถาวร">+ปุ่มคีย์</button>
                     </div>
                 </div>
 
