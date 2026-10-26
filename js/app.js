@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.59 (26/10/2026)', // Fix tables-grid overlapping with delivery section on mobile
+    VERSION: '0.99.60 (26/10/2026)', // Handwritten table bill pad with timestamped tally (1+1+2), row calc, print & image export
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -5281,10 +5281,14 @@ const App = {
         const existingIndex = App.state.cart.findIndex(item => item.id === product.id);
         if (existingIndex > -1) {
             const existing = App.state.cart[existingIndex];
+            if (!Array.isArray(existing.additions)) {
+                existing.additions = [{ qty: Number(existing.qty) || 1, at: Date.now(), unit: existing.unitLabel || existing.unit || '' }];
+            }
+            existing.additions.push({ qty: 1, at: Date.now(), unit: existing.unitLabel || existing.unit || '' });
             existing.qty++;
             await App.checkWholesalePrompt(existing);
         } else {
-            const newItem = { ...product, qty: 1 };
+            const newItem = { ...product, qty: 1, additions: [{ qty: 1, at: Date.now(), unit: product.unitLabel || product.unit || '' }] };
             if (App.state.isTCTMode && product.thaiChuaiThaiPrice > 0) {
                 newItem.price = product.thaiChuaiThaiPrice;
                 newItem.wholesalePrice = 0;
@@ -6568,9 +6572,12 @@ const App = {
                 ${tables.map(table => {
             const activeBill = table.billId ? parkedBills.find(b => b.id === table.billId) : null;
             const isOccupied = !!activeBill;
-            const customerName = isOccupied ? (activeBill.note || 'ไม่มีชื่อ') : 'ว่าง';
+            const customerName = isOccupied ? (activeBill.note || table.name) : 'ว่าง';
             const itemCount = isOccupied ? activeBill.items.length : 0;
-            const billTotal = isOccupied ? activeBill.items.reduce((s, i) => s + (i.price * i.qty), 0) : 0;
+            const billTotal = isOccupied ? activeBill.items.reduce((s, i) => s + App.calcItemTotal(i), 0) : 0;
+            const miniTallyPreview = isOccupied && activeBill.items.length > 0
+                ? activeBill.items.slice(0, 3).map(it => `${Utils.escapeHTML(it.name)} ${App.formatTableTallyExpression(it)}`).join(' • ')
+                : '';
 
             return `
                         <div class="table-card ${isOccupied ? 'occupied' : ''}" onclick="App.handleTableClick(${table.id})" style="position:relative; box-sizing:border-box;">
@@ -6584,6 +6591,7 @@ const App = {
                                 ${customerName}
                             </div>
                             ${isOccupied ? `
+                                ${miniTallyPreview ? `<div style="font-size: 11px; color:#5c4b37; background:#fffdf5; border:1px dashed #d4c5a9; border-radius:6px; padding:3px 6px; margin-bottom:5px; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📝 ${miniTallyPreview}</div>` : ''}
                                 <div style="font-size: 13px; margin-bottom: 5px; color:#555;">${itemCount} รายการ</div>
                                 <div style="font-size: 16px; font-weight: bold; color: var(--danger-color);">฿${Utils.formatCurrency(billTotal)}</div>
                                 <div style="margin-top: 5px; display: flex; justify-content: center;" onclick="event.stopPropagation()">
@@ -6986,163 +6994,813 @@ const App = {
         await App.alert('ยกเลิกออเดอร์ส่งแล้ว');
     },
 
-    handleTableClick: async (tableId) => {
-        const tables = DB.getTables();
-        const table = tables.find(t => t.id === tableId);
-        if (!table) return;
-
-        if (table.billId) {
-            // Occupied: Handle Merging Walk-in Cart OR Show Details
-            const parkedBills = DB.getParkedCarts();
-            const bill = parkedBills.find(b => b.id === table.billId);
-            if (bill) {
-                // Smart Merge Logic: If we have a walk-in cart (no active bill), ask to merge.
-                if (App.state.cart.length > 0 && App.state.activeBill === null) {
-                    if (await App.confirm(`ตะกร้าปัจจุบันมีสินค้า\nต้องการนำไป "เพิ่ม" ในโต๊ะ ${table.name} หรือไม่?`)) {
-                        // Merge items into table bill
-                        const mergedItems = [...bill.items];
-                        App.state.cart.forEach(cartItem => {
-                            const existing = mergedItems.find(i => i.id === cartItem.id);
-                            if (existing) {
-                                existing.qty += cartItem.qty;
-                            } else {
-                                mergedItems.push(cartItem);
-                            }
-                        });
-                        
-                        // Update parked bill in DB
-                        DB.parkCart(mergedItems, bill.note, bill.timestamp, bill.id, bill.deliveryTime, bill.deliveryDetails);
-                        
-                        // Clear current cart since it's merged
-                        App.state.cart = [];
-                        App.state.activeBill = null;
-                        App.renderCart();
-                        App.updateParkedBadge();
-                        
-                        if (typeof App.alert === 'function') {
-                            App.alert(`เพิ่มรายการเข้าโต๊ะ ${table.name} สำเร็จ`);
-                        }
-                    } else {
-                        // User declined merge, so silently park the walk-in cart and view table
-                        await App.safeReplaceCart();
-                        App.showTableDetailsModal(table, bill);
-                    }
-                } else {
-                    // No walk-in cart, or it's another table's cart. Silently park and show details.
-                    if (App.state.cart.length > 0) {
-                        await App.safeReplaceCart();
-                    }
-                    App.showTableDetailsModal(table, bill);
-                }
-            } else {
-                // Orphaned table state (bill deleted or checked out)
-                table.billId = null;
-                DB.saveTables(tables);
-                App.renderTablesView(App.elements.viewContainer);
-            }
+    // --- Handwritten Table Bill Pad Helpers ---
+    normalizeTableItemAdditions: (item, fallbackAt = Date.now()) => {
+        if (!item) return [];
+        const unit = item.unitLabel || item.unit || '';
+        if (!Array.isArray(item.additions) || item.additions.length === 0) {
+            item.additions = [{
+                qty: Math.max(1, Number(item.qty) || 1),
+                at: item.addedAt || fallbackAt,
+                unit
+            }];
         } else {
-            // Empty table: Initialize new bill
-            const customerName = await App.prompt('ชื่อลูกค้า / หมายเหตุ (เปิดโต๊ะใหม่):');
-            if (customerName === null) return; // cancelled
+            item.additions = item.additions
+                .map(entry => ({
+                    qty: Number(entry.qty) || 0,
+                    at: entry.at || fallbackAt,
+                    unit: entry.unit || unit
+                }))
+                .filter(entry => entry.qty > 0);
+        }
+        const sumQty = item.additions.reduce((sum, entry) => sum + entry.qty, 0);
+        if (sumQty > 0) {
+            item.qty = sumQty;
+        }
+        return item.additions;
+    },
 
-            if (App.state.cart.length > 0) {
-                if (App.state.activeBill === null) {
-                   if (!await App.confirm(`ตะกร้าปัจจุบันมีสินค้า\nต้องการนำไปเปิด "โต๊ะใหม่" นี้หรือไม่?`)) {
-                       await App.safeReplaceCart(); // Auto-park silently
-                   }
-                } else {
-                   // Another table's cart, silently auto-park to avoid confusion
-                   await App.safeReplaceCart();
-                }
+    formatTableTallyExpression: (item) => {
+        if (!item) return '0';
+        const additions = App.normalizeTableItemAdditions(item);
+        if (!additions.length) return String(item.qty || 0);
+        const unit = (additions[0].unit || item.unitLabel || item.unit || '').trim();
+        const showUnitOnFirst = unit && !['ชิ้น', 'อัน'].includes(unit);
+        return additions.map((entry, idx) => {
+            if (idx === 0 && showUnitOnFirst) {
+                return `${entry.qty}${unit}`;
             }
+            return String(entry.qty);
+        }).join(' + ');
+    },
 
+    _ensureTableBillSession: (tableId) => {
+        const tables = DB.getTables();
+        const table = tables.find(t => Number(t.id) === Number(tableId));
+        if (!table) return null;
+        const parkedBills = DB.getParkedCarts();
+        let bill = table.billId ? parkedBills.find(b => b.id === table.billId) : null;
+        if (!bill) {
             const newBillId = DB.generateBillId();
             const timestamp = Date.now();
-
             table.billId = newBillId;
             DB.saveTables(tables);
-            DB.parkCart(App.state.cart, customerName, timestamp, newBillId);
-
-            // Set as active session
-            App.state.activeBill = {
+            DB.parkCart([], table.name, timestamp, newBillId);
+            bill = DB.getParkedCarts().find(b => b.id === newBillId) || {
                 id: newBillId,
-                note: customerName,
-                timestamp: timestamp
+                note: table.name,
+                timestamp,
+                items: []
             };
-            App.renderTablesView(App.elements.viewContainer);
+        }
+        bill.items = (bill.items || []).map(it => {
+            App.normalizeTableItemAdditions(it, bill.timestamp);
+            return it;
+        });
+        return { table, bill, tables };
+    },
+
+    _saveTableBillSession: (tableId, bill) => {
+        DB.parkCart(bill.items, bill.note || '', bill.timestamp, bill.id, bill.deliveryTime, bill.deliveryDetails);
+        if (App.state.activeBill && App.state.activeBill.id === bill.id) {
+            App.state.cart = JSON.parse(JSON.stringify(bill.items));
+            App.state.activeBill.note = bill.note;
             App.renderCart();
-            App.renderView('pos');
-            if (window.innerWidth <= 1024) App.toggleMobileCart(true);
+        }
+        App.updateParkedBadge();
+        if (App.state.currentView === 'tables') {
+            App.renderTablesView(App.elements.viewContainer);
+        }
+    },
+
+    handleTableClick: async (tableId) => {
+        const tables = DB.getTables();
+        const table = tables.find(t => Number(t.id) === Number(tableId));
+        if (!table) return;
+
+        // Check if there are walk-in items in the current POS cart waiting to be added to this table
+        let pendingCartItems = null;
+        if (App.state.cart.length > 0 && (!App.state.activeBill || App.state.activeBill.id !== table.billId)) {
+            if (App.state.activeBill === null) {
+                pendingCartItems = JSON.parse(JSON.stringify(App.state.cart));
+            } else {
+                await App.safeReplaceCart();
+            }
+        }
+
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        App._tablePadState = {
+            tableId: session.table.id,
+            expandedTimeRows: {},
+            calculatedRows: {},
+            allCalculated: false,
+            quickSearch: '',
+            pendingCartItems
+        };
+        App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    confirmPendingCartToTable: (tableId) => {
+        const state = App._tablePadState || {};
+        const pending = state.pendingCartItems || [];
+        if (!pending.length) return;
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const now = Date.now();
+
+        pending.forEach(cartItem => {
+            const addQty = Math.max(1, Number(cartItem.qty) || 1);
+            const unit = cartItem.unitLabel || cartItem.unit || '';
+            const existing = bill.items.find(i => String(i.id) === String(cartItem.id) || (i.name === cartItem.name && Number(i.price) === Number(cartItem.price)));
+            if (existing) {
+                App.normalizeTableItemAdditions(existing, bill.timestamp);
+                existing.additions.push({ qty: addQty, at: now, unit });
+                existing.qty = existing.additions.reduce((s, e) => s + e.qty, 0);
+            } else {
+                bill.items.push({
+                    ...cartItem,
+                    qty: addQty,
+                    additions: [{ qty: addQty, at: now, unit }]
+                });
+            }
+        });
+
+        App.state.cart = [];
+        App.state.activeBill = null;
+        App.renderCart();
+        state.pendingCartItems = null;
+        App._saveTableBillSession(table.id, bill);
+        App.showTableDetailsModal(table, bill);
+    },
+
+    discardPendingCartForTable: (tableId) => {
+        if (App._tablePadState) App._tablePadState.pendingCartItems = null;
+        const session = App._ensureTableBillSession(tableId);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    saveTablePadNote: (tableId, newNote) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const trimmed = String(newNote || '').trim() || session.table.name;
+        session.bill.note = trimmed;
+        DB.updateParkedNote(session.bill.id, trimmed);
+        if (App.state.currentView === 'tables') {
+            App.renderTablesView(App.elements.viewContainer);
         }
     },
 
     editTableName: async (tableId, currentName) => {
-        const newName = await App.prompt('แก้ไขชื่อลูกค้า / หมายเหตุ:', currentName);
+        const newName = await App.prompt('แก้ไขชื่อโต๊ะ / ชื่อลูกค้า:', currentName);
         if (newName !== null) {
-            const tables = DB.getTables();
-            const table = tables.find(t => t.id === tableId);
-            if (table && table.billId) {
-                DB.updateParkedNote(table.billId, newName);
-
-                // If it's currently active in POS, update the active state too
-                if (App.state.activeBill && App.state.activeBill.id === table.billId) {
-                    App.state.activeBill.note = newName;
-                    App.renderCart();
-                }
-
-                App.renderTablesView(App.elements.viewContainer);
-            }
+            App.saveTablePadNote(tableId, newName);
         }
     },
 
+    addTableItemQty: async (tableId, itemIndex, deltaQty = 1, askCustom = false) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const item = bill.items[itemIndex];
+        if (!item) return;
+
+        let qtyToAdd = Number(deltaQty) || 1;
+        if (askCustom) {
+            const entered = await App.prompt(`ระบุจำนวน "${item.name}" ที่ต้องการจดเพิ่ม (+):`, '1');
+            if (entered === null) return;
+            qtyToAdd = Number(entered);
+            if (!qtyToAdd || qtyToAdd <= 0) return;
+        }
+
+        App.normalizeTableItemAdditions(item, bill.timestamp);
+        item.additions.push({
+            qty: qtyToAdd,
+            at: Date.now(),
+            unit: item.unitLabel || item.unit || ''
+        });
+        item.qty = item.additions.reduce((sum, e) => sum + e.qty, 0);
+        App._saveTableBillSession(table.id, bill);
+        App.showTableDetailsModal(table, bill);
+    },
+
+    removeTableAdditionEntry: async (tableId, itemIndex, additionIndex) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const item = bill.items[itemIndex];
+        if (!item) return;
+        App.normalizeTableItemAdditions(item, bill.timestamp);
+        const target = item.additions[additionIndex];
+        if (!target) return;
+
+        if (item.additions.length === 1) {
+            if (!await App.confirm(`ลบรายการ "${item.name}" ออกจากบิลโต๊ะนี้ใช่หรือไม่?`)) return;
+            bill.items.splice(itemIndex, 1);
+        } else {
+            item.additions.splice(additionIndex, 1);
+            item.qty = item.additions.reduce((sum, e) => sum + e.qty, 0);
+        }
+        App._saveTableBillSession(table.id, bill);
+        App.showTableDetailsModal(table, bill);
+    },
+
+    quickAddProductToTable: (tableId, productId) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const product = App.state.products.find(p => String(p.id) === String(productId));
+        if (!product) return;
+
+        const now = Date.now();
+        const unit = product.unitLabel || product.unit || '';
+        const existing = bill.items.find(i => String(i.id) === String(product.id));
+        if (existing) {
+            App.normalizeTableItemAdditions(existing, bill.timestamp);
+            existing.additions.push({ qty: 1, at: now, unit });
+            existing.qty = existing.additions.reduce((sum, e) => sum + e.qty, 0);
+        } else {
+            bill.items.push({
+                ...product,
+                qty: 1,
+                additions: [{ qty: 1, at: now, unit }]
+            });
+        }
+        App._saveTableBillSession(table.id, bill);
+        App.showTableDetailsModal(table, bill);
+    },
+
+    addCustomHandwrittenItemToTable: (tableId) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+
+        const nameEl = document.getElementById('tp-custom-name');
+        const qtyEl = document.getElementById('tp-custom-qty');
+        const unitEl = document.getElementById('tp-custom-unit');
+        const priceEl = document.getElementById('tp-custom-price');
+
+        const name = String(nameEl?.value || '').trim();
+        const qty = Math.max(1, Number(qtyEl?.value) || 1);
+        const unit = String(unitEl?.value || '').trim();
+        const price = Math.max(0, Number(priceEl?.value) || 0);
+
+        if (!name) {
+            nameEl?.focus();
+            return;
+        }
+
+        const now = Date.now();
+        const existing = bill.items.find(i => i.name.trim().toLowerCase() === name.toLowerCase() && (price === 0 || Number(i.price) === price));
+        if (existing) {
+            App.normalizeTableItemAdditions(existing, bill.timestamp);
+            if (price > 0) existing.price = price;
+            if (unit) existing.unitLabel = unit;
+            existing.additions.push({ qty, at: now, unit: unit || existing.unitLabel || '' });
+            existing.qty = existing.additions.reduce((sum, e) => sum + e.qty, 0);
+        } else {
+            bill.items.push({
+                id: 'TBL-' + now + '-' + Math.random().toString(36).slice(2, 6),
+                name,
+                price,
+                qty,
+                unitLabel: unit || 'ชิ้น',
+                isQuick: true,
+                additions: [{ qty, at: now, unit: unit || '' }]
+            });
+        }
+
+        App._saveTableBillSession(table.id, bill);
+        App.showTableDetailsModal(table, bill);
+    },
+
+    updateTableItemPrice: async (tableId, itemIndex) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const item = bill.items[itemIndex];
+        if (!item) return;
+        const entered = await App.prompt(`ตั้งราคาต่อหน่วยของ "${item.name}" (บาท):`, String(item.price || 0));
+        if (entered === null) return;
+        const newPrice = Number(entered);
+        if (Number.isNaN(newPrice) || newPrice < 0) return;
+        item.price = newPrice;
+        App._saveTableBillSession(table.id, bill);
+        App.showTableDetailsModal(table, bill);
+    },
+
+    toggleTableRowTimeLog: (tableId, itemIndex) => {
+        App._tablePadState ||= { tableId, expandedTimeRows: {}, calculatedRows: {} };
+        App._tablePadState.expandedTimeRows[itemIndex] = !App._tablePadState.expandedTimeRows[itemIndex];
+        const session = App._ensureTableBillSession(tableId);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    toggleTableRowCalculation: (tableId, itemIndex) => {
+        App._tablePadState ||= { tableId, expandedTimeRows: {}, calculatedRows: {} };
+        App._tablePadState.calculatedRows[itemIndex] = !App._tablePadState.calculatedRows[itemIndex];
+        const session = App._ensureTableBillSession(tableId);
+        if (session) App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    calculateAllTableRows: (tableId) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        App._tablePadState ||= { tableId, expandedTimeRows: {}, calculatedRows: {} };
+        const nextState = !App._tablePadState.allCalculated;
+        App._tablePadState.allCalculated = nextState;
+        session.bill.items.forEach((_, idx) => {
+            App._tablePadState.calculatedRows[idx] = nextState;
+        });
+        App.showTableDetailsModal(session.table, session.bill);
+    },
+
+    filterTableQuickProducts: (tableId, query) => {
+        App._tablePadState ||= { tableId, expandedTimeRows: {}, calculatedRows: {} };
+        App._tablePadState.quickSearch = String(query || '');
+        const container = document.getElementById('tp-quick-chips-container');
+        if (!container) return;
+        container.innerHTML = App._renderTableQuickChipsHtml(tableId, App._tablePadState.quickSearch);
+    },
+
+    _renderTableQuickChipsHtml: (tableId, query = '') => {
+        const q = String(query || '').trim().toLowerCase();
+        const allProducts = App.state.products || [];
+        // Prioritize familiar table/drinking items (น้ำแข็ง, แก้ว, โซดา, เบียร์, เหล้า, น้ำ, กับแกล้ม) or matching query
+        const tableKeywords = ['น้ำแข็ง', 'แก้ว', 'โซดา', 'เบียร์', 'เหล้า', 'สิงห์', 'ช้าง', 'ลีโอ', 'หงส์', 'รีเจนซี่', 'แสงโสม', 'โค้ก', 'น้ำเปล่า', 'มาม่า', 'ถั่ว', 'กับแกล้ม'];
+        let candidates = allProducts.filter(p => {
+            if (!q) return true;
+            return (p.name || '').toLowerCase().includes(q) || (p.group || '').toLowerCase().includes(q) || (p.barcode || '').includes(q);
+        });
+        if (!q) {
+            candidates = candidates.slice().sort((a, b) => {
+                const aScore = tableKeywords.some(k => (a.name || '').includes(k) || (a.group || '').includes(k)) ? 1 : 0;
+                const bScore = tableKeywords.some(k => (b.name || '').includes(k) || (b.group || '').includes(k)) ? 1 : 0;
+                if (bScore !== aScore) return bScore - aScore;
+                return (b.salesCount || 0) - (a.salesCount || 0);
+            }).slice(0, 14);
+        } else {
+            candidates = candidates.slice(0, 20);
+        }
+        if (!candidates.length) {
+            return '<div style="font-size:13px; color:#64748b; padding:4px;">ไม่พบสินค้าในสต็อก — จดชื่อรายการด่วนด้านล่างได้เลย</div>';
+        }
+        return candidates.map(p => `
+            <button type="button" class="table-quick-chip" onclick="App.quickAddProductToTable(${tableId}, '${Utils.escapeHTML(p.id)}')">
+                <span>+ ${Utils.escapeHTML(p.name)}</span>
+                <small style="color:#16a34a; font-weight:800;">฿${Utils.formatCurrency(p.price)}</small>
+            </button>
+        `).join('');
+    },
+
     showTableDetailsModal: (table, bill) => {
-        App.closeModals();
         const overlay = document.getElementById('modal-overlay');
         const modal = document.getElementById('table-detail-modal');
+        if (!overlay || !modal) return;
 
-        const itemCount = bill.items.length;
-        const billTotal = bill.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        modal.classList.add('table-pad-modal');
+        modal.style.maxWidth = '680px';
+
+        const state = App._tablePadState && App._tablePadState.tableId === table.id
+            ? App._tablePadState
+            : (App._tablePadState = { tableId: table.id, expandedTimeRows: {}, calculatedRows: {}, allCalculated: false, quickSearch: '', pendingCartItems: null });
+
+        const items = (bill.items || []).map(it => {
+            App.normalizeTableItemAdditions(it, bill.timestamp);
+            return it;
+        });
+
+        const totalQty = items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+        const billTotal = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+        const openedTimeStr = new Date(bill.timestamp || Date.now()).toLocaleString('th-TH', {
+            dateStyle: 'short',
+            timeStyle: 'short'
+        });
+
+        const pendingBannerHtml = (state.pendingCartItems && state.pendingCartItems.length > 0) ? `
+            <div class="table-pending-banner">
+                <div style="font-weight:800; color:#065f46; font-size:16px; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                    <span class="material-symbols-rounded">playlist_add_check</span>
+                    ตรวจทานก่อนเพิ่มเข้า "${Utils.escapeHTML(bill.note || table.name)}"
+                </div>
+                <div style="font-size:14px; color:#047857; margin-bottom:10px;">
+                    รายการที่คุณเลือกมาจากหน้าขาย:
+                    <strong>${state.pendingCartItems.map(c => `${Utils.escapeHTML(c.name)} (+${c.qty})`).join(', ')}</strong>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="primary-btn" style="flex:2; background:#059669;" onclick="App.confirmPendingCartToTable(${table.id})">
+                        ✅ ยืนยันจดเพิ่มลงโต๊ะนี้
+                    </button>
+                    <button type="button" class="secondary-btn" style="flex:1;" onclick="App.discardPendingCartForTable(${table.id})">
+                        ไม่เพิ่ม
+                    </button>
+                </div>
+            </div>
+        ` : '';
+
+        const rowsHtml = items.length > 0 ? items.map((item, idx) => {
+            const tallyExpr = App.formatTableTallyExpression(item);
+            const isTimeExpanded = !!state.expandedTimeRows[idx];
+            const isCalcShown = !!state.calculatedRows[idx] || !!state.allCalculated;
+            const lineTotal = App.calcItemTotal(item);
+            const unitLabel = item.unitLabel || item.unit || 'ชิ้น';
+
+            const timeLogHtml = isTimeExpanded ? `
+                <div class="tally-time-log">
+                    <div style="font-weight:800; color:#0f172a; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>🕒 ประวัติเวลาที่สั่งเพิ่ม (${Utils.escapeHTML(item.name)})</span>
+                        <span style="font-size:12px; color:#64748b;">รวม ${item.qty} ${Utils.escapeHTML(unitLabel)}</span>
+                    </div>
+                    ${item.additions.map((entry, aIdx) => {
+                        const dtStr = new Date(entry.at || bill.timestamp || Date.now()).toLocaleString('th-TH', {
+                            day: '2-digit', month: '2-digit', year: '2-digit',
+                            hour: '2-digit', minute: '2-digit', second: '2-digit'
+                        });
+                        return `
+                            <div class="tally-time-entry">
+                                <span>ครั้งที่ ${aIdx + 1}: <strong style="color:#15803d;">+${entry.qty} ${Utils.escapeHTML(entry.unit || unitLabel)}</strong></span>
+                                <span style="display:inline-flex; align-items:center; gap:8px;">
+                                    <small style="color:#475569;">📅 ${dtStr} น.</small>
+                                    <button type="button" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${aIdx})" style="background:#fee2e2; color:#b91c1c; border:none; border-radius:6px; padding:2px 7px; font-size:12px; font-weight:700; cursor:pointer;" title="ลบรายการรอบนี้">ลบ</button>
+                                </span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            ` : '';
+
+            return `
+                <div class="tally-row">
+                    <div class="tally-main-line">
+                        <div class="tally-item-title">
+                            ${idx + 1}. ${Utils.escapeHTML(item.name)}
+                            <button type="button" onclick="App.updateTableItemPrice(${table.id}, ${idx})" style="background:none; border:none; color:#64748b; font-size:13px; cursor:pointer; text-decoration:underline; padding:0 4px;" title="แตะเพื่อแก้ราคาต่อหน่วย">
+                                (@฿${Utils.formatCurrency(item.price)}/${Utils.escapeHTML(unitLabel)})
+                            </button>
+                        </div>
+                        <button type="button" class="tally-expr-btn" onclick="App.toggleTableRowTimeLog(${table.id}, ${idx})" title="แตะเพื่อดูว่าเพิ่มสินค้าเข้าเวลาไหน วันใด">
+                            <span>${Utils.escapeHTML(tallyExpr)}</span>
+                            <span class="material-symbols-rounded" style="font-size:17px; color:#92400e;">schedule</span>
+                        </button>
+                    </div>
+                    <div class="tally-controls-line">
+                        <div class="tally-plus-group">
+                            <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty(${table.id}, ${idx}, 1, false)">+1</button>
+                            <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty(${table.id}, ${idx}, 2, false)">+2</button>
+                            <button type="button" class="tally-plus-btn" onclick="App.addTableItemQty(${table.id}, ${idx}, 1, true)">+ระบุ</button>
+                            <button type="button" class="tally-plus-btn" style="color:#b91c1c; background:#fef2f2; border-color:#fecaca;" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${item.additions.length - 1})" title="ลบครั้งล่าสุด">−ลบ</button>
+                        </div>
+                        <button type="button" class="tally-calc-btn ${isCalcShown ? 'calculated' : ''}" onclick="App.toggleTableRowCalculation(${table.id}, ${idx})">
+                            <span class="material-symbols-rounded" style="font-size:17px;">calculate</span>
+                            ${isCalcShown
+                                ? `รวม ${item.qty} ${Utils.escapeHTML(unitLabel)} = ฿${Utils.formatCurrency(lineTotal)}`
+                                : 'คำนวณแถว'}
+                        </button>
+                    </div>
+                    ${timeLogHtml}
+                </div>
+            `;
+        }).join('') : `
+            <div style="text-align:center; padding:26px 12px; color:#78716c;">
+                <span class="material-symbols-rounded" style="font-size:42px; opacity:0.5; display:block; margin-bottom:6px;">edit_note</span>
+                ยังไม่มีรายการจดในโต๊ะนี้<br>
+                <small>แตะปุ่มสินค้าสั่งบ่อยด้านบน หรือพิมพ์จดรายการด่วนได้เลยครับ</small>
+            </div>
+        `;
 
         modal.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-                <h3 style="margin:0; font-size: 20px;">${table.name}</h3>
-                <button class="icon-btn" onclick="App.closeModals()"><span class="material-symbols-rounded">close</span></button>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <div style="font-weight: bold; color: var(--primary-color); font-size: 16px;">ลูกค้า: ${bill.note || 'ไม่มีชื่อ'}</div>
-                <div style="font-size: 14px; color: #666; margin-top: 5px;">รายการอาหาร (${itemCount} รายการ)</div>
-            </div>
-            
-            <div style="max-height: 250px; overflow-y: auto; background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-                ${bill.items.length > 0 ? bill.items.map(item => `
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; border-bottom: 1px dashed #ddd; padding-bottom: 5px;">
-                        <span style="flex: 1; word-break: break-word; padding-right: 10px;">${item.qty}x ${Utils.escapeHTML(item.name)}</span>
-                        <span style="font-weight: bold; white-space: nowrap;">฿${Utils.formatCurrency(item.qty * item.price)}</span>
+            <div class="table-pad-header">
+                <div class="table-pad-title-wrap">
+                    <div style="font-size:12px; font-weight:700; color:#78716c; display:flex; align-items:center; gap:6px;">
+                        <span>📝 กระดานบิลจดโต๊ะ (${Utils.escapeHTML(table.name)})</span>
+                        <span>• เปิดเมื่อ ${openedTimeStr}</span>
                     </div>
-                `).join('') : '<div style="text-align: center; color: #999;">ไม่มีรายการ</div>'}
+                    <input type="text" class="table-pad-name-input" value="${Utils.escapeHTML(bill.note || table.name)}"
+                        placeholder="ตั้งชื่อโต๊ะ / ลูกค้า เช่น โต๊ะภูผา"
+                        onchange="App.saveTablePadNote(${table.id}, this.value)">
+                </div>
+                <button class="icon-btn" onclick="App.closeModals()" title="ปิดหน้าต่าง" style="background:#fff; border:1px solid #d4c5a9; border-radius:50%; width:38px; height:38px;">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
             </div>
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 20px; font-weight: bold; margin-bottom: 20px;">
-                <span>ยอดรวม</span>
-                <span style="color: var(--danger-color);">฿${Utils.formatCurrency(billTotal)}</span>
-            </div>
-            
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                <button class="primary-btn" onclick="App.loadTableAndGoToPos(${table.id})" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <span class="material-symbols-rounded">add_circle</span> สั่งอาหารเพิ่ม
-                </button>
-                <button class="primary-btn" onclick="App.checkoutTableDirectly(${table.id})" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #4caf50;">
-                    <span class="material-symbols-rounded">payments</span> เช็คบิล / รับเงิน
-                </button>
-                <button class="secondary-btn" onclick="App.cancelTableBill(${table.id})" style="width:100%; color:#c62828; border-color:#ef9a9a; display:flex; align-items:center; justify-content:center; gap:8px;">
-                    <span class="material-symbols-rounded">delete</span> ยกเลิกและล้างบิลโต๊ะ
-                </button>
+
+            <div class="table-pad-body">
+                ${pendingBannerHtml}
+
+                <!-- Quick / Familiar Table Products -->
+                <div class="table-quick-bar">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span style="font-size:13px; font-weight:800; color:#334155;">⚡ สินค้าประจำโต๊ะ (แตะเพื่อจด +1 ทันที)</span>
+                        <input type="search" value="${Utils.escapeHTML(state.quickSearch || '')}"
+                            placeholder="ค้นหาสินค้าในร้าน..."
+                            oninput="App.filterTableQuickProducts(${table.id}, this.value)"
+                            style="padding:5px 10px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:170px;">
+                    </div>
+                    <div id="tp-quick-chips-container" class="table-quick-chips">
+                        ${App._renderTableQuickChipsHtml(table.id, state.quickSearch)}
+                    </div>
+
+                    <!-- Custom Handwritten Quick Line -->
+                    <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #cbd5e1; display:grid; grid-template-columns: 2fr 0.8fr 1fr 1.1fr auto; gap:5px; align-items:center;">
+                        <input id="tp-custom-name" type="text" placeholder="เขียนชื่อ เช่น เหล้า/น้ำแข็ง" style="padding:7px 8px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box;">
+                        <input id="tp-custom-qty" type="number" min="1" value="1" placeholder="จำนวน" style="padding:7px 6px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box; text-align:center;">
+                        <input id="tp-custom-unit" type="text" placeholder="กลม/ขวด" style="padding:7px 6px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box;">
+                        <input id="tp-custom-price" type="number" min="0" step="1" placeholder="ราคา ฿" style="padding:7px 6px; font-size:13px; border:1px solid #cbd5e1; border-radius:8px; width:100%; box-sizing:border-box;">
+                        <button type="button" class="primary-btn" onclick="App.addCustomHandwrittenItemToTable(${table.id})" style="padding:7px 10px; font-size:13px; white-space:nowrap;">+ จด</button>
+                    </div>
+                </div>
+
+                <!-- Handwritten Bill Sheet -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:13px; font-weight:800; color:#57534e;">📋 รายการที่จดไว้ (แตะตัวเลขสีเหลืองเพื่อดูเวลาสั่ง)</span>
+                    <button type="button" class="tally-calc-btn ${state.allCalculated ? 'calculated' : ''}" onclick="App.calculateAllTableRows(${table.id})">
+                        <span class="material-symbols-rounded" style="font-size:16px;">calculate</span>
+                        ${state.allCalculated ? 'ซ่อนผลคำนวณ' : 'คำนวณทุกแถว & รวม'}
+                    </button>
+                </div>
+
+                <div class="handwritten-sheet">
+                    ${rowsHtml}
+                </div>
+
+                <!-- Total Bar -->
+                <div style="background:#fef3c7; border:2px solid #f59e0b; border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                    <div>
+                        <div style="font-size:13px; color:#92400e; font-weight:700;">รวมทั้งหมด (${items.length} รายการ • ${totalQty} ชิ้น)</div>
+                        <div style="font-size:18px; font-weight:900; color:#78350f;">ยอดรวมโต๊ะนี้</div>
+                    </div>
+                    <div style="font-size:30px; font-weight:900; color:#b45309;">
+                        ฿${Utils.formatCurrency(billTotal)}
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
+                    <button type="button" class="primary-btn" onclick="App.showTableReceiptModal(${table.id})" style="background:#15803d; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; font-size:15px;">
+                        <span class="material-symbols-rounded">receipt_long</span> ยืนยัน / ใบเสร็จ / พิมพ์-รูปภาพ
+                    </button>
+                    <button type="button" class="primary-btn" onclick="App.checkoutTableDirectly(${table.id})" style="background:#0284c7; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; font-size:15px;">
+                        <span class="material-symbols-rounded">payments</span> รับเงิน / ปิดโต๊ะ
+                    </button>
+                </div>
+
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="secondary-btn" onclick="App.loadTableAndGoToPos(${table.id})" style="flex:1; display:flex; align-items:center; justify-content:center; gap:5px; font-size:13px;">
+                        <span class="material-symbols-rounded" style="font-size:18px;">storefront</span> ไปเลือกจากหน้าขาย
+                    </button>
+                    <button type="button" class="secondary-btn" onclick="App.cancelTableBill(${table.id})" style="color:#c62828; border-color:#ef9a9a; display:flex; align-items:center; justify-content:center; gap:4px; font-size:13px;">
+                        <span class="material-symbols-rounded" style="font-size:18px;">delete</span> ล้างบิลโต๊ะ
+                    </button>
+                </div>
             </div>
         `;
 
         overlay.classList.remove('hidden');
         modal.classList.remove('hidden');
+    },
+
+    showTableReceiptModal: (tableId) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('table-detail-modal');
+        if (!overlay || !modal) return;
+
+        const settings = DB.getSettings();
+        const items = (bill.items || []).map(it => {
+            App.normalizeTableItemAdditions(it, bill.timestamp);
+            return it;
+        });
+        const billTotal = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+        const nowStr = new Date().toLocaleString('th-TH');
+        const tableTitle = bill.note || table.name;
+
+        modal.innerHTML = `
+            <div class="table-pad-header">
+                <div style="font-size:18px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:6px;">
+                    <span class="material-symbols-rounded">receipt_long</span>
+                    ใบเสร็จสรุปออเดอร์ — ${Utils.escapeHTML(tableTitle)}
+                </div>
+                <button class="icon-btn" onclick="App.showTableDetailsModal(DB.getTables().find(t=>t.id===${table.id}), DB.getParkedCarts().find(b=>b.id==='${bill.id}'))" title="กลับหน้ากระดานจดโต๊ะ">
+                    <span class="material-symbols-rounded">arrow_back</span>
+                </button>
+            </div>
+
+            <div class="table-pad-body">
+                <div id="table-receipt-preview-card" class="table-receipt-sheet">
+                    <div style="text-align:center; border-bottom:1.5px dashed #94a3b8; padding-bottom:10px; margin-bottom:10px;">
+                        <div style="font-size:20px; font-weight:900;">${Utils.escapeHTML(settings.storeName || 'ร้านค้า')}</div>
+                        ${settings.phone ? `<div style="font-size:13px; color:#475569;">โทร: ${Utils.escapeHTML(settings.phone)}</div>` : ''}
+                        <div style="font-size:22px; font-weight:900; color:#b45309; margin-top:6px;">📝 ${Utils.escapeHTML(tableTitle)}</div>
+                        <div style="font-size:12px; color:#64748b; margin-top:2px;">เลขบิล: ${Utils.escapeHTML(bill.id)} • ${nowStr}</div>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+                        ${items.map((item, idx) => {
+                            const expr = App.formatTableTallyExpression(item);
+                            const lineTotal = App.calcItemTotal(item);
+                            const unitLabel = item.unitLabel || item.unit || 'ชิ้น';
+                            return `
+                                <div style="border-bottom:1px dotted #e2e8f0; padding-bottom:6px;">
+                                    <div style="display:flex; justify-content:space-between; font-weight:800; font-size:15px;">
+                                        <span>${idx + 1}. ${Utils.escapeHTML(item.name)}</span>
+                                        <span>฿${Utils.formatCurrency(lineTotal)}</span>
+                                    </div>
+                                    <div style="display:flex; justify-content:space-between; font-size:13px; color:#475569; margin-top:2px;">
+                                        <span>รอยจด: <strong>${Utils.escapeHTML(expr)}</strong></span>
+                                        <span>รวม ${item.qty} ${Utils.escapeHTML(unitLabel)} × ฿${Utils.formatCurrency(item.price)}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('') || '<div style="text-align:center; color:#94a3b8; padding:16px;">ไม่มีรายการ</div>'}
+                    </div>
+
+                    <div style="border-top:2px solid #0f172a; padding-top:10px; display:flex; justify-content:space-between; align-items:center; font-size:22px; font-weight:900;">
+                        <span>ยอดรวมสุทธิ</span>
+                        <span style="color:#15803d;">฿${Utils.formatCurrency(billTotal)}</span>
+                    </div>
+
+                    ${settings.qrCode ? `
+                        <div style="text-align:center; margin-top:12px; padding-top:10px; border-top:1px dashed #cbd5e1;">
+                            <img src="${settings.qrCode}" style="max-width:150px; max-height:150px; object-fit:contain;" alt="QR PromptPay">
+                            <div style="font-size:12px; color:#475569;">สแกน QR เพื่อชำระเงิน</div>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
+                    <button type="button" class="primary-btn" onclick="App.printTableOrderReceipt(${table.id})" style="background:#0f172a; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px;">
+                        <span class="material-symbols-rounded">print</span> พิมพ์ใบออเดอร์/บิล
+                    </button>
+                    <button type="button" class="primary-btn" onclick="App.exportTableReceiptImage(${table.id})" style="background:#7c3aed; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px;">
+                        <span class="material-symbols-rounded">image</span> บันทึก/แชร์เป็นภาพ
+                    </button>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <button type="button" class="secondary-btn" onclick="App.showTableDetailsModal(DB.getTables().find(t=>t.id===${table.id}), DB.getParkedCarts().find(b=>b.id==='${bill.id}'))" style="display:flex; align-items:center; justify-content:center; gap:5px;">
+                        <span class="material-symbols-rounded">edit_note</span> กลับไปจดเพิ่ม
+                    </button>
+                    <button type="button" class="primary-btn" onclick="App.checkoutTableDirectly(${table.id})" style="background:#16a34a; display:flex; align-items:center; justify-content:center; gap:5px;">
+                        <span class="material-symbols-rounded">payments</span> รับชำระเงิน (ปิดโต๊ะ)
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    printTableOrderReceipt: (tableId) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const items = (bill.items || []).map(it => {
+            App.normalizeTableItemAdditions(it, bill.timestamp);
+            const expr = App.formatTableTallyExpression(it);
+            return {
+                ...it,
+                name: it.additions.length > 1 ? `${it.name} (${expr})` : it.name
+            };
+        });
+        const total = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+        App.printReceipt({
+            billId: `${bill.id} (${bill.note || table.name})`,
+            date: new Date().toISOString(),
+            items,
+            total,
+            received: total,
+            change: 0
+        });
+    },
+
+    exportTableReceiptImage: async (tableId) => {
+        const session = App._ensureTableBillSession(tableId);
+        if (!session) return;
+        const { table, bill } = session;
+        const settings = DB.getSettings();
+        const items = (bill.items || []).map(it => {
+            App.normalizeTableItemAdditions(it, bill.timestamp);
+            return it;
+        });
+        const billTotal = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
+        const tableTitle = bill.note || table.name;
+        const nowStr = new Date().toLocaleString('th-TH');
+
+        // Render crisp handwritten-style receipt onto an HTML5 Canvas
+        const width = 640;
+        const rowHeight = 66;
+        const headerHeight = 185;
+        const footerHeight = 120;
+        const height = headerHeight + Math.max(1, items.length) * rowHeight + footerHeight;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        // Paper background
+        ctx.fillStyle = '#fffdf7';
+        ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = '#d4c5a9';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(10, 10, width - 20, height - 20);
+
+        // Header
+        ctx.fillStyle = '#0f172a';
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.fillText(settings.storeName || 'ใบสรุปรายการโต๊ะ', width / 2, 56);
+
+        ctx.fillStyle = '#b45309';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.fillText(`โต๊ะ: ${tableTitle}`, width / 2, 102);
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = '18px sans-serif';
+        ctx.fillText(`บิล: ${bill.id} • ${nowStr}`, width / 2, 138);
+
+        // Divider
+        ctx.beginPath();
+        ctx.setLineDash([8, 6]);
+        ctx.moveTo(30, 160);
+        ctx.lineTo(width - 30, 160);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Items
+        let y = 200;
+        items.forEach((item, idx) => {
+            const expr = App.formatTableTallyExpression(item);
+            const lineTotal = App.calcItemTotal(item);
+            const unitLabel = item.unitLabel || item.unit || 'ชิ้น';
+
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 22px sans-serif';
+            ctx.fillText(`${idx + 1}. ${item.name}`, 34, y);
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 22px sans-serif';
+            ctx.fillText(`฿${Utils.formatCurrency(lineTotal)}`, width - 34, y);
+
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#b45309';
+            ctx.font = 'bold 19px sans-serif';
+            ctx.fillText(`   จด: ${expr}`, 34, y + 28);
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#475569';
+            ctx.font = '18px sans-serif';
+            ctx.fillText(`รวม ${item.qty} ${unitLabel} × ฿${Utils.formatCurrency(item.price)}`, width - 34, y + 28);
+
+            y += rowHeight;
+        });
+
+        // Total Divider
+        ctx.beginPath();
+        ctx.moveTo(30, y - 16);
+        ctx.lineTo(width - 30, y - 16);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.fillText('ยอดรวมสุทธิ', 34, y + 28);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#15803d';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.fillText(`฿${Utils.formatCurrency(billTotal)}`, width - 34, y + 28);
+
+        canvas.toBlob(async (blob) => {
+            if (!blob) return;
+            const fileName = `bill-${tableTitle.replace(/\s+/g, '_')}-${Date.now()}.png`;
+            const file = new File([blob], fileName, { type: 'image/png' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: `บิลโต๊ะ ${tableTitle}`,
+                        text: `สรุปยอด ${tableTitle}: ฿${Utils.formatCurrency(billTotal)}`,
+                        files: [file]
+                    });
+                    return;
+                } catch (_) {}
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+        }, 'image/png');
     },
 
     loadTableAndGoToPos: async (tableId) => {
