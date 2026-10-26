@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.62 (26/10/2026)', // Soundboard / Effect Key Pad style grid for table quick items
+    VERSION: '0.99.63 (26/10/2026)', // Move delivery/advance order button to Delivery section header
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -6565,9 +6565,6 @@ const App = {
                     <button class="secondary-btn" onclick="App.renderView('customers')" style="display:flex; align-items:center; gap:5px; padding:8px 12px;">
                         <span class="material-symbols-rounded">contacts</span> ลูกค้า/ประวัติ
                     </button>
-                    <button class="primary-btn" onclick="App.openNewDeliveryModal()" style="display:flex; align-items:center; gap:5px; padding:8px 15px;">
-                        <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง/ล่วงหน้า
-                    </button>
                 </div>
             </div>
             
@@ -6617,9 +6614,14 @@ const App = {
 
             <!-- Delivery Section -->
             <div style="margin-top: 30px;">
-                <h3 style="margin-bottom:15px; display:flex; align-items:center; gap:5px; color:#e65100;">
-                    <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง / นัดรับ (${deliveryBills.length})
-                </h3>
+                <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin-bottom:15px;">
+                    <h3 style="margin:0; display:flex; align-items:center; gap:5px; color:#e65100;">
+                        <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง / นัดรับ (${deliveryBills.length})
+                    </h3>
+                    <button class="primary-btn" onclick="App.openNewDeliveryModal()" style="display:flex; align-items:center; gap:5px; padding:8px 15px;">
+                        <span class="material-symbols-rounded">two_wheeler</span> ออเดอร์ส่ง/ล่วงหน้า
+                    </button>
+                </div>
                 ${deliveryBills.length === 0 ? '<div style="text-align:center; padding:20px; color:#999; border:1px dashed #ddd; border-radius:8px;">ไม่มีออเดอร์จัดส่งในขณะนี้</div>' : ''}
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${deliveryBills.map(bill => {
