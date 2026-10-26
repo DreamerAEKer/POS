@@ -266,7 +266,8 @@ const DB = {
         discount: Number(item.discount || 0),
         finalLineTotal: item.finalLineTotal === undefined ? null : Number(item.finalLineTotal),
         packSize: item.packSize || null,
-        unitLabel: item.unitLabel || ''
+        unitLabel: item.unitLabel || '',
+        ...(Array.isArray(item.additions) ? { additions: item.additions } : {})
     })),
     saveSharedRecord: async (key, collection, record) => {
         const now = Date.now();
@@ -802,7 +803,7 @@ const DB = {
         return DB.safeGet('store_parked_trash', []); // New Key
     },
 
-    parkCart: (cartItems, note = '', customTimestamp = null, customId = null, deliveryTime = null, deliveryDetails = null) => {
+    parkCart: (cartItems, note = '', customTimestamp = null, customId = null, deliveryTime = null, deliveryDetails = null, extraData = null) => {
         const parked = DB.getParkedCarts();
 
         const existingIndex = customId ? parked.findIndex(p => p.id === customId) : -1;
@@ -815,6 +816,7 @@ const DB = {
                 note: note || parked[existingIndex].note,
                 deliveryTime: deliveryTime || parked[existingIndex].deliveryTime,
                 deliveryDetails: deliveryDetails || parked[existingIndex].deliveryDetails,
+                ...(extraData && typeof extraData === 'object' ? extraData : {}),
                 items: cartItems
             };
         } else {
@@ -844,6 +846,7 @@ const DB = {
                 note: note,
                 deliveryTime: deliveryTime,
                 deliveryDetails: deliveryDetails,
+                ...(extraData && typeof extraData === 'object' ? extraData : {}),
                 items: cartItems
             });
         }

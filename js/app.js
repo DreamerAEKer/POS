@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.60 (26/10/2026)', // Handwritten table bill pad with timestamped tally (1+1+2), row calc, print & image export
+    VERSION: '0.99.61 (26/10/2026)', // Ask confirmation before deleting table items and keep full deletion history
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -5996,7 +5996,10 @@ const App = {
 
                 const close = () => {
                     modal.classList.add('hidden');
-                    overlay.classList.add('hidden');
+                    const otherModals = Array.from(document.querySelectorAll('.modal:not(#confirmation-modal)')).some(m => !m.classList.contains('hidden'));
+                    if (!otherModals) {
+                        overlay.classList.add('hidden');
+                    }
                     resolve(true);
                 };
 
@@ -7002,28 +7005,32 @@ const App = {
             item.additions = [{
                 qty: Math.max(1, Number(item.qty) || 1),
                 at: item.addedAt || fallbackAt,
-                unit
+                unit,
+                deleted: false,
+                deletedAt: null
             }];
         } else {
             item.additions = item.additions
                 .map(entry => ({
                     qty: Number(entry.qty) || 0,
                     at: entry.at || fallbackAt,
-                    unit: entry.unit || unit
+                    unit: entry.unit || unit,
+                    deleted: Boolean(entry.deleted),
+                    deletedAt: entry.deletedAt || null
                 }))
                 .filter(entry => entry.qty > 0);
         }
-        const sumQty = item.additions.reduce((sum, entry) => sum + entry.qty, 0);
-        if (sumQty > 0) {
-            item.qty = sumQty;
-        }
+        const activeSumQty = item.additions
+            .filter(entry => !entry.deleted)
+            .reduce((sum, entry) => sum + entry.qty, 0);
+        item.qty = activeSumQty;
         return item.additions;
     },
 
     formatTableTallyExpression: (item) => {
         if (!item) return '0';
-        const additions = App.normalizeTableItemAdditions(item);
-        if (!additions.length) return String(item.qty || 0);
+        const additions = App.normalizeTableItemAdditions(item).filter(entry => !entry.deleted);
+        if (!additions.length) return '0';
         const unit = (additions[0].unit || item.unitLabel || item.unit || '').trim();
         const showUnitOnFirst = unit && !['ชิ้น', 'อัน'].includes(unit);
         return additions.map((entry, idx) => {
@@ -7045,13 +7052,17 @@ const App = {
             const timestamp = Date.now();
             table.billId = newBillId;
             DB.saveTables(tables);
-            DB.parkCart([], table.name, timestamp, newBillId);
+            DB.parkCart([], table.name, timestamp, newBillId, null, null, { deletionLog: [] });
             bill = DB.getParkedCarts().find(b => b.id === newBillId) || {
                 id: newBillId,
                 note: table.name,
                 timestamp,
-                items: []
+                items: [],
+                deletionLog: []
             };
+        }
+        if (!Array.isArray(bill.deletionLog)) {
+            bill.deletionLog = [];
         }
         bill.items = (bill.items || []).map(it => {
             App.normalizeTableItemAdditions(it, bill.timestamp);
@@ -7061,7 +7072,15 @@ const App = {
     },
 
     _saveTableBillSession: (tableId, bill) => {
-        DB.parkCart(bill.items, bill.note || '', bill.timestamp, bill.id, bill.deliveryTime, bill.deliveryDetails);
+        DB.parkCart(
+            bill.items,
+            bill.note || '',
+            bill.timestamp,
+            bill.id,
+            bill.deliveryTime,
+            bill.deliveryDetails,
+            { deletionLog: Array.isArray(bill.deletionLog) ? bill.deletionLog : [] }
+        );
         if (App.state.activeBill && App.state.activeBill.id === bill.id) {
             App.state.cart = JSON.parse(JSON.stringify(bill.items));
             App.state.activeBill.note = bill.note;
@@ -7116,13 +7135,13 @@ const App = {
             const existing = bill.items.find(i => String(i.id) === String(cartItem.id) || (i.name === cartItem.name && Number(i.price) === Number(cartItem.price)));
             if (existing) {
                 App.normalizeTableItemAdditions(existing, bill.timestamp);
-                existing.additions.push({ qty: addQty, at: now, unit });
-                existing.qty = existing.additions.reduce((s, e) => s + e.qty, 0);
+                existing.additions.push({ qty: addQty, at: now, unit, deleted: false, deletedAt: null });
+                existing.qty = existing.additions.filter(e => !e.deleted).reduce((s, e) => s + e.qty, 0);
             } else {
                 bill.items.push({
                     ...cartItem,
                     qty: addQty,
-                    additions: [{ qty: addQty, at: now, unit }]
+                    additions: [{ qty: addQty, at: now, unit, deleted: false, deletedAt: null }]
                 });
             }
         });
@@ -7178,30 +7197,88 @@ const App = {
         item.additions.push({
             qty: qtyToAdd,
             at: Date.now(),
-            unit: item.unitLabel || item.unit || ''
+            unit: item.unitLabel || item.unit || '',
+            deleted: false,
+            deletedAt: null
         });
-        item.qty = item.additions.reduce((sum, e) => sum + e.qty, 0);
+        item.qty = item.additions.filter(e => !e.deleted).reduce((sum, e) => sum + e.qty, 0);
         App._saveTableBillSession(table.id, bill);
         App.showTableDetailsModal(table, bill);
     },
 
-    removeTableAdditionEntry: async (tableId, itemIndex, additionIndex) => {
+    removeTableAdditionEntry: async (tableId, itemIndex, additionIndex = -1) => {
         const session = App._ensureTableBillSession(tableId);
         if (!session) return;
         const { table, bill } = session;
         const item = bill.items[itemIndex];
         if (!item) return;
         App.normalizeTableItemAdditions(item, bill.timestamp);
-        const target = item.additions[additionIndex];
-        if (!target) return;
 
-        if (item.additions.length === 1) {
-            if (!await App.confirm(`ลบรายการ "${item.name}" ออกจากบิลโต๊ะนี้ใช่หรือไม่?`)) return;
+        let targetIdx = Number(additionIndex);
+        if (!Number.isInteger(targetIdx) || targetIdx < 0) {
+            for (let k = item.additions.length - 1; k >= 0; k--) {
+                if (!item.additions[k].deleted) {
+                    targetIdx = k;
+                    break;
+                }
+            }
+        }
+
+        const target = item.additions[targetIdx];
+        if (!target || target.deleted) return;
+
+        const unitLabel = target.unit || item.unitLabel || item.unit || 'ชิ้น';
+        const addedTimeStr = new Date(target.at || bill.timestamp || Date.now()).toLocaleString('th-TH', {
+            day: '2-digit', month: '2-digit', year: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        const activeAdditions = item.additions.filter(e => !e.deleted);
+        const isLastActive = activeAdditions.length <= 1;
+
+        const confirmMsg = isLastActive
+            ? `ยืนยันการลบรายการ?
+สินค้า: ${item.name}
+รายการที่จะลบ: ครั้งที่ ${targetIdx + 1} (+${target.qty} ${unitLabel})
+สั่งเมื่อ: ${addedTimeStr} น.
+
+(เนื่องจากเป็นยอดสุดท้ายของรายการนี้ ระบบจะนำออกจากยอดคิดเงิน แต่จะยังคงเก็บประวัติการลบไว้ให้ตรวจสอบ)`
+            : `ยืนยันการลบรายการ?
+สินค้า: ${item.name}
+รายการที่จะลบ: ครั้งที่ ${targetIdx + 1} (+${target.qty} ${unitLabel})
+สั่งเมื่อ: ${addedTimeStr} น.
+
+(ระบบจะบันทึกเวลาที่ลบไว้ในประวัติของรายการนี้)`;
+
+        const confirmed = await App.confirm(confirmMsg, 'ยืนยันการลบรายการ');
+        if (!confirmed) return;
+
+        const deletedAt = Date.now();
+        target.deleted = true;
+        target.deletedAt = deletedAt;
+
+        if (!Array.isArray(bill.deletionLog)) bill.deletionLog = [];
+        bill.deletionLog.push({
+            id: 'DEL-' + deletedAt + '-' + Math.random().toString(36).slice(2, 6),
+            itemId: item.id,
+            itemName: item.name,
+            qty: target.qty,
+            unit: unitLabel,
+            price: Number(item.price) || 0,
+            additionOrder: targetIdx + 1,
+            addedAt: target.at || bill.timestamp || deletedAt,
+            deletedAt
+        });
+
+        const remainingActive = item.additions.filter(e => !e.deleted);
+        item.qty = remainingActive.reduce((sum, e) => sum + e.qty, 0);
+
+        if (remainingActive.length === 0) {
             bill.items.splice(itemIndex, 1);
         } else {
-            item.additions.splice(additionIndex, 1);
-            item.qty = item.additions.reduce((sum, e) => sum + e.qty, 0);
+            App._tablePadState ||= { tableId: table.id, expandedTimeRows: {}, calculatedRows: {} };
+            App._tablePadState.expandedTimeRows[itemIndex] = true;
         }
+
         App._saveTableBillSession(table.id, bill);
         App.showTableDetailsModal(table, bill);
     },
@@ -7218,13 +7295,13 @@ const App = {
         const existing = bill.items.find(i => String(i.id) === String(product.id));
         if (existing) {
             App.normalizeTableItemAdditions(existing, bill.timestamp);
-            existing.additions.push({ qty: 1, at: now, unit });
-            existing.qty = existing.additions.reduce((sum, e) => sum + e.qty, 0);
+            existing.additions.push({ qty: 1, at: now, unit, deleted: false, deletedAt: null });
+            existing.qty = existing.additions.filter(e => !e.deleted).reduce((sum, e) => sum + e.qty, 0);
         } else {
             bill.items.push({
                 ...product,
                 qty: 1,
-                additions: [{ qty: 1, at: now, unit }]
+                additions: [{ qty: 1, at: now, unit, deleted: false, deletedAt: null }]
             });
         }
         App._saveTableBillSession(table.id, bill);
@@ -7257,8 +7334,8 @@ const App = {
             App.normalizeTableItemAdditions(existing, bill.timestamp);
             if (price > 0) existing.price = price;
             if (unit) existing.unitLabel = unit;
-            existing.additions.push({ qty, at: now, unit: unit || existing.unitLabel || '' });
-            existing.qty = existing.additions.reduce((sum, e) => sum + e.qty, 0);
+            existing.additions.push({ qty, at: now, unit: unit || existing.unitLabel || '', deleted: false, deletedAt: null });
+            existing.qty = existing.additions.filter(e => !e.deleted).reduce((sum, e) => sum + e.qty, 0);
         } else {
             bill.items.push({
                 id: 'TBL-' + now + '-' + Math.random().toString(36).slice(2, 6),
@@ -7267,7 +7344,7 @@ const App = {
                 qty,
                 unitLabel: unit || 'ชิ้น',
                 isQuick: true,
-                additions: [{ qty, at: now, unit: unit || '' }]
+                additions: [{ qty, at: now, unit: unit || '', deleted: false, deletedAt: null }]
             });
         }
 
@@ -7327,7 +7404,6 @@ const App = {
     _renderTableQuickChipsHtml: (tableId, query = '') => {
         const q = String(query || '').trim().toLowerCase();
         const allProducts = App.state.products || [];
-        // Prioritize familiar table/drinking items (น้ำแข็ง, แก้ว, โซดา, เบียร์, เหล้า, น้ำ, กับแกล้ม) or matching query
         const tableKeywords = ['น้ำแข็ง', 'แก้ว', 'โซดา', 'เบียร์', 'เหล้า', 'สิงห์', 'ช้าง', 'ลีโอ', 'หงส์', 'รีเจนซี่', 'แสงโสม', 'โค้ก', 'น้ำเปล่า', 'มาม่า', 'ถั่ว', 'กับแกล้ม'];
         let candidates = allProducts.filter(p => {
             if (!q) return true;
@@ -7370,6 +7446,7 @@ const App = {
             App.normalizeTableItemAdditions(it, bill.timestamp);
             return it;
         });
+        const deletionLog = Array.isArray(bill.deletionLog) ? bill.deletionLog : [];
 
         const totalQty = items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
         const billTotal = items.reduce((sum, item) => sum + App.calcItemTotal(item), 0);
@@ -7405,24 +7482,43 @@ const App = {
             const isCalcShown = !!state.calculatedRows[idx] || !!state.allCalculated;
             const lineTotal = App.calcItemTotal(item);
             const unitLabel = item.unitLabel || item.unit || 'ชิ้น';
+            const deletedEntriesCount = item.additions.filter(e => e.deleted).length;
 
             const timeLogHtml = isTimeExpanded ? `
                 <div class="tally-time-log">
-                    <div style="font-weight:800; color:#0f172a; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
-                        <span>🕒 ประวัติเวลาที่สั่งเพิ่ม (${Utils.escapeHTML(item.name)})</span>
-                        <span style="font-size:12px; color:#64748b;">รวม ${item.qty} ${Utils.escapeHTML(unitLabel)}</span>
+                    <div style="font-weight:800; color:#0f172a; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                        <span>🕒 ประวัติการสั่งเพิ่ม / ลบ (${Utils.escapeHTML(item.name)})</span>
+                        <span style="font-size:12px; color:#64748b;">คงเหลือ ${item.qty} ${Utils.escapeHTML(unitLabel)}${deletedEntriesCount > 0 ? ` • ลบไป ${deletedEntriesCount} ครั้ง` : ''}</span>
                     </div>
                     ${item.additions.map((entry, aIdx) => {
                         const dtStr = new Date(entry.at || bill.timestamp || Date.now()).toLocaleString('th-TH', {
                             day: '2-digit', month: '2-digit', year: '2-digit',
                             hour: '2-digit', minute: '2-digit', second: '2-digit'
                         });
+                        if (entry.deleted) {
+                            const delStr = new Date(entry.deletedAt || Date.now()).toLocaleString('th-TH', {
+                                day: '2-digit', month: '2-digit', year: '2-digit',
+                                hour: '2-digit', minute: '2-digit', second: '2-digit'
+                            });
+                            return `
+                                <div class="tally-time-entry" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; background:#fff1f2; border-radius:6px; padding:6px 8px; margin:3px 0; border:1px dashed #fda4af;">
+                                    <span style="color:#9f1239;">
+                                        ครั้งที่ ${aIdx + 1}: <s style="color:#be123c; font-weight:800;">+${entry.qty} ${Utils.escapeHTML(entry.unit || unitLabel)}</s>
+                                        <span style="background:#e11d48; color:#fff; font-size:11px; padding:1px 6px; border-radius:4px; margin-left:4px; font-weight:700;">ลบแล้ว</span>
+                                    </span>
+                                    <span style="display:flex; flex-direction:column; align-items:flex-end; font-size:11px; line-height:1.35; margin-left:auto;">
+                                        <span style="color:#64748b;">📅 สั่งเมื่อ: ${dtStr} น.</span>
+                                        <span style="color:#be123c; font-weight:700;">🗑️ ลบเมื่อ: ${delStr} น.</span>
+                                    </span>
+                                </div>
+                            `;
+                        }
                         return `
-                            <div class="tally-time-entry">
+                            <div class="tally-time-entry" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                                 <span>ครั้งที่ ${aIdx + 1}: <strong style="color:#15803d;">+${entry.qty} ${Utils.escapeHTML(entry.unit || unitLabel)}</strong></span>
-                                <span style="display:inline-flex; align-items:center; gap:8px;">
-                                    <small style="color:#475569;">📅 ${dtStr} น.</small>
-                                    <button type="button" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${aIdx})" style="background:#fee2e2; color:#b91c1c; border:none; border-radius:6px; padding:2px 7px; font-size:12px; font-weight:700; cursor:pointer;" title="ลบรายการรอบนี้">ลบ</button>
+                                <span style="display:inline-flex; align-items:center; gap:8px; margin-left:auto;">
+                                    <small style="color:#475569; white-space:nowrap;">📅 ${dtStr} น.</small>
+                                    <button type="button" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${aIdx})" style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:6px; padding:3px 9px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; flex-shrink:0;" title="ลบรายการรอบนี้ (มีถามยืนยันก่อน)">ลบ</button>
                                 </span>
                             </div>
                         `;
@@ -7439,8 +7535,9 @@ const App = {
                                 (@฿${Utils.formatCurrency(item.price)}/${Utils.escapeHTML(unitLabel)})
                             </button>
                         </div>
-                        <button type="button" class="tally-expr-btn" onclick="App.toggleTableRowTimeLog(${table.id}, ${idx})" title="แตะเพื่อดูว่าเพิ่มสินค้าเข้าเวลาไหน วันใด">
+                        <button type="button" class="tally-expr-btn" onclick="App.toggleTableRowTimeLog(${table.id}, ${idx})" title="แตะเพื่อดูประวัติเวลาที่สั่งเพิ่มและเวลาที่ลบ">
                             <span>${Utils.escapeHTML(tallyExpr)}</span>
+                            ${deletedEntriesCount > 0 ? `<span style="font-size:11px; background:#fee2e2; color:#b91c1c; padding:1px 6px; border-radius:99px; font-weight:800;">ประวัติลบ ${deletedEntriesCount}</span>` : ''}
                             <span class="material-symbols-rounded" style="font-size:17px; color:#92400e;">schedule</span>
                         </button>
                     </div>
@@ -7449,7 +7546,7 @@ const App = {
                             <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty(${table.id}, ${idx}, 1, false)">+1</button>
                             <button type="button" class="tally-plus-btn add-green" onclick="App.addTableItemQty(${table.id}, ${idx}, 2, false)">+2</button>
                             <button type="button" class="tally-plus-btn" onclick="App.addTableItemQty(${table.id}, ${idx}, 1, true)">+ระบุ</button>
-                            <button type="button" class="tally-plus-btn" style="color:#b91c1c; background:#fef2f2; border-color:#fecaca;" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, ${item.additions.length - 1})" title="ลบครั้งล่าสุด">−ลบ</button>
+                            <button type="button" class="tally-plus-btn" style="color:#b91c1c; background:#fef2f2; border-color:#fecaca;" onclick="App.removeTableAdditionEntry(${table.id}, ${idx}, -1)" title="ลบครั้งล่าสุด (ถามยืนยันก่อน)">−ลบ</button>
                         </div>
                         <button type="button" class="tally-calc-btn ${isCalcShown ? 'calculated' : ''}" onclick="App.toggleTableRowCalculation(${table.id}, ${idx})">
                             <span class="material-symbols-rounded" style="font-size:17px;">calculate</span>
@@ -7468,6 +7565,39 @@ const App = {
                 <small>แตะปุ่มสินค้าสั่งบ่อยด้านบน หรือพิมพ์จดรายการด่วนได้เลยครับ</small>
             </div>
         `;
+
+        const deletionLogHtml = deletionLog.length > 0 ? `
+            <div style="background:#fff1f2; border:1.5px dashed #f43f5e; border-radius:12px; padding:10px 12px; margin-bottom:14px;">
+                <div style="font-size:13px; font-weight:800; color:#9f1239; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>🗑️ ประวัติการลบรายการในโต๊ะนี้ (${deletionLog.length} ครั้ง)</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;">
+                    ${deletionLog.slice().reverse().map((d, dIdx) => {
+                        const addStr = new Date(d.addedAt || bill.timestamp || Date.now()).toLocaleString('th-TH', {
+                            day: '2-digit', month: '2-digit', year: '2-digit',
+                            hour: '2-digit', minute: '2-digit', second: '2-digit'
+                        });
+                        const delStr = new Date(d.deletedAt || Date.now()).toLocaleString('th-TH', {
+                            day: '2-digit', month: '2-digit', year: '2-digit',
+                            hour: '2-digit', minute: '2-digit', second: '2-digit'
+                        });
+                        return `
+                            <div style="background:#fff; border:1px solid #fecdd3; border-radius:8px; padding:6px 10px; font-size:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                                <div>
+                                    <strong style="color:#be123c;">${Utils.escapeHTML(d.itemName)}</strong>
+                                    <span style="color:#475569;">(ครั้งที่ ${d.additionOrder || '-'})</span>
+                                    <span style="background:#fee2e2; color:#b91c1c; font-weight:800; padding:1px 6px; border-radius:4px; margin-left:4px;">−${d.qty} ${Utils.escapeHTML(d.unit || 'ชิ้น')}</span>
+                                </div>
+                                <div style="font-size:11px; color:#64748b; text-align:right; margin-left:auto;">
+                                    <div>📅 สั่งเมื่อ: ${addStr} น.</div>
+                                    <div style="color:#be123c; font-weight:700;">🗑️ ลบเมื่อ: ${delStr} น.</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        ` : '';
 
         modal.innerHTML = `
             <div class="table-pad-header">
@@ -7513,7 +7643,7 @@ const App = {
 
                 <!-- Handwritten Bill Sheet -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-size:13px; font-weight:800; color:#57534e;">📋 รายการที่จดไว้ (แตะตัวเลขสีเหลืองเพื่อดูเวลาสั่ง)</span>
+                    <span style="font-size:13px; font-weight:800; color:#57534e;">📋 รายการที่จดไว้ (แตะตัวเลขสีเหลืองเพื่อดูเวลาสั่ง/ลบ)</span>
                     <button type="button" class="tally-calc-btn ${state.allCalculated ? 'calculated' : ''}" onclick="App.calculateAllTableRows(${table.id})">
                         <span class="material-symbols-rounded" style="font-size:16px;">calculate</span>
                         ${state.allCalculated ? 'ซ่อนผลคำนวณ' : 'คำนวณทุกแถว & รวม'}
@@ -7523,6 +7653,8 @@ const App = {
                 <div class="handwritten-sheet">
                     ${rowsHtml}
                 </div>
+
+                ${deletionLogHtml}
 
                 <!-- Total Bar -->
                 <div style="background:#fef3c7; border:2px solid #f59e0b; border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
