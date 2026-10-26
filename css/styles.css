@@ -1722,8 +1722,8 @@ button {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 15px;
-    padding: 20px;
-    height: 100%;
+    padding: 8px 4px;
+    height: auto;
 }
 
 .table-card {

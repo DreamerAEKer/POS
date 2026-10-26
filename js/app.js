@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.58 (26/10/2026)', // Fix rapid duplicate camera scan loop in price-check mode
+    VERSION: '0.99.59 (26/10/2026)', // Fix tables-grid overlapping with delivery section on mobile
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -6552,9 +6552,9 @@ const App = {
         const deliveryBills = parkedBills.filter(b => b.deliveryTime);
 
         container.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin-bottom:15px;">
                 <h2 style="margin:0;">จัดการโต๊ะ (Dine-in)</h2>
-                <div style="display:flex; gap:10px;">
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
                     <button class="secondary-btn" onclick="App.renderView('customers')" style="display:flex; align-items:center; gap:5px; padding:8px 12px;">
                         <span class="material-symbols-rounded">contacts</span> ลูกค้า/ประวัติ
                     </button>
