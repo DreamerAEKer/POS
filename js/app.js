@@ -1033,7 +1033,7 @@ const App = {
         await App.alert(`โหลดบิล ${billId} เรียบร้อย\nแก้ไขรายการแล้วกด "ชำระเงิน" เพื่อบันทึกทับบิลเดิม`);
     },
 
-    VERSION: '0.99.64 (26/10/2026)', // Move delivery/advance order button to Delivery section header
+    VERSION: '0.99.65 (26/10/2026)', // Move delivery/advance order button to Delivery section header
 
     renderUserSession: (user, syncState = 'synced') => {
         const bar = document.getElementById('user-session-bar');
@@ -4521,7 +4521,7 @@ const App = {
             <div class="camera-scan-result-body">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div class="camera-scan-result-state">
-                        <span class="camera-scan-result-check material-symbols-rounded">${addedToCart ? 'check_circle' : 'visibility'}</span>
+                        <span class="camera-scan-result-check material-symbols-rounded">${addedToCart ? 'check_circle' : 'qr_code_scanner'}</span>
                         ${addedToCart ? `เพิ่มเข้าบิลแล้ว +${addedQty}` : 'พบสินค้าในระบบ'}
                     </div>
                     <button type="button" class="voice-price-toggle-inline" onclick="event.stopPropagation(); App.toggleVoicePriceSpeech();" title="เปิด/ปิดเสียงอ่านราคา" style="background:rgba(0,0,0,0.06); border:none; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#475569;">
@@ -8547,7 +8547,7 @@ const App = {
 
                     <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
                         <button type="button" class="secondary-btn" onclick="App.viewHistoryBillDetail('${rec.id}')" style="padding:5px 10px; font-size:12px; display:flex; align-items:center; gap:4px;">
-                            <span class="material-symbols-rounded" style="font-size:16px;">visibility</span> ดูเวลาจดรายครั้ง / ใบเสร็จ
+                            <span class="material-symbols-rounded" style="font-size:16px;">receipt_long</span> ดูเวลาจดรายครั้ง / ใบเสร็จ
                         </button>
                         <button type="button" class="primary-btn" onclick="App.repeatOrderFromHistory('${rec.id}')" style="padding:5px 12px; font-size:12px; background:#0f172a; display:flex; align-items:center; gap:4px;">
                             <span class="material-symbols-rounded" style="font-size:16px;">replay</span> สั่งซ้ำ / เปิดบิลใหม่จากประวัตินี้
